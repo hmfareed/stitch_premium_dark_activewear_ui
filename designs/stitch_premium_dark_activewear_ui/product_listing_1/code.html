@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #000000;
+        }
+        ::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "on-secondary-fixed": "#370e00",
+                        "on-tertiary-container": "#656464",
+                        "on-secondary": "#5a1b00",
+                        "on-tertiary": "#313030",
+                        "primary-fixed-dim": "#abd600",
+                        "tertiary": "#ffffff",
+                        "background": "#000000",
+                        "on-primary": "#283500",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "surface-container": "#121212",
+                        "surface-tint": "#abd600",
+                        "primary-fixed": "#c3f400",
+                        "surface": "#131313",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-dim": "#131313",
+                        "primary-container": "#c3f400",
+                        "surface-bright": "#393939",
+                        "on-background": "#e2e2e2",
+                        "secondary": "#ffb59a",
+                        "surface-variant": "#1A1A1A",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "surface-container-low": "#1b1b1b",
+                        "error-container": "#93000a",
+                        "outline": "#8e9379",
+                        "surface-container-lowest": "#0e0e0e",
+                        "secondary-fixed": "#ffdbce",
+                        "on-secondary-container": "#531900",
+                        "surface-container-high": "#2a2a2a",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-container": "#e5e2e1",
+                        "primary": "#ffffff",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353535",
+                        "on-surface-variant": "#c4c9ac",
+                        "inverse-on-surface": "#303030",
+                        "tertiary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e2e2e2",
+                        "secondary-container": "#ff5e07",
+                        "inverse-primary": "#506600",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "on-primary-fixed-variant": "#3c4d00",
+                        "on-primary-container": "#556d00",
+                        "outline-variant": "#444933",
+                        "on-primary-fixed": "#161e00",
+                        "on-surface": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "48px",
+                        "xl": "80px",
+                        "base": "8px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "xs": "4px",
+                        "gutter": "24px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Lexend"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Lexend"],
+                        "label-caps": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Lexend"],
+                        "headline-xl": ["Lexend"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-sm": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "800"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md antialiased selection:bg-primary-fixed selection:text-black">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-black border-b border-zinc-900">
+<button class="text-lime-400 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<span class="text-xl font-black text-lime-400 tracking-tighter uppercase font-lexend">APEX</span>
+<button class="text-lime-400 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+</header>
+<main class="pt-20 pb-32">
+<!-- Hero Section -->
+<section class="px-6 mb-lg">
+<h1 class="font-headline-lg text-headline-lg uppercase text-white mb-xs">Gear Up</h1>
+<p class="font-body-md text-on-surface-variant">Engineered for elite human performance.</p>
+</section>
+<!-- Category Filter -->
+<div class="sticky top-16 bg-background z-40 px-6 py-sm overflow-x-auto whitespace-nowrap flex gap-sm scrollbar-hide border-b border-zinc-900/50">
+<button class="bg-primary-fixed text-black font-label-caps text-label-caps px-md py-xs rounded-full transition-transform active:scale-95">All</button>
+<button class="border border-zinc-800 text-on-surface-variant font-label-caps text-label-caps px-md py-xs rounded-full transition-transform active:scale-95">Shoes</button>
+<button class="border border-zinc-800 text-on-surface-variant font-label-caps text-label-caps px-md py-xs rounded-full transition-transform active:scale-95">Apparel</button>
+<button class="border border-zinc-800 text-on-surface-variant font-label-caps text-label-caps px-md py-xs rounded-full transition-transform active:scale-95">Watches</button>
+<button class="border border-zinc-800 text-on-surface-variant font-label-caps text-label-caps px-md py-xs rounded-full transition-transform active:scale-95">Accessories</button>
+</div>
+<!-- Product Grid -->
+<section class="px-6 grid grid-cols-2 gap-md mt-md">
+<!-- Product 1 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="A high-performance crimson running shoe captured in a dramatic, low-angle action shot against a pitch-black studio background. The lighting is sharp and technical, highlighting the intricate texture of the knit fabric and the aerodynamic contours of the sole. A subtle glow of electric lime light reflects off the polished surface, creating a futuristic and intense atmosphere. The composition is minimalist and powerful, emphasizing elite athletic engineering." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYtUY9hPsZcoDOCMgycO9cEqxjRCq41dZZRpfEjHZ9jsOQhx67kXM8IorlG_PrsK-OsnJ_ZhrRYZnNa-RQJM98uZIAXbB-6oO4pZFFuwHYttAEc-5oG8ED0WznnHocceJkvCicH8wCMgWYYSZeRaN0ReB9EpKHqTFvH_L9zdIKzswnZYdZUM2YBS7tHTvfgR7yTkX1zjOe_uedW7GLcOw-A_9D1-S1qetYQOgbRyCUO_Re_0hFVVzRbbJ3qnNrlimOGuzYAdDojbga"/>
+<div class="absolute top-xs right-xs bg-zinc-950/80 backdrop-blur px-xs py-1 rounded">
+<span class="font-label-caps text-[10px] text-lime-400">NEW</span>
+</div>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Kinetix V1</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Pro Running</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$180.00</p>
+</div>
+<!-- Product 2 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="Modern high-compression activewear set in charcoal grey, modeled in a high-contrast industrial gym setting with dramatic shadows. The model is mid-movement, showcasing the technical stretch and seamless construction of the fabric. The overall mood is cold, focused, and professional, utilizing deep blacks and subtle metallic highlights to convey a premium fitness aesthetic. The lighting is focused and cinematic, emphasizing muscular definition and garment quality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmjcVPOMd0ycjKQw7VKxfuWcMAbxfC4Nu65oQ5k6TEwoPFpSGPGJ5qPT0LwLSUnAIyP4xNoXlo8Jxqv1P1MIH7l21VGNeyHXe1Fu_UsBw9Fd2PHPjPUh8lvpT-6yuNjusvs2cCCyIEvqiCqj68McoOCeNVFFvBGYEmeublLzjDqMQ94oQMQJGOqn5pGQnO4UPDjqwZV7J5QEGH8TQpQN-GSm75W1Y2i3a7cBXPMDpobD399WkAMe3z0DjDd69SK_sV0K3B7cpv9Kch"/>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Vortex Shell</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Elite Compression</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$125.00</p>
+</div>
+<!-- Product 3 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="A sleek, matte black fitness smartwatch with a vibrant OLED display showing heart rate metrics in electric lime green. The watch is presented on a textured dark granite surface, illuminated by a single directional light source that creates long, dramatic shadows. The aesthetic is ultra-modern and technical, focusing on the precision and durability of the device. The background is a void of pure black, making the device pop with high-end technological sophistication." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAk4gMagMyCssGZadmvHLTZuAdhMse2u5Z4LLlnl48s_vLi8S8VwvH9XlXmlsgnt-ctgFMgd0ZbwEMD9kop2iZsaxaWnvX8jNUENVLQ4OipZk8IPpauH9aoSIg_-Ch7kD4UEBUqtVbS0Y6bUx3E0mbD0oZO73vmoUmcQXuEWKxm0Q1OQ5I3Hb1CU3hqJq90URq71kzo-rM0_1e9PiwR-JcpEvOEeM-uiDMNmKG7WGNWMJcVHH7OHut-_mTpI3STgrUgVEbXMP6KwyvU"/>
+<div class="absolute top-xs right-xs bg-secondary-container px-xs py-1 rounded">
+<span class="font-label-caps text-[10px] text-white">LIMITED</span>
+</div>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Apex Chrono</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Performance Tech</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$450.00</p>
+</div>
+<!-- Product 4 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="A premium black technical training tee suspended in mid-air to show its ultra-lightweight and breathable structure. The fabric features a subtle hexagonal pattern that catches the dim, moody lighting. The setting is a minimalist architectural space with hard edges and deep shadows, reinforcing the brand's 'engineered' identity. High-contrast lighting highlights the sleek silhouettes and high-performance textile technology used in elite athletic apparel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsA9kkY4wGETe3im0oNMzddKI6w8ZtnqKVfdqmvfpQBa2uyAARTkb93GAlJJ2Ch74sxIec74ez7lrZV32RwpxoTBKH72Jy0jxAsEcPkg8JhAsCgX4mFRtZLYDaCb-cJS9bZ8BCtOFrFdWaRxaB0DZELXC9qIDY-qJFOVMTSR1aQTBtnKC1JYHQkoziNukVSGur0PJmFccbdYErnbLXl5QUppx7-TUrpyhmWdnEvgz717vmGYYpHSD5stgVutuw7tafG4_DMPokewj-"/>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Neo-Dry Tee</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Training Wear</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$65.00</p>
+</div>
+<!-- Product 5 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="A pair of vibrant neon lime green training shoes shot from a dynamic top-down perspective on a dark, wet asphalt surface. The contrast between the brilliant electric lime and the deep black pavement is striking and energetic. Water droplets on the shoes highlight their moisture-wicking properties. The overall mood is raw, intense, and ready for a high-intensity urban workout, focusing on the fusion of style and technical performance." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbgU4ffanrBAX04Hq-xRpZW2CyDLflMoC5Rdb9tv-oC8iNL2BQ0lDfXHiGgEZ3zIp1uyj4y962rjuC0HqmpRdBGw9Bbzt_t8r66nh-Y1LX_vPw3OYi701l1bagaz1Y_EDmGM5tvz0PQn2D1K9mqGiRLO6LGZEvndftF0MXbzRKRawlSwtj4SnCc80WYSW8ZJ6o_5kagz9f093XLiwSU0elOwJOr09F7nMmM_HnB3l7Bm_8_iBhlGKvZwoS4ZGwJO7br-2nG6N1J_40"/>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Volt Runner</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Urban Training</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$140.00</p>
+</div>
+<!-- Product 6 -->
+<div class="group flex flex-col">
+<div class="aspect-[4/5] bg-surface-container rounded-lg overflow-hidden border border-zinc-900 relative mb-sm group-hover:border-primary-fixed transition-colors">
+<img class="w-full h-full object-cover desaturate group-hover:desaturate-0 transition-all duration-500" data-alt="Premium technical training weights and gym equipment set in a dark, moody industrial space with floor-to-ceiling windows showing a cold city dawn. The equipment is finished in matte black with laser-etched branding. The lighting is dramatic and cinematic, creating long shadows and emphasizing the solid, engineered quality of the gear. The color palette is strictly monochromatic with deep blacks and cool greys, evoking a sense of disciplined, elite performance." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBv1jAvf95I6q1oPbp-NxOUo9Udfu2Yp8GRVCnDZ54FGbBfRRLhbRZ9qkN-QRKQ8Lrc5OLFtzTQlMminUfbRVC8p3dFqyNo25MUNcre3SfoDUm5Z-9jFWp3B4OwHFnMN_2al7r7VENZKHCb0GvDw8fJyTR4n6zkNfM9VPl7lAxOpDMtok6eUPR-9gVGD60EH-rM5iTMKlSEMjq7cZkBeUmK-yCjvWB7zpjBHsjwxFe7bjXjFVPxulfoA9qs3RwPANKUxvkbUjqMCxvB"/>
+</div>
+<h3 class="font-headline-sm text-sm uppercase text-white tracking-tight">Iron Grip 20kg</h3>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-xs">Strength Gear</p>
+<p class="font-headline-sm text-sm text-primary-fixed">$85.00</p>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-20 px-4 pb-safe bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900">
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-lime-400 bg-zinc-900/50 rounded-lg py-1 px-3 hover:text-lime-200 transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Shop</span>
+</a>
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 duration-150 relative" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_bag">shopping_bag</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Cart</span>
+<div class="absolute top-1 right-2 w-2 h-2 bg-primary-fixed rounded-full"></div>
+</a>
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Profile</span>
+</a>
+</nav>
+<!-- Contextual FAB - Search -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary-fixed text-black rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-transform z-40">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+</body></html>

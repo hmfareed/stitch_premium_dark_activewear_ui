@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>APEX | Checkout</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800&amp;family=Inter:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "on-secondary-fixed": "#370e00",
+                        "on-tertiary-container": "#656464",
+                        "on-secondary": "#5a1b00",
+                        "on-tertiary": "#313030",
+                        "primary-fixed-dim": "#abd600",
+                        "tertiary": "#ffffff",
+                        "background": "#000000",
+                        "on-primary": "#283500",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "surface-container": "#121212",
+                        "surface-tint": "#abd600",
+                        "primary-fixed": "#c3f400",
+                        "surface": "#000000",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-dim": "#131313",
+                        "primary-container": "#c3f400",
+                        "surface-bright": "#393939",
+                        "on-background": "#e2e2e2",
+                        "secondary": "#ffb59a",
+                        "surface-variant": "#1A1A1A",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "surface-container-low": "#1b1b1b",
+                        "error-container": "#93000a",
+                        "outline": "#8e9379",
+                        "surface-container-lowest": "#0e0e0e",
+                        "secondary-fixed": "#ffdbce",
+                        "on-secondary-container": "#531900",
+                        "surface-container-high": "#2a2a2a",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-container": "#e5e2e1",
+                        "primary": "#ffffff",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353535",
+                        "on-surface-variant": "#c4c9ac",
+                        "inverse-on-surface": "#303030",
+                        "tertiary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e2e2e2",
+                        "secondary-container": "#ff5e07",
+                        "inverse-primary": "#506600",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "on-primary-fixed-variant": "#3c4d00",
+                        "on-primary-container": "#556d00",
+                        "outline-variant": "#444933",
+                        "on-primary-fixed": "#161e00",
+                        "on-surface": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "48px",
+                        "xl": "80px",
+                        "base": "8px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "xs": "4px",
+                        "gutter": "24px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Lexend"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Lexend"],
+                        "label-caps": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Lexend"],
+                        "headline-xl": ["Lexend"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-sm": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "800"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #000000;
+            color: #e2e2e2;
+            -webkit-font-smoothing: antialiased;
+        }
+        .form-input-glow:focus {
+            outline: none;
+            border-color: #c3f400;
+            box-shadow: 0 4px 12px -2px rgba(195, 244, 0, 0.2);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md overflow-x-hidden">
+<!-- Header Navigation (Simplified for Transactional Focus) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-black border-b border-zinc-900">
+<button class="text-zinc-500 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">arrow_back_ios</span>
+</button>
+<div class="font-lexend uppercase tracking-widest text-sm font-bold text-lime-400">CHECKOUT</div>
+<button class="text-zinc-500 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<main class="pt-24 pb-48 px-6 max-w-md mx-auto">
+<!-- Progress Indicator -->
+<div class="flex gap-2 mb-lg">
+<div class="h-1 flex-1 bg-lime-400"></div>
+<div class="h-1 flex-1 bg-lime-400"></div>
+<div class="h-1 flex-1 bg-zinc-800"></div>
+</div>
+<!-- Section: Shipping Address -->
+<section class="mb-xl">
+<div class="flex items-center justify-between mb-md">
+<h2 class="font-headline-sm text-white uppercase tracking-tighter">01 Shipping</h2>
+<span class="text-lime-400 text-xs font-bold font-label-caps">STEP 1/2</span>
+</div>
+<div class="space-y-sm">
+<div class="relative">
+<label class="font-label-caps text-zinc-500 block mb-xs uppercase">Full Name</label>
+<input class="w-full bg-surface-container border-0 border-b-2 border-zinc-800 p-sm text-white font-body-md focus:border-lime-400 focus:ring-0 transition-colors" type="text" value="ALEX RIVERA"/>
+</div>
+<div class="relative">
+<label class="font-label-caps text-zinc-500 block mb-xs uppercase">Address Line</label>
+<input class="w-full bg-surface-container border-0 border-b-2 border-zinc-800 p-sm text-white font-body-md focus:border-lime-400 focus:ring-0 transition-colors" placeholder="STREET ADDRESS" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-sm">
+<div class="relative">
+<label class="font-label-caps text-zinc-500 block mb-xs uppercase">City</label>
+<input class="w-full bg-surface-container border-0 border-b-2 border-zinc-800 p-sm text-white font-body-md focus:border-lime-400 focus:ring-0 transition-colors" placeholder="CITY" type="text"/>
+</div>
+<div class="relative">
+<label class="font-label-caps text-zinc-500 block mb-xs uppercase">Postal Code</label>
+<input class="w-full bg-surface-container border-0 border-b-2 border-zinc-800 p-sm text-white font-body-md focus:border-lime-400 focus:ring-0 transition-colors" placeholder="00000" type="text"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Payment Method -->
+<section class="mb-xl">
+<div class="flex items-center justify-between mb-md">
+<h2 class="font-headline-sm text-white uppercase tracking-tighter">02 Payment</h2>
+<span class="text-zinc-500 text-xs font-bold font-label-caps">STEP 2/2</span>
+</div>
+<!-- Digital Wallets -->
+<div class="grid grid-cols-2 gap-sm mb-md">
+<button class="flex items-center justify-center gap-xs border border-zinc-800 p-sm rounded-lg active:scale-95 transition-transform hover:border-zinc-700">
+<span class="material-symbols-outlined text-white">account_balance_wallet</span>
+<span class="font-label-caps text-white">APPLE PAY</span>
+</button>
+<button class="flex items-center justify-center gap-xs border border-zinc-800 p-sm rounded-lg active:scale-95 transition-transform hover:border-zinc-700">
+<span class="material-symbols-outlined text-white">google_plus_reshare</span>
+<span class="font-label-caps text-white">G-PAY</span>
+</button>
+</div>
+<!-- Card Input -->
+<div class="p-md bg-surface-container border border-zinc-800 rounded-lg">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-zinc-400 uppercase">Credit Card</span>
+<span class="material-symbols-outlined text-zinc-500">credit_card</span>
+</div>
+<div class="space-y-md">
+<input class="w-full bg-transparent border-0 border-b border-zinc-800 py-xs text-white tracking-widest focus:border-lime-400 focus:ring-0 transition-colors" placeholder="CARD NUMBER" type="text"/>
+<div class="grid grid-cols-2 gap-md">
+<input class="w-full bg-transparent border-0 border-b border-zinc-800 py-xs text-white focus:border-lime-400 focus:ring-0 transition-colors" placeholder="MM/YY" type="text"/>
+<input class="w-full bg-transparent border-0 border-b border-zinc-800 py-xs text-white focus:border-lime-400 focus:ring-0 transition-colors" placeholder="CVC" type="text"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Order Items Summary -->
+<section class="mb-md">
+<h3 class="font-label-caps text-zinc-500 uppercase mb-md">Order Summary</h3>
+<div class="flex gap-md mb-md p-sm border-b border-zinc-900">
+<div class="w-20 h-24 bg-surface-container rounded-lg overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="A high-contrast studio shot of professional black performance compression leggings with electric lime reflective details. The garment is draped elegantly against a dark charcoal background with moody side-lighting that emphasizes the technical fabric texture. The aesthetic is elite and high-performance, consistent with a premium athletic brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmLVX-ELqgLrTbtXifc8jhp6byWIVKkhW5am89N8tAFf_o5_CkBhd5G5xmX77iFHdUerH1zg_VQH2vzLge1MMDCeH5SY3CA11HM6ZHtHeJazZH2DFH7cYKuSG_ls6cL9KGMfuR7WSfnDGbb1GkpAcwKlUVAfxKAvKF7Zlc5jz-uOS3_8t_pEyZTy3Eo3a_W7uwHuKbwCMhkuUYW11fLV2VTFgNCOXriRS1Tir-NxBbUuUo4zyqbUe_VBckhUgUmZeYzqXZ1KYiz2LE"/>
+</div>
+<div class="flex flex-col justify-between py-xs">
+<div>
+<div class="font-headline-sm text-sm text-white uppercase">Apex Compression Leggings</div>
+<div class="text-zinc-500 text-xs font-label-caps mt-xs">CARBON BLACK / SIZE M</div>
+</div>
+<div class="font-lexend text-lime-400 font-bold">$120.00</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Sticky Order Footer -->
+<footer class="fixed bottom-0 left-0 w-full bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900 px-6 pt-md pb-10 z-50">
+<div class="max-w-md mx-auto">
+<div class="space-y-xs mb-md">
+<div class="flex justify-between items-center">
+<span class="font-body-md text-zinc-500">Subtotal</span>
+<span class="font-lexend text-white">$120.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-md text-zinc-500">Shipping</span>
+<span class="font-lexend text-lime-400 uppercase text-xs font-bold">FREE</span>
+</div>
+<div class="flex justify-between items-center pt-xs border-t border-zinc-900 mt-xs">
+<span class="font-headline-sm text-sm text-white uppercase">Total</span>
+<span class="font-headline-sm text-lg text-lime-400 tracking-tighter">$120.00</span>
+</div>
+</div>
+<button class="w-full bg-primary-container text-black font-lexend font-bold py-sm uppercase tracking-widest rounded-lg active:scale-95 transition-transform">
+                Place Order
+            </button>
+</div>
+</footer>
+</body></html>

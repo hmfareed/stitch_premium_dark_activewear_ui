@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "on-secondary-fixed": "#370e00",
+                    "on-tertiary-container": "#656464",
+                    "on-secondary": "#5a1b00",
+                    "on-tertiary": "#313030",
+                    "primary-fixed-dim": "#abd600",
+                    "tertiary": "#ffffff",
+                    "background": "#131313",
+                    "on-primary": "#283500",
+                    "on-tertiary-fixed": "#1c1b1b",
+                    "surface-container": "#1f1f1f",
+                    "surface-tint": "#abd600",
+                    "primary-fixed": "#c3f400",
+                    "surface": "#131313",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "surface-dim": "#131313",
+                    "primary-container": "#c3f400",
+                    "surface-bright": "#393939",
+                    "on-background": "#e2e2e2",
+                    "secondary": "#ffb59a",
+                    "surface-variant": "#353535",
+                    "secondary-fixed-dim": "#ffb59a",
+                    "surface-container-low": "#1b1b1b",
+                    "error-container": "#93000a",
+                    "outline": "#8e9379",
+                    "surface-container-lowest": "#0e0e0e",
+                    "secondary-fixed": "#ffdbce",
+                    "on-secondary-container": "#531900",
+                    "surface-container-high": "#2a2a2a",
+                    "on-error-container": "#ffdad6",
+                    "tertiary-container": "#e5e2e1",
+                    "primary": "#ffffff",
+                    "on-error": "#690005",
+                    "surface-container-highest": "#353535",
+                    "on-surface-variant": "#c4c9ac",
+                    "inverse-on-surface": "#303030",
+                    "tertiary-fixed": "#e5e2e1",
+                    "inverse-surface": "#e2e2e2",
+                    "secondary-container": "#ff5e07",
+                    "inverse-primary": "#506600",
+                    "on-secondary-fixed-variant": "#802a00",
+                    "on-primary-fixed-variant": "#3c4d00",
+                    "on-primary-container": "#556d00",
+                    "outline-variant": "#444933",
+                    "on-primary-fixed": "#161e00",
+                    "on-surface": "#e2e2e2",
+                    "lime-400": "#abd600"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "lg": "48px",
+                    "xl": "80px",
+                    "base": "8px",
+                    "md": "24px",
+                    "sm": "12px",
+                    "xs": "4px",
+                    "gutter": "24px",
+                    "margin": "32px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Lexend"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Lexend"],
+                    "label-caps": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-sm": ["Lexend"],
+                    "headline-xl": ["Lexend"],
+                    "lexend": ["Lexend"]
+            },
+            "fontSize": {
+                    "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "headline-sm": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "headline-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "800"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass-effect { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.05); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-black text-on-background font-body-md selection:bg-lime-400 selection:text-black">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-black border-b border-zinc-900">
+<button class="text-lime-400 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="text-xl font-black text-lime-400 tracking-tighter font-lexend uppercase">APEX</h1>
+<button class="text-lime-400 active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined">person</span>
+</button>
+</header>
+<main class="pt-16 pb-40">
+<!-- Editorial Product Gallery -->
+<section class="relative w-full overflow-hidden">
+<div class="flex overflow-x-auto snap-x snap-mandatory no-scrollbar">
+<div class="flex-none w-full snap-center aspect-[3/4] relative">
+<img class="w-full h-full object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-700" data-alt="A high-intensity studio portrait of a professional athlete wearing sleek, charcoal-grey compression gear. The lighting is dramatic and cinematic, with sharp shadows and intense highlights that emphasize muscle definition. The background is a deep, void-like black, creating a high-contrast aesthetic. Electric lime accents are subtly integrated into the gear's stitching, glowing under the studio lights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMrqhrRYewmlQ0gfP1-ZV5TmH9DD9Ye-NhplOhm0DY70YLHpOLUDJY82etbgYaXRoyxNW6qnReLBQae71YhXjpqCMOn1Fm1-cRWv33e21Ehl9NfvzxdwJkbDBmIald_KlDKVVF0SLCwiPKdcRlTHSef4_K5w3jsnyWSen2SsWmWqZKtRl5ifhM62f_pEKn1_tuEYRePyFQdg42C_D4rgf1bueb0wYo5GwAM9wKXVnoByIzePW2vwoppQGNz7GNLjt-cXd9F46j9SL8"/>
+<div class="absolute bottom-6 right-6 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-widest text-lime-400 uppercase">01 / 04</div>
+</div>
+<div class="flex-none w-full snap-center aspect-[3/4] relative">
+<img class="w-full h-full object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-700" data-alt="Detailed close-up of high-performance technical fabric featuring a hex-grid pattern. The texture is deep charcoal black with microscopic perforations for breathability. A single, sharp seam runs diagonally across the frame, highlighted by a vibrant electric lime thread. The lighting is focused and macro, showing the intricate weave and durable quality of the material against a dark, moody atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQZirJQ3ible8tHsbolAGDstDHEXX10w23nwndzg0bxuL02qinuLN1LvJn79dieboaEbYFpqHN-eeymzj4GJ_CoMuxGOa36TL7TUh-wf7JCdmRxEiRACv6Zz5mDxhWIGW651ba_VjsyDRMFIXZCrjM_LfokcXg4aG9BWbxk8NzGkL8XbfTFwfIMk0A8qXpSQUeUVBpjCKgi3Ern5GFMfA9WNlPtWlYqrTfKkuO0OWcYDaK3Xl5Ln1YT8q6XEwcvonJ3u2jnYuqwohq"/>
+</div>
+</div>
+<!-- Scroll Indicator -->
+<div class="flex justify-center gap-2 mt-4">
+<div class="w-8 h-1 bg-lime-400 rounded-full"></div>
+<div class="w-4 h-1 bg-zinc-800 rounded-full"></div>
+<div class="w-4 h-1 bg-zinc-800 rounded-full"></div>
+</div>
+</section>
+<!-- Product Details -->
+<section class="px-6 mt-8">
+<div class="flex justify-between items-start mb-2">
+<span class="text-lime-400 font-label-caps text-xs tracking-[0.2em] uppercase">Elite Series</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-lime-400 text-sm" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-xs font-bold text-on-background">4.9</span>
+</div>
+</div>
+<h2 class="font-headline-md text-on-background mb-4 tracking-tight leading-none uppercase">Apex Kinetic Compression Shell</h2>
+<div class="flex items-baseline gap-3 mb-8">
+<span class="text-headline-sm font-black text-lime-400">$185.00</span>
+<span class="text-sm line-through text-zinc-600 font-medium">$240.00</span>
+</div>
+<!-- Bento Info Grid -->
+<div class="grid grid-cols-2 gap-4 mb-10">
+<div class="bg-zinc-950 border border-zinc-900 p-4 rounded-lg flex flex-col gap-2">
+<span class="material-symbols-outlined text-lime-400">bolt</span>
+<span class="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Performance</span>
+<span class="text-xs font-semibold">MAX COMPRESSION</span>
+</div>
+<div class="bg-zinc-950 border border-zinc-900 p-4 rounded-lg flex flex-col gap-2">
+<span class="material-symbols-outlined text-lime-400">air</span>
+<span class="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Climate</span>
+<span class="text-xs font-semibold">AEROREADY TECH</span>
+</div>
+</div>
+<!-- Size Selector -->
+<div class="mb-10">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-label-caps text-zinc-400 text-xs tracking-widest uppercase">Select Size</h3>
+<button class="text-lime-400 text-[10px] font-bold uppercase tracking-tighter underline underline-offset-4">Size Guide</button>
+</div>
+<div class="grid grid-cols-4 gap-2">
+<button class="h-14 border border-zinc-800 flex items-center justify-center font-lexend font-bold text-zinc-500 hover:border-lime-400 hover:text-lime-400 transition-all active:scale-95">S</button>
+<button class="h-14 border-2 border-lime-400 bg-zinc-900 flex items-center justify-center font-lexend font-bold text-lime-400 active:scale-95">M</button>
+<button class="h-14 border border-zinc-800 flex items-center justify-center font-lexend font-bold text-zinc-500 hover:border-lime-400 hover:text-lime-400 transition-all active:scale-95">L</button>
+<button class="h-14 border border-zinc-800 flex items-center justify-center font-lexend font-bold text-zinc-500 hover:border-lime-400 hover:text-lime-400 transition-all active:scale-95">XL</button>
+</div>
+</div>
+<!-- Description -->
+<div class="mb-10">
+<h3 class="font-label-caps text-zinc-400 text-xs tracking-widest uppercase mb-4">Engineering Notes</h3>
+<p class="text-zinc-400 font-body-md text-sm leading-relaxed mb-4">
+                    Engineered for high-intensity training, the Kinetic Shell uses biomimetic mapping to support muscle alignment while providing zero-gravity breathability. Constructed from recycled Apex-Fiber with integrated moisture-wicking technology.
+                </p>
+<ul class="space-y-3">
+<li class="flex items-center gap-3 text-xs font-bold text-on-background uppercase tracking-tight">
+<span class="w-1.5 h-1.5 bg-lime-400 rounded-full"></span> 4-Way Stretch Matrix
+                    </li>
+<li class="flex items-center gap-3 text-xs font-bold text-on-background uppercase tracking-tight">
+<span class="w-1.5 h-1.5 bg-lime-400 rounded-full"></span> Anti-Odor Silver Ions
+                    </li>
+<li class="flex items-center gap-3 text-xs font-bold text-on-background uppercase tracking-tight">
+<span class="w-1.5 h-1.5 bg-lime-400 rounded-full"></span> Reflective Apex Branding
+                    </li>
+</ul>
+</div>
+</section>
+</main>
+<!-- Fixed Action & Navigation Shell -->
+<div class="fixed bottom-0 left-0 w-full z-50">
+<!-- Bold Add to Cart -->
+<div class="px-6 pb-6 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pt-12">
+<button class="w-full h-16 bg-lime-400 text-black font-lexend font-black text-lg uppercase tracking-widest flex items-center justify-center gap-3 active:scale-[0.98] transition-transform duration-150 rounded-sm">
+<span class="material-symbols-outlined">shopping_bag</span>
+                Add to Cart
+            </button>
+</div>
+<!-- BottomNavBar -->
+<nav class="flex justify-around items-center h-20 px-4 pb-safe bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900">
+<div class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all">
+<span class="material-symbols-outlined">home</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Home</span>
+</div>
+<!-- Active Tab: Shop -->
+<div class="flex flex-col items-center justify-center text-lime-400 bg-zinc-900/50 rounded-lg py-1 px-3 active:scale-90 transition-transform duration-150">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Shop</span>
+</div>
+<div class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all">
+<span class="material-symbols-outlined">shopping_bag</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Cart</span>
+</div>
+<div class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all">
+<span class="material-symbols-outlined">person</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Profile</span>
+</div>
+</nav>
+</div>
+</body></html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "on-secondary-fixed": "#370e00",
+                        "on-tertiary-container": "#656464",
+                        "on-secondary": "#5a1b00",
+                        "on-tertiary": "#313030",
+                        "primary-fixed-dim": "#abd600",
+                        "tertiary": "#ffffff",
+                        "background": "#131313",
+                        "on-primary": "#283500",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "surface-container": "#1f1f1f",
+                        "surface-tint": "#abd600",
+                        "primary-fixed": "#c3f400",
+                        "surface": "#131313",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-dim": "#131313",
+                        "primary-container": "#c3f400",
+                        "surface-bright": "#393939",
+                        "on-background": "#e2e2e2",
+                        "secondary": "#ffb59a",
+                        "surface-variant": "#353535",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "surface-container-low": "#1b1b1b",
+                        "error-container": "#93000a",
+                        "outline": "#8e9379",
+                        "surface-container-lowest": "#0e0e0e",
+                        "secondary-fixed": "#ffdbce",
+                        "on-secondary-container": "#531900",
+                        "surface-container-high": "#2a2a2a",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-container": "#e5e2e1",
+                        "primary": "#ffffff",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353535",
+                        "on-surface-variant": "#c4c9ac",
+                        "inverse-on-surface": "#303030",
+                        "tertiary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e2e2e2",
+                        "secondary-container": "#ff5e07",
+                        "inverse-primary": "#506600",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "on-primary-fixed-variant": "#3c4d00",
+                        "on-primary-container": "#556d00",
+                        "outline-variant": "#444933",
+                        "on-primary-fixed": "#161e00",
+                        "on-surface": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "lg": "48px",
+                        "xl": "80px",
+                        "base": "8px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "xs": "4px",
+                        "gutter": "24px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Lexend"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Lexend"],
+                        "label-caps": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Lexend"],
+                        "headline-xl": ["Lexend"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-md": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-sm": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-xl": ["72px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "800"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #000000;
+            color: #e2e2e2;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 200px);
+            gap: 12px;
+        }
+        .bento-large {
+            grid-row: span 2;
+        }
+        .glass-overlay {
+            background: rgba(26, 26, 26, 0.4);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md bg-black">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-black dark:bg-black border-b border-zinc-900">
+<button class="active:scale-95 transition-transform duration-150 text-zinc-500 hover:text-lime-300 transition-colors">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<div class="font-lexend uppercase tracking-widest text-sm font-bold text-xl font-black text-lime-400 tracking-tighter">APEX</div>
+<button class="active:scale-95 transition-transform duration-150 text-zinc-500 hover:text-lime-300 transition-colors">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+</header>
+<main class="pt-16 pb-24">
+<!-- Hero Banner -->
+<section class="relative w-full h-[751px] overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10"></div>
+<img class="w-full h-full object-cover grayscale brightness-75" data-alt="A high-intensity fitness photography shot of a muscular athlete performing a powerful explosive movement in a dark, industrial gym setting. The lighting is dramatic and moody, utilizing high-contrast shadows and a singular overhead spotlight that emphasizes anatomical precision. The overall aesthetic is premium and technical, featuring deep blacks and a gritty, professional atmosphere consistent with elite performance activewear branding." src="https://lh3.googleusercontent.com/aida-public/AB6AXuChj0jFk38oi9hjqKzStv4KUrdv0KuAnifPHOggdrfs_2d9JES48C2SY-c0HZkr_Y7OtmZIi9JvdlIXiK9FA1mm9lUAEp5AFhZ7rugy5aZXQOoFyDE67a17cd2Ou_x_Um0U0BvipM_xcN1qnzfRmMxLohVdbLJ073KKg2BA42UGHQm4N6Y1fKH1pibAk7nlnEnmlVlyWwd1DMuTy6MNuE2lHj8Fb2JQn0gWn9_7a8vOA7Qbkr7HhBQcoCuZNg1YXvrk0qBCiPvMRxRQ"/>
+<div class="absolute bottom-margin left-margin right-margin z-20 flex flex-col gap-sm">
+<span class="font-label-caps text-primary-container tracking-widest">SPRING COLLECTION 2024</span>
+<h1 class="font-headline-xl text-primary-container leading-none">PEAK<br/>POWER</h1>
+<p class="font-body-lg text-on-surface max-w-[280px]">Engineered for elite performance. Experience precision in every fiber.</p>
+<div class="mt-base">
+<button class="bg-primary-container text-black font-label-caps px-lg py-md rounded-DEFAULT active:scale-[0.98] transition-transform">SHOP NOW</button>
+</div>
+</div>
+</section>
+<!-- Category Bento -->
+<section class="px-margin py-xl">
+<div class="flex justify-between items-end mb-md">
+<h2 class="font-headline-md text-primary">CATEGORIES</h2>
+<span class="font-label-caps text-on-surface-variant border-b border-on-surface-variant">VIEW ALL</span>
+</div>
+<div class="bento-grid">
+<div class="bento-large relative overflow-hidden group border border-zinc-900 bg-zinc-950">
+<img class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" data-alt="Close-up artistic product shot of a high-performance athletic running shoe with technical mesh detailing and neon accents. The setting is minimalist and dark with a sharp charcoal background, creating a high-end editorial feel. Lighting highlights the aerodynamic silhouette and innovative texture of the material, evoking a sense of speed and precision engineering in premium fitness footwear." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDn_zKr20Jok6zy6ukBKR-3cMWMzcyVfzhLvcy4t9Qc3wxaYIf6g-ThueEDlb8o9XvokjhUxEn-Cbnnh5UQRqJh3xVGI8Eac94sFRCtDUfHjLC0CPLc1HaaqMH2EIBV-d4pgmx-1V_C5MSTAEB4uW5XY3OTkLvAiurGb1o4Vw7g4BW5zmpMHGOndPc90Xslf9cusS_CmsJ_M4YyKOA-8lVXNri768HVTYXzHSOZLJopmrZ9cztkSwwCzIlI4OR4ibanGjTRlU4DkOxl"/>
+<div class="absolute bottom-base left-base z-10">
+<span class="font-headline-sm text-primary">Shoes</span>
+</div>
+</div>
+<div class="relative overflow-hidden group border border-zinc-900 bg-zinc-950">
+<img class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" data-alt="A sleek minimalist studio shot of technical athletic apparel laid out on a dark slate surface. The clothing features premium compression fabrics with subtle electric lime stitching details. The mood is sophisticated and athletic, using low-key lighting to emphasize the high-performance texture and anatomical panels of the garment. The visual style is modern, sharp, and intensely focused on technical excellence." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBulJkIYaA19r9ttguiROKY_0nX7adqdsPCP8iRZFGhVkZ3xEbp7qO6HTnJIoR-64QjuqUZ9OfIB5WkaTB2G1poz2vpD4JY7dkHGCECZJAC6SnyJ8Rr4dBXRdT6_6wPUQxAajGjWqdJdh9e0oSAWOHTSnvOVUB73RM1eVPAVc8cBs24ZmOqg1jud5XPVLtTh5oJgxqfkV8OgmzhJOFs_0OqW2IkOo0EOaGQY-xNW86x8CdCC1SzQBFwraAR1MbcJ-uEGpXo74WUw-qP"/>
+<div class="absolute bottom-base left-base z-10">
+<span class="font-headline-sm text-primary">Apparel</span>
+</div>
+</div>
+<div class="relative overflow-hidden group border border-zinc-900 bg-zinc-950">
+<img class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" data-alt="Professional studio photograph of a luxury sports smartwatch with a matte black finish and a glowing digital display showing biometric data. The watch is positioned against a dark charcoal background with subtle light refracting off its metallic edges. The atmosphere is high-tech and premium, focusing on precision, elite performance metrics, and sophisticated wearable technology for serious athletes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwKBFjnw3w5wcDrXVg_2p5WPr7WySrL0yXh0dxgV0k1FAcLyQJKwJtaOJ3W8ifTiXv-Gui8_vdWD5W9XTYubLCTgmM6CPxCo9z7jLqsT14k4Y98X1KOo1HHhwEsdMiTevIMO7eLoj7hNGvIk55aE_nUjLuVFdtoAwld5PyztLY5h8BJ-KY0rPfUpTH5XQGVN1CvABvjlIw18swxrqr8fBP_bC9X3F4iQldWEKRDQUCX-S-QvwOcpQ5dVYfoQoPOi60HrRq916jXZSO"/>
+<div class="absolute bottom-base left-base z-10">
+<span class="font-headline-sm text-primary">Watches</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Featured Products Grid -->
+<section class="px-margin pb-xl">
+<h2 class="font-headline-md text-primary mb-md">FEATURED GEAR</h2>
+<div class="grid grid-cols-2 gap-md">
+<!-- Product 1 -->
+<div class="flex flex-col gap-sm">
+<div class="aspect-[3/4] bg-[#121212] border border-[#1A1A1A] relative p-md flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-luminosity hover:mix-blend-normal transition-all duration-300" data-alt="A clean, technical product shot of a premium black compression shirt on a dark background. The fabric reveals intricate moisture-wicking textures and ergonomic seam placement under sharp, directional lighting. The aesthetic is extremely minimalist and performance-oriented, using a palette of deep charcoal and blacks with a single vibrant lime green logo accent to signify elite athletic quality and power." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDv4hNefz5aIW0DVrEhX7XLTK7S0MKwG25S92ltYZ5RLJKhPq6-m-wOAgd8mZX3dBvXZh379GI-u1UViO8m1lnM0SOSJDZpworD7QmfrCWhTEwwKioq8Wgk8T0qBEe2RrNJYrII30F1IDsnLARKC32qhlM74hgT1Xc64iJeUZ2HNB0OMxGWruEy3x-3ltpYE6jYkttn4k8TW2Dxv4xKscN21Q0RyAi1xoOCg7w68ubo1iaF0PYM0JoncWtn6pCZgJcUFchYUCui67Ap"/>
+<button class="absolute top-sm right-sm text-on-surface-variant hover:text-primary-container">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-on-surface-variant">CORE SERIES</span>
+<span class="font-body-md font-bold text-primary">VORTEX TEE</span>
+<span class="font-body-md text-primary-container mt-xs">$85.00</span>
+</div>
+</div>
+<!-- Product 2 -->
+<div class="flex flex-col gap-sm">
+<div class="aspect-[3/4] bg-[#121212] border border-[#1A1A1A] relative p-md flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-luminosity hover:mix-blend-normal transition-all duration-300" data-alt="A high-contrast product image of professional-grade weightlifting shorts in dark graphite. The shorts feature reinforced panels and laser-cut ventilation holes, highlighted by dramatic low-key lighting that emphasizes the durable, technical material. Set against a pure black background, the composition feels powerful and precise, maintaining a premium fitness brand identity through sophisticated monochromatic tones and sharp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTGCRbdkWZWYIWjG4vgFLkTQ2lDsSiDmS3oU9GWx6EzGRxbzjSBpfuzm36wHvyxg-Kfaw6TGrQ54v0LKsIvSKQM1McqXN7dr6L9vokXRpJ4flCqC9IGxdPFPILqqy2PivPHXdgMmGzdEVlKrKbnudCB2pMPtF_zp_tBCL1yeYWypbAE6aWgnzvt2Y2PRXj-MoaaFcp9u2gdBesVtIHgMGDAB6mzwrpncN51ANPyIZMchN-2e5NrUre-c1Tc3ma8lAQsoW9W45bOz00"/>
+<button class="absolute top-sm right-sm text-on-surface-variant hover:text-primary-container">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+</button>
+</div>
+<div class="flex flex-col">
+<span class="font-label-caps text-on-surface-variant">LIFT LINE</span>
+<span class="font-body-md font-bold text-primary">APEX SHORTS</span>
+<span class="font-body-md text-primary-container mt-xs">$110.00</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Stats Section -->
+<section class="mx-margin mb-xl p-lg border border-zinc-900 bg-zinc-950 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-lime-400/5 blur-[60px]"></div>
+<div class="flex flex-col gap-md text-center relative z-10">
+<div>
+<p class="font-headline-xl text-primary-container mb-xs">98%</p>
+<p class="font-label-caps text-on-surface-variant">ENERGY RETURN</p>
+</div>
+<div class="h-px bg-zinc-900 w-1/2 mx-auto"></div>
+<div>
+<p class="font-headline-sm text-primary italic">"UNMATCHED PRECISION"</p>
+<p class="font-label-caps text-zinc-600 mt-sm">— ELITE PERFORMANCE LABS</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-20 px-4 pb-safe bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900">
+<a class="flex flex-col items-center justify-center text-lime-400 bg-zinc-900/50 rounded-lg py-1 px-3 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Shop</span>
+</a>
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_bag">shopping_bag</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Cart</span>
+</a>
+<a class="flex flex-col items-center justify-center text-zinc-500 py-1 px-3 hover:text-lime-200 transition-all active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-lexend text-[10px] uppercase font-medium tracking-tight">Profile</span>
+</a>
+</nav>
+</body></html>
