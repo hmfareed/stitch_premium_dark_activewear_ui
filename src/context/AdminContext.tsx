@@ -29,6 +29,7 @@ export interface PlatformAccount {
   email: string;
   phone?: string;
   profilePic?: string;
+  role?: string;
 }
 
 export interface AdminUser {
@@ -101,9 +102,19 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [allMessages, setAllMessages] = useState<PlatformMessage[]>([]);
   const [allApplications, setAllApplications] = useState<AdminApplication[]>([]);
 
-  const refreshData = useCallback(() => {
+  const refreshData = useCallback(async () => {
     try { setAllOrders(JSON.parse(localStorage.getItem('reed-all-orders') || '[]')); } catch { setAllOrders([]); }
-    try { setAllCustomers(JSON.parse(localStorage.getItem('reed-accounts') || '[]')); } catch { setAllCustomers([]); }
+    
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success) {
+        setAllCustomers(data.users);
+      }
+    } catch {
+      // ignore
+    }
+
     try { setAllAdmins(JSON.parse(localStorage.getItem('reed-admins') || '[]')); } catch { setAllAdmins([]); }
     try { setAllMessages(JSON.parse(localStorage.getItem('reed-messages') || '[]')); } catch { setAllMessages([]); }
     try { setAllApplications(JSON.parse(localStorage.getItem('reed-admin-applications') || '[]')); } catch { setAllApplications([]); }
@@ -205,12 +216,12 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshData();
   }, [refreshData]);
 
-  const approveApplication = useCallback((appId: string) => {
+  const approveApplication = useCallback(async (appId: string) => {
     const apps: AdminApplication[] = JSON.parse(localStorage.getItem('reed-admin-applications') || '[]');
     const app = apps.find(a => a.id === appId);
     if (app) {
       localStorage.setItem('reed-admin-applications', JSON.stringify(apps.map(a => a.id === appId ? { ...a, status: 'approved' as const } : a)));
-      // Auto-create admin from approved application
+      // Auto-create admin from approved application locally
       const admins: AdminUser[] = JSON.parse(localStorage.getItem('reed-admins') || '[]');
       admins.push({
         id: `ADM-${Date.now()}`,
@@ -223,12 +234,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       localStorage.setItem('reed-admins', JSON.stringify(admins));
 
-      // Update role in accounts
-      const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
-      const updatedAccounts = accounts.map((account: any) => 
-        account.email === app.email ? { ...account, role: 'admin' } : account
-      );
-      localStorage.setItem('reed-accounts', JSON.stringify(updatedAccounts));
+      // Update role in MongoDB accounts
+      try {
+        await fetch(`/api/users/${encodeURIComponent(app.email)}/role`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' })
+        });
+      } catch (err) {
+        console.error('Failed to update role in DB:', err);
+      }
     }
     refreshData();
   }, [refreshData]);

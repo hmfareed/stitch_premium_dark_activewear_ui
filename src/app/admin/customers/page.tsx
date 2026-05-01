@@ -13,31 +13,36 @@ export default function AdminCustomersPage() {
            c.email.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const handleMakeVendor = (customer: any) => {
-    // Add to admins
-    const admins = JSON.parse(localStorage.getItem('reed-admins') || '[]');
-    if (!admins.find((a: any) => a.email === customer.email)) {
-      admins.push({
-        id: `A-${Date.now()}`,
-        name: customer.name,
-        email: customer.email,
-        role: 'Vendor Admin',
-        status: 'Active',
-        lastActive: 'Just now'
+  const handleMakeVendor = async (customer: any) => {
+    try {
+      // Update account role in MongoDB
+      await fetch(`/api/users/${encodeURIComponent(customer.email)}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' })
       });
-      localStorage.setItem('reed-admins', JSON.stringify(admins));
+
+      // Add to local admins list (since admins aren't migrated to DB yet)
+      const admins = JSON.parse(localStorage.getItem('reed-admins') || '[]');
+      if (!admins.find((a: any) => a.email === customer.email)) {
+        admins.push({
+          id: `A-${Date.now()}`,
+          name: customer.name,
+          email: customer.email,
+          role: 'Vendor Admin',
+          status: 'Active',
+          lastActive: 'Just now'
+        });
+        localStorage.setItem('reed-admins', JSON.stringify(admins));
+      }
+      
+      // Tell AdminContext to refetch users from MongoDB
+      window.dispatchEvent(new Event('storage'));
+      alert(`${customer.name} is now a Vendor Admin!`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to make vendor');
     }
-    
-    // Update accounts role
-    const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
-    const updatedAccounts = accounts.map((a: any) => 
-      a.email === customer.email ? { ...a, role: 'admin' } : a
-    );
-    localStorage.setItem('reed-accounts', JSON.stringify(updatedAccounts));
-    
-    // Show toast and manually trigger an event to update AdminContext if it listens to storage
-    window.dispatchEvent(new Event('storage'));
-    alert(`${customer.name} is now a Vendor Admin!`);
   };
 
   return (

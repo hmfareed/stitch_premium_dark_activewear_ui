@@ -62,57 +62,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(r => setTimeout(r, 800));
-    const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
-    let found = accounts.find((a: { email: string }) => a.email === email);
-    
-    // Auto-provision Super Admin if it doesn't exist locally
-    if (!found && email === 'superadmin@reed.com') {
-      found = { email: 'superadmin@reed.com', name: 'Super Admin', phone: '', role: 'super_admin' };
-      accounts.push(found);
-      localStorage.setItem('reed-accounts', JSON.stringify(accounts));
-    }
-
-    if (found) {
-      let finalRole: 'user' | 'admin' | 'super_admin' = (found.role as any) || 'user';
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
       
-      // Auto-heal admin role if they exist in reed-admins but weren't updated in accounts
-      const admins = JSON.parse(localStorage.getItem('reed-admins') || '[]');
-      if (admins.some((a: any) => a.email === email)) {
-         finalRole = 'admin';
-         found.role = 'admin';
-         localStorage.setItem('reed-accounts', JSON.stringify(accounts));
+      const data = await res.json();
+      
+      if (data.success) {
+        const u: User = data.user;
+        setUser(u);
+        localStorage.setItem('reed-user', JSON.stringify(u));
+        return true;
       }
-
-      // Force super_admin role for specific email
-      if (email === 'superadmin@reed.com') finalRole = 'super_admin';
-
-      const u: User = { email: found.email, name: found.name, phone: found.phone, profilePic: found.profilePic, role: finalRole };
-      setUser(u);
-      localStorage.setItem('reed-user', JSON.stringify(u));
-      return true;
+      
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
-  const signup = async (name: string, email: string, phone: string, _password: string): Promise<boolean> => {
-    await new Promise(r => setTimeout(r, 800));
-    const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
-    
-    // Check for duplicate email
-    if (accounts.some((a: { email: string }) => a.email.toLowerCase() === email.toLowerCase())) {
-      return false; // Email already in use
+  const signup = async (name: string, email: string, phone: string, password: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        const u: User = data.user;
+        setUser(u);
+        localStorage.setItem('reed-user', JSON.stringify(u));
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Signup error:', error);
+      return false;
     }
-
-    const finalRole: 'user' | 'admin' | 'super_admin' = email === 'superadmin@reed.com' ? 'super_admin' : 'user';
-    accounts.push({ name, email, phone, role: finalRole });
-    localStorage.setItem('reed-accounts', JSON.stringify(accounts));
-    const u: User = { email, name, phone, role: finalRole };
-    setUser(u);
-    localStorage.setItem('reed-user', JSON.stringify(u));
-    return true;
   };
 
   const updateProfilePic = (picData: string | undefined) => {
