@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth, useCart, useWishlist, useTheme, ThemeMode, useToast } from '@/context/AppContext';
 
 export default function AccountPage() {
-  const { user, logout, updateProfilePic } = useAuth();
+  const { user, logout, updateProfilePic, isLoading } = useAuth();
   const { totalItems } = useCart();
   const { totalWishlist } = useWishlist();
   const { theme, setTheme } = useTheme();
@@ -19,19 +19,21 @@ export default function AccountPage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    } else {
-      const savedOrders = JSON.parse(localStorage.getItem(`reed-orders-${user.email}`) || '[]');
-      const activeOrders = savedOrders.filter((o: any) => o.status === 'Processing' || o.status === 'Ongoing' || o.status === 'Shipped');
-      setOrderCount(activeOrders.length);
-      
-      const savedNotifs = JSON.parse(localStorage.getItem(`reed-notifications-${user.email}`) || '[]');
-      setUnreadCount(savedNotifs.filter((n: any) => !n.read).length);
+    if (!isLoading) {
+      if (!user) {
+        router.push('/login');
+      } else {
+        const savedOrders = JSON.parse(localStorage.getItem(`reed-orders-${user.email}`) || '[]');
+        const activeOrders = savedOrders.filter((o: any) => o.status === 'Processing' || o.status === 'Ongoing' || o.status === 'Shipped');
+        setOrderCount(activeOrders.length);
+        
+        const savedNotifs = JSON.parse(localStorage.getItem(`reed-notifications-${user.email}`) || '[]');
+        setUnreadCount(savedNotifs.filter((n: any) => !n.read).length);
+      }
     }
-  }, [user, router]);
+  }, [user, isLoading, router]);
 
-  if (!user) return null;
+  if (isLoading || !user) return null;
 
   const handleSignOut = () => {
     logout();
@@ -199,6 +201,28 @@ export default function AccountPage() {
                 Vendor Portal
               </button>
             )}
+          </div>
+        )}
+
+        {/* Become a Vendor Call to Action for Regular Users */}
+        {user.role === 'user' && (
+          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 8 }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)', border: '1px solid var(--lime-400)', borderRadius: 16, padding: '20px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16
+            }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, color: 'var(--lime-400)', marginBottom: 4, fontWeight: 800 }}>Become a Vendor</h3>
+                <p style={{ color: '#aaa', fontSize: 12, lineHeight: 1.4 }}>Start selling your products on REED Store and reach millions of customers.</p>
+              </div>
+              <button onClick={() => router.push('/admin/apply')} style={{
+                background: 'var(--lime-400)', border: 'none', borderRadius: 8, padding: '10px 16px', flexShrink: 0,
+                color: '#000', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                transition: 'transform 0.2s'
+              }}>
+                Apply Now
+              </button>
+            </div>
           </div>
         )}
 

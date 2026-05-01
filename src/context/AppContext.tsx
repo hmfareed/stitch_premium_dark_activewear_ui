@@ -100,6 +100,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (name: string, email: string, phone: string, _password: string): Promise<boolean> => {
     await new Promise(r => setTimeout(r, 800));
     const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
+    
+    // Check for duplicate email
+    if (accounts.some((a: { email: string }) => a.email.toLowerCase() === email.toLowerCase())) {
+      return false; // Email already in use
+    }
+
     const finalRole: 'user' | 'admin' | 'super_admin' = email === 'superadmin@reed.com' ? 'super_admin' : 'user';
     accounts.push({ name, email, phone, role: finalRole });
     localStorage.setItem('reed-accounts', JSON.stringify(accounts));

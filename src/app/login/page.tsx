@@ -30,7 +30,7 @@ export default function LoginPage() {
         showToast(isSignup ? 'Account created successfully!' : 'Welcome back!');
         router.push('/account');
       } else {
-        showToast(isSignup ? 'Failed to create account' : 'Invalid email or password', 'error');
+        showToast(isSignup ? 'Email already in use or failed' : 'Invalid email or password', 'error');
       }
     } catch {
       showToast('An error occurred', 'error');

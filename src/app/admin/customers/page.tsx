@@ -13,6 +13,33 @@ export default function AdminCustomersPage() {
            c.email.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
+  const handleMakeVendor = (customer: any) => {
+    // Add to admins
+    const admins = JSON.parse(localStorage.getItem('reed-admins') || '[]');
+    if (!admins.find((a: any) => a.email === customer.email)) {
+      admins.push({
+        id: `A-${Date.now()}`,
+        name: customer.name,
+        email: customer.email,
+        role: 'Vendor Admin',
+        status: 'Active',
+        lastActive: 'Just now'
+      });
+      localStorage.setItem('reed-admins', JSON.stringify(admins));
+    }
+    
+    // Update accounts role
+    const accounts = JSON.parse(localStorage.getItem('reed-accounts') || '[]');
+    const updatedAccounts = accounts.map((a: any) => 
+      a.email === customer.email ? { ...a, role: 'admin' } : a
+    );
+    localStorage.setItem('reed-accounts', JSON.stringify(updatedAccounts));
+    
+    // Show toast and manually trigger an event to update AdminContext if it listens to storage
+    window.dispatchEvent(new Event('storage'));
+    alert(`${customer.name} is now a Vendor Admin!`);
+  };
+
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <div>
@@ -59,27 +86,49 @@ export default function AdminCustomersPage() {
                   <th style={{ padding: '14px 24px', fontWeight: 500 }}>Customer</th>
                   <th style={{ padding: '14px 24px', fontWeight: 500 }}>Email</th>
                   <th style={{ padding: '14px 24px', fontWeight: 500 }}>Phone</th>
+                  <th style={{ padding: '14px 24px', fontWeight: 500, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, idx) => (
-                  <tr key={c.email + idx} style={{ borderBottom: idx !== filtered.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'color-mix(in srgb, var(--lime-400) 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: 'var(--lime-400)', flexShrink: 0 }}>
-                          {c.profilePic ? (
-                            <img src={c.profilePic} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            c.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-                          )}
+                {filtered.map((c, idx) => {
+                  // Determine if they are already an admin
+                  const isAdmin = c.role === 'admin' || c.role === 'super_admin';
+                  return (
+                    <tr key={c.email + idx} style={{ borderBottom: idx !== filtered.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'color-mix(in srgb, var(--lime-400) 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: 'var(--lime-400)', flexShrink: 0 }}>
+                            {c.profilePic ? (
+                              <img src={c.profilePic} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              c.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+                            )}
+                          </div>
+                          <span style={{ fontWeight: 500 }}>{c.name}</span>
                         </div>
-                        <span style={{ fontWeight: 500 }}>{c.name}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{c.email}</td>
-                    <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.phone || '—'}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{c.email}</td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.phone || '—'}</td>
+                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                        {!isAdmin ? (
+                          <button onClick={() => handleMakeVendor(c)} style={{
+                            background: 'var(--surface-container-high)', border: '1px solid var(--outline)', padding: '6px 12px',
+                            borderRadius: '6px', color: 'var(--on-surface)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-lexend)',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--lime-400)'}
+                          onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--outline)'}>
+                            Make Vendor
+                          </button>
+                        ) : (
+                          <span style={{ color: 'var(--lime-400)', fontSize: '0.8rem', fontWeight: 600, padding: '6px 12px', background: 'rgba(195, 244, 0, 0.1)', borderRadius: '6px' }}>
+                            {c.role === 'super_admin' ? 'Super Admin' : 'Vendor'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
