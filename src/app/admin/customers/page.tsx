@@ -19,26 +19,26 @@ export default function AdminCustomersPage() {
       await fetch(`/api/users/${encodeURIComponent(customer.email)}/role`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'admin' })
+        body: JSON.stringify({ role: 'vendor' })
       });
 
-      // Add to local admins list (since admins aren't migrated to DB yet)
-      const admins = JSON.parse(localStorage.getItem('reed-admins') || '[]');
+      // Add to local vendors list (since vendors aren't migrated to DB yet)
+      const admins = JSON.parse(localStorage.getItem('africart-vendors') || '[]');
       if (!admins.find((a: any) => a.email === customer.email)) {
         admins.push({
           id: `A-${Date.now()}`,
           name: customer.name,
           email: customer.email,
-          role: 'Vendor Admin',
+          role: 'Vendor',
           status: 'Active',
           lastActive: 'Just now'
         });
-        localStorage.setItem('reed-admins', JSON.stringify(admins));
+        localStorage.setItem('africart-vendors', JSON.stringify(admins));
       }
       
       // Tell AdminContext to refetch users from MongoDB
       window.dispatchEvent(new Event('storage'));
-      alert(`${customer.name} is now a Vendor Admin!`);
+      alert(`${customer.name} is now a Vendor!`);
     } catch (err) {
       console.error(err);
       alert('Failed to make vendor');
@@ -96,8 +96,8 @@ export default function AdminCustomersPage() {
               </thead>
               <tbody>
                 {filtered.map((c, idx) => {
-                  // Determine if they are already an admin
-                  const isAdmin = c.role === 'admin' || c.role === 'super_admin';
+                  // Determine if they are already a vendor or admin
+                  const isVendor = c.role === 'vendor' || c.role === 'super_admin';
                   return (
                     <tr key={c.email + idx} style={{ borderBottom: idx !== filtered.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
                       <td style={{ padding: '16px 24px' }}>
@@ -115,7 +115,7 @@ export default function AdminCustomersPage() {
                       <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{c.email}</td>
                       <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.phone || '—'}</td>
                       <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                        {!isAdmin ? (
+                        {!isVendor ? (
                           <button onClick={() => handleMakeVendor(c)} style={{
                             background: 'var(--surface-container-high)', border: '1px solid var(--outline)', padding: '6px 12px',
                             borderRadius: '6px', color: 'var(--on-surface)', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-lexend)',

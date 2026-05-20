@@ -3,29 +3,38 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AppContext';
+import { useAuth, useStore } from '@/context/AppContext';
+import { useAdmin } from '@/context/AdminContext';
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const { getVendorSettings } = useStore();
+  const { allAdmins } = useAdmin();
 
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
         router.push('/login');
-      } else if (user.role !== 'admin' && user.role !== 'super_admin') {
+      } else if (user.role !== 'vendor' && user.role !== 'super_admin') {
         router.push('/');
       }
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || !user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+  if (isLoading || !user || (user.role !== 'vendor' && user.role !== 'super_admin')) {
     return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
       <div className="animate-pulse-glow" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--lime-400)' }} />
     </div>;
   }
+
+  // Get store name from settings first, then admin record, never show default
+  const vendorSettings = getVendorSettings(user.email);
+  const adminRecord = allAdmins.find(a => a.email === user.email);
+  const storeName = vendorSettings.storeName || adminRecord?.storeName || '';
+  const storeInitials = storeName ? storeName.substring(0, 2).toUpperCase() : user.name.substring(0, 2).toUpperCase();
 
   const menuItems = [
     { name: 'Dashboard', icon: 'dashboard', path: '/vendor' },
@@ -34,6 +43,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     { name: 'Customers', icon: 'group', path: '/vendor/customers' },
     { name: 'Promotions', icon: 'local_offer', path: '/vendor/promotions' },
     { name: 'Messages', icon: 'chat', path: '/vendor/messages' },
+    { name: 'Finance', icon: 'account_balance_wallet', path: '/vendor/finance' },
     { name: 'Analytics', icon: 'analytics', path: '/vendor/analytics' },
     { name: 'Settings', icon: 'settings', path: '/vendor/settings' },
   ];
@@ -44,7 +54,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
       {sidebarOpen && (
         <div 
           onClick={() => setSidebarOpen(false)} 
-          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 30, backdropFilter: 'blur(2px)' }} 
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 30 }} 
         />
       )}
 
@@ -102,11 +112,11 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
         <div style={{ padding: '24px', borderTop: '1px solid var(--outline)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'color-mix(in srgb, #00e5ff 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00e5ff', fontWeight: 'bold', fontSize: '1.1rem', flexShrink: 0 }}>
-              VS
+              {storeInitials}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 600 }}>Vendor Store</span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>ID: V-1029</span>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <span style={{ fontSize: '1rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{storeName || user.name}</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
             </div>
           </div>
         </div>
@@ -139,3 +149,4 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     </div>
   );
 }
+

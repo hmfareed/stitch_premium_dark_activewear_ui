@@ -1,0 +1,21 @@
+{
+  "name": "AfriCart — Africa's Premium Marketplace",
+  "short_name": "AfriCart",
+  "description": "Shop electronics, fashion, home, beauty & groceries. Fast delivery across Ghana with mobile money payment.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00E5FF",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["shopping", "lifestyle", "business"],
+  "lang": "en",
+  "dir": "ltr"
+}

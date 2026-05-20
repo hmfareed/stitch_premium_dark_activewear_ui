@@ -7,6 +7,7 @@ export interface IVendorApplication extends Document {
   role: string;
   storeName?: string;
   reason: string;
+  documentUrl?: string;
   status: 'pending' | 'approved' | 'rejected';
   appliedAt: Date;
 }
@@ -18,6 +19,7 @@ const VendorApplicationSchema: Schema<IVendorApplication> = new Schema({
   role: { type: String, required: true },
   storeName: { type: String },
   reason: { type: String, required: true },
+  documentUrl: { type: String },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   appliedAt: { type: Date, default: Date.now },
 });

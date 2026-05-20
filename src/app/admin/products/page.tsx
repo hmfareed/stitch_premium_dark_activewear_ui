@@ -97,7 +97,7 @@ export default function AdminProductsPage() {
                     <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span>
                   </td>
                   <td style={{ padding: '16px 24px', fontWeight: 600 }}>${p.price.toFixed(2)}</td>
-                  <td style={{ padding: '16px 24px', color: 'var(--on-surface-variant)', textDecoration: p.originalPrice ? 'line-through' : 'none' }}>{p.originalPrice ? `$${p.originalPrice.toFixed(2)}` : '—'}</td>
+                  <td style={{ padding: '16px 24px', color: 'var(--on-surface-variant)', textDecoration: p.originalPrice ? 'line-through' : 'none' }}>{p.originalPrice ? `GH₵${p.originalPrice.toFixed(2)}` : '—'}</td>
                   <td style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#ffc107' }}>star</span>

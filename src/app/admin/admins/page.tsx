@@ -1,16 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin, AdminUser } from '@/context/AdminContext';
 
 export default function AdminsPage() {
-  const { allAdmins, allApplications, addAdmin, updateAdminStatus, removeAdmin, approveApplication, rejectApplication } = useAdmin();
+  const { allAdmins, allApplications, addAdmin, updateAdminStatus, removeAdmin, approveApplication, rejectApplication, toggleVendorVerification } = useAdmin();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState<AdminUser['role']>('Vendor Admin');
+  const [newRole, setNewRole] = useState<AdminUser['role']>('Vendor');
   const [newStoreName, setNewStoreName] = useState('');
   const [activeTab, setActiveTab] = useState<'admins' | 'applications'>('admins');
+
+  useEffect(() => {
+    if (showAddForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showAddForm]);
 
   const pendingApps = allApplications.filter(a => a.status === 'pending');
 
@@ -21,7 +32,8 @@ export default function AdminsPage() {
       email: newEmail.trim(),
       role: newRole,
       status: 'Active',
-      storeName: newRole === 'Vendor Admin' ? newStoreName.trim() || undefined : undefined,
+      isVerified: false,
+      storeName: newRole === 'Vendor' ? newStoreName.trim() || undefined : undefined,
     });
     setNewName('');
     setNewEmail('');
@@ -38,46 +50,79 @@ export default function AdminsPage() {
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Admin & Vendor Management</h1>
+          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Vendor & Staff Management</h1>
           <p style={{ color: 'var(--on-surface-variant)' }}>Manage platform access and review new vendor applications</p>
         </div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'var(--on-primary-container)', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-          Add New Admin
+          Add New Vendor
         </button>
       </div>
 
-      {/* Add Form */}
+      {/* Add Form Modal */}
       {showAddForm && (
-        <div className="animate-fade-in" style={{ backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid var(--outline)' }}>
-          <h3 className="font-lexend" style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Add New Admin / Vendor</h3>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 180px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Name</label>
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
+        <div 
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowAddForm(false)}
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="animate-scale-in"
+            style={{ background: 'var(--surface)', borderRadius: '24px', padding: '32px', maxWidth: '500px', width: '90%', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '20px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 className="font-lexend" style={{ fontSize: '1.3rem', margin: 0, color: 'var(--foreground)', fontWeight: 800 }}>Add New Vendor / Staff</h3>
+              <button 
+                onClick={() => setShowAddForm(false)} 
+                style={{ background: 'var(--surface-container-high)', border: 'none', cursor: 'pointer', color: 'var(--on-surface)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
-            <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Email</label>
-              <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@example.com" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
-            </div>
-            <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Role</label>
-              <select value={newRole} onChange={e => setNewRole(e.target.value as AdminUser['role'])} style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}>
-                <option>Vendor Admin</option>
-                <option>Support Admin</option>
-                <option>Finance Admin</option>
-                <option>Super Admin</option>
-              </select>
-            </div>
-            {newRole === 'Vendor Admin' && (
-              <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Store Name</label>
-                <input value={newStoreName} onChange={e => setNewStoreName(e.target.value)} placeholder="Store name" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Name</label>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
               </div>
-            )}
-            <button onClick={handleAdd} style={{ padding: '12px 24px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'var(--on-primary-container)', border: 'none', fontWeight: 600, cursor: 'pointer', height: '46px' }}>
-              Add Admin
-            </button>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Email Address</label>
+                <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@example.com" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Role</label>
+                <select value={newRole} onChange={e => setNewRole(e.target.value as AdminUser['role'])} style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%' }}>
+                  <option value="Vendor">Sales Vendor</option>
+                  <option value="Support Admin">Support Admin</option>
+                  <option value="Finance Admin">Finance Admin</option>
+                  <option value="Super Admin">Super Admin</option>
+                </select>
+              </div>
+
+              {newRole === 'Vendor' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Store Name</label>
+                  <input value={newStoreName} onChange={e => setNewStoreName(e.target.value)} placeholder="Store name" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+              <button 
+                onClick={() => setShowAddForm(false)} 
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: 'var(--on-surface)', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAdd} 
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'black', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Add Account
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -85,7 +130,7 @@ export default function AdminsPage() {
       {/* Stats */}
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
         {[
-          { label: 'Total Admins', val: allAdmins.length, color: 'var(--lime-400)' },
+          { label: 'Total Vendors', val: allAdmins.length, color: 'var(--lime-400)' },
           { label: 'Active', val: activeCount, color: 'var(--lime-400)' },
           { label: 'Suspended', val: suspendedCount, color: 'var(--error)' },
           { label: 'Pending Apps', val: pendingApps.length, color: '#00e5ff' },
@@ -100,7 +145,7 @@ export default function AdminsPage() {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px' }}>
         <button onClick={() => setActiveTab('admins')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: activeTab === 'admins' ? 600 : 400, cursor: 'pointer', backgroundColor: activeTab === 'admins' ? 'var(--lime-400)' : 'var(--surface)', color: activeTab === 'admins' ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s' }}>
-          Current Admins ({allAdmins.length})
+          Current Vendors & Staff ({allAdmins.length})
         </button>
         <button onClick={() => setActiveTab('applications')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: activeTab === 'applications' ? 600 : 400, cursor: 'pointer', backgroundColor: activeTab === 'applications' ? 'var(--lime-400)' : 'var(--surface)', color: activeTab === 'applications' ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
           Vendor Applications
@@ -114,8 +159,8 @@ export default function AdminsPage() {
           allAdmins.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--on-surface-variant)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '56px', marginBottom: '16px', opacity: 0.4 }}>shield_person</span>
-              <p style={{ fontSize: '1rem', marginBottom: '4px', fontWeight: 500 }}>No admins or vendors added yet</p>
-              <p style={{ fontSize: '0.85rem' }}>Click &quot;Add New Admin&quot; to grant admin access to someone.</p>
+              <p style={{ fontSize: '1rem', marginBottom: '4px', fontWeight: 500 }}>No vendors or staff added yet</p>
+              <p style={{ fontSize: '0.85rem' }}>Click &quot;Add New Vendor&quot; to grant access to someone.</p>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -148,6 +193,21 @@ export default function AdminsPage() {
                       <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{admin.createdAt}</td>
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
+                          {admin.role === 'Vendor' && (
+                            <button 
+                              onClick={() => toggleVendorVerification(admin.email)} 
+                              style={{ 
+                                width: '32px', height: '32px', borderRadius: '8px', 
+                                backgroundColor: admin.isVerified ? 'color-mix(in srgb, var(--lime-400) 15%, transparent)' : 'var(--surface-container-high)', 
+                                color: admin.isVerified ? 'var(--lime-400)' : 'var(--on-surface-variant)', 
+                                border: admin.isVerified ? '1px solid var(--lime-400)' : '1px solid var(--outline)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                              }} 
+                              title={admin.isVerified ? "Verified (Click to unverify)" : "Not Verified (Click to verify)"}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: admin.isVerified ? "'FILL' 1" : "'FILL' 0" }}>verified</span>
+                            </button>
+                          )}
                           {admin.status === 'Active' && (
                             <button onClick={() => updateAdminStatus(admin.id, 'Suspended')} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Suspend">
                               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>block</span>
@@ -202,6 +262,14 @@ export default function AdminsPage() {
                     <div style={{ backgroundColor: 'var(--surface-container)', padding: '16px', borderRadius: '12px', border: '1px solid var(--outline-variant)' }}>
                       <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--on-surface-variant)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reason for Applying</p>
                       <p style={{ fontSize: '0.95rem', lineHeight: 1.5, margin: 0 }}>&quot;{app.reason}&quot;</p>
+                      {app.documentUrl && (
+                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--outline-variant)' }}>
+                          <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--on-surface-variant)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verification Document</p>
+                          <a href={app.documentUrl} target="_blank" rel="noreferrer" style={{ display: 'block', width: 'fit-content' }}>
+                            <img src={app.documentUrl} alt="Verification Document" style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '8px', border: '1px solid var(--outline)', objectFit: 'cover' }} />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
 
@@ -11,18 +12,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    }
+
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
     }
 
-    const role = email === 'superadmin@reed.com' ? 'super_admin' : 'user';
+    const role = email === 'africartsadmin99@gmail.com' ? 'super_admin' : 'customer';
+
+    // Hash the password with bcrypt (12 salt rounds)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await User.create({
       name,
       email: email.toLowerCase(),
       phone: phone || '',
-      password, // In a production app, use bcrypt to hash this!
+      password: hashedPassword,
       role,
     });
 

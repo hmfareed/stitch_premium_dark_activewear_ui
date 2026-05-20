@@ -1,5 +1,5 @@
 {
-  "name": "stitch_premium_dark_activewear_ui",
+  "name": "africart",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -12,10 +12,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^8.0.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
+    "mongoose": "^8.3.0",
     "next": "^16.2.4",
+    "nodemailer": "^8.0.7",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "mongoose": "^8.3.0"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@types/node": "^20",

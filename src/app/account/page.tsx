@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useCart, useWishlist, useTheme, ThemeMode, useToast } from '@/context/AppContext';
+import { useAuth, useCart, useWishlist, useTheme, ThemeMode, useToast, useNotifications, useUserActivity } from '@/context/AppContext';
 
 export default function AccountPage() {
   const { user, logout, updateProfilePic, isLoading } = useAuth();
@@ -13,22 +13,19 @@ export default function AccountPage() {
   const { showToast } = useToast();
   const router = useRouter();
   
-  const [orderCount, setOrderCount] = useState(0);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, activeOrderCount: orderCount } = useNotifications();
+  const { recentlyViewed: viewedProducts } = useUserActivity();
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
         router.push('/login');
-      } else {
-        const savedOrders = JSON.parse(localStorage.getItem(`reed-orders-${user.email}`) || '[]');
-        const activeOrders = savedOrders.filter((o: any) => o.status === 'Processing' || o.status === 'Ongoing' || o.status === 'Shipped');
-        setOrderCount(activeOrders.length);
-        
-        const savedNotifs = JSON.parse(localStorage.getItem(`reed-notifications-${user.email}`) || '[]');
-        setUnreadCount(savedNotifs.filter((n: any) => !n.read).length);
       }
     }
   }, [user, isLoading, router]);
@@ -95,9 +92,15 @@ export default function AccountPage() {
     { icon: 'credit_card', label: 'Payment Methods', sub: 'Cards & mobile money', href: '/account/payments' },
     { icon: 'local_mall', label: 'My Cart', sub: 'View your shopping bag', href: '/cart' },
     { icon: 'favorite', label: 'Wishlist', sub: 'Your saved pieces', href: '/wishlist' },
-    { icon: 'history', label: 'Recently Viewed', sub: 'Pieces you looked at', href: '#' },
+    { icon: 'history', label: 'Recently Viewed', sub: 'Pieces you looked at', href: '#', onClick: () => setShowHistoryModal(true) },
     { icon: 'settings', label: 'Settings', sub: 'Dark mode, password & more', href: '/account/settings' },
   ];
+
+  // Truncate long emails
+  const truncateEmail = (email: string, maxLen: number = 28) => {
+    if (email.length <= maxLen) return email;
+    return email.substring(0, maxLen) + '...';
+  };
 
   return (
     <div style={{ padding: '0 16px', paddingBottom: 40 }}>
@@ -112,15 +115,15 @@ export default function AccountPage() {
         {/* Profile Card */}
         <div className="animate-fade-in-up" style={{
           background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, padding: 20,
-          display: 'flex', alignItems: 'center', gap: 16, position: 'relative', zIndex: 50
+          display: 'flex', alignItems: 'center', gap: 16, position: 'relative', zIndex: 50, overflow: 'visible'
         }}>
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
             <img 
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               src={user.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=c3f400&color=000&size=256`} 
               alt="Profile" 
               style={{
-                width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--lime-400)', cursor: 'pointer'
+                width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer'
               }} 
             />
             {showProfileMenu && (
@@ -142,31 +145,113 @@ export default function AccountPage() {
               </div>
             )}
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', fontWeight: 800, marginBottom: 4 }}>{user.name}</h2>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: 13, marginBottom: 8 }}>{user.email}</p>
+            <p style={{ 
+              color: 'var(--on-surface-variant)', fontSize: 13, marginBottom: 8,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%'
+            }} title={user.email}>{truncateEmail(user.email)}</p>
             {user.role === 'super_admin' ? (
               <span style={{ background: 'color-mix(in srgb, #ff00ff 20%, transparent)', color: '#ff00ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>SUPER ADMIN</span>
-            ) : user.role === 'admin' ? (
-              <span style={{ background: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>ADMIN</span>
+            ) : user.role === 'vendor' ? (
+              <span style={{ background: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>VENDOR</span>
             ) : (
-              <span style={{ background: 'rgba(195,244,0,0.1)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>USER</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <span style={{ background: 'rgba(195,244,0,0.1)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>CUSTOMER</span>
+                <div style={{ background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>stars</span>
+                  {user.points || 0} POINTS
+                </div>
+              </div>
             )}
           </div>
         </div>
 
+        {/* Email Verification Banner */}
+        {!user.isVerified && (
+          <div className="animate-fade-in-up" style={{
+            background: 'linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(195,244,0,0.08) 100%)',
+            border: '1px solid rgba(251,191,36,0.3)', borderRadius: 16, padding: 16,
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#fbbf24' }}>warning</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)' }}>Verify your email</p>
+                <p style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>Secure your account and unlock all features</p>
+              </div>
+            </div>
+            {!showOtpInput ? (
+              <button
+                onClick={async () => {
+                  setVerifyLoading(true);
+                  try {
+                    const res = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
+                    const data = await res.json();
+                    if (data.success) { setShowOtpInput(true); showToast('Verification code sent to your email!'); }
+                    else showToast(data.error || 'Failed to send code', 'error');
+                  } catch { showToast('Network error', 'error'); }
+                  setVerifyLoading(false);
+                }}
+                disabled={verifyLoading}
+                style={{ padding: '10px 20px', borderRadius: 10, background: '#fbbf24', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: verifyLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                {verifyLoading ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>progress_activity</span> Sending...</> : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>mail</span> Send Verification Code</>}
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="6-digit code"
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--outline)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 16, fontFamily: 'monospace', letterSpacing: 4, textAlign: 'center', outline: 'none' }}
+                />
+                <button
+                  onClick={async () => {
+                    if (otpCode.length !== 6) { showToast('Enter the 6-digit code', 'error'); return; }
+                    setVerifyLoading(true);
+                    try {
+                      const res = await fetch('/api/auth/verify-email', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email, code: otpCode }) });
+                      const data = await res.json();
+                      if (data.success) { showToast('Email verified! 🎉'); window.location.reload(); }
+                      else showToast(data.error || 'Invalid code', 'error');
+                    } catch { showToast('Network error', 'error'); }
+                    setVerifyLoading(false);
+                  }}
+                  disabled={verifyLoading || otpCode.length !== 6}
+                  style={{ padding: '10px 16px', borderRadius: 10, background: 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+                >
+                  {verifyLoading ? '...' : 'Verify'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Verified badge on profile */}
+        {user.isVerified && (
+          <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(195,244,0,0.08)', border: '1px solid rgba(195,244,0,0.2)', borderRadius: 10, padding: '8px 14px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--lime-400)' }}>verified</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Email Verified</span>
+          </div>
+        )}
+
         {/* Stat Cards */}
-        <div className="animate-fade-in-up stagger-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="animate-fade-in-up stagger-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {[
             { icon: 'local_mall', count: totalItems, label: 'IN BAG' },
             { icon: 'favorite', count: totalWishlist, label: 'SAVED' },
             { icon: 'package_2', count: orderCount, label: 'ORDERS' },
+            { icon: 'stars', count: user.points || 0, label: 'POINTS', color: '#fbbf24' },
           ].map((stat, i) => (
             <div key={i} style={{
               background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: '16px 8px',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8
             }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 20 }}>{stat.icon}</span>
+              <span className="material-symbols-outlined" style={{ color: stat.color || 'var(--on-surface-variant)', fontSize: 20 }}>{stat.icon}</span>
               <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 900, color: 'var(--foreground)' }}>{stat.count}</span>
               <span style={{ color: 'var(--on-surface-variant)', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em' }}>{stat.label}</span>
             </div>
@@ -174,7 +259,7 @@ export default function AccountPage() {
         </div>
 
         {/* Dashboard Access for Admins */}
-        {(user.role === 'admin' || user.role === 'super_admin') && (
+        {(user.role === 'vendor' || user.role === 'super_admin') && (
           <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', marginBottom: 4 }}>Admin Controls</h2>
             
@@ -190,7 +275,7 @@ export default function AccountPage() {
               </button>
             )}
 
-            {(user.role === 'admin' || user.role === 'super_admin') && (
+            {(user.role === 'vendor' || user.role === 'super_admin') && (
               <button onClick={() => router.push('/vendor')} style={{
                 background: 'linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)', border: 'none', borderRadius: 16, padding: '16px 12px',
                 color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 15, cursor: 'pointer',
@@ -204,32 +289,12 @@ export default function AccountPage() {
           </div>
         )}
 
-        {/* Become a Vendor Call to Action for Regular Users */}
-        {user.role === 'user' && (
-          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 8 }}>
-            <div style={{
-              background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)', border: '1px solid var(--lime-400)', borderRadius: 16, padding: '20px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16
-            }}>
-              <div>
-                <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, color: 'var(--lime-400)', marginBottom: 4, fontWeight: 800 }}>Become a Vendor</h3>
-                <p style={{ color: '#aaa', fontSize: 12, lineHeight: 1.4 }}>Start selling your products on REED Store and reach millions of customers.</p>
-              </div>
-              <button onClick={() => router.push('/admin/apply')} style={{
-                background: 'var(--lime-400)', border: 'none', borderRadius: 8, padding: '10px 16px', flexShrink: 0,
-                color: '#000', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: 'pointer',
-                transition: 'transform 0.2s'
-              }}>
-                Apply Now
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Menu Items */}
         <div className="animate-fade-in-up stagger-3" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {menuItems.map((item, i) => (
-            <Link key={i} href={item.href} style={{ textDecoration: 'none' }}>
+            <div key={i} onClick={item.onClick || (() => item.href !== '#' && router.push(item.href))} style={{ cursor: 'pointer' }}>
               <div style={{
                 background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 16,
                 display: 'flex', alignItems: 'center', gap: 16
@@ -243,12 +308,12 @@ export default function AccountPage() {
                 </div>
                 {item.badge && (
                   <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffae00', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                    <span style={{ color: '#000', fontSize: 12, fontWeight: 800 }}>{item.badge}</span>
+                    <span style={{ color: 'var(--on-lime-400)', fontSize: 12, fontWeight: 800 }}>{item.badge}</span>
                   </div>
                 )}
                 <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 20 }}>chevron_right</span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
 
@@ -291,6 +356,22 @@ export default function AccountPage() {
           <span style={{ fontSize: 13, color: 'var(--on-surface-variant)', textTransform: 'capitalize' }}>{theme}</span>
         </div>
 
+
+        {/* Become a Vendor for regular users */}
+        {user.role === 'customer' && (
+          <div className="animate-fade-in-up stagger-4">
+            <button onClick={() => router.push('/apply')} style={{
+              background: 'linear-gradient(135deg, var(--lime-400) 0%, #00e5ff 100%)', border: 'none', borderRadius: 16, padding: '16px 12px',
+              color: 'var(--on-lime-400)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 15, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(195, 244, 0, 0.2)',
+              transition: 'transform 0.2s', width: '100%'
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>storefront</span>
+              Become a Vendor — Sell on AfriCart
+            </button>
+          </div>
+        )}
+
         {/* Sign Out */}
         <button onClick={handleSignOut} className="animate-fade-in-up stagger-4" style={{
           background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: 16, padding: 16,
@@ -305,8 +386,8 @@ export default function AccountPage() {
       {/* Theme Modal */}
       {showThemeModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
-          display: 'flex', alignItems: 'flex-end', backdropFilter: 'blur(4px)'
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999,
+          display: 'flex', alignItems: 'flex-end'
         }} onClick={() => setShowThemeModal(false)}>
           <div className="animate-slide-in" onClick={e => e.stopPropagation()} style={{
             background: 'var(--surface)', width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
@@ -331,6 +412,42 @@ export default function AccountPage() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Recently Viewed Modal */}
+      {showHistoryModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'var(--background)', zIndex: 10000,
+          display: 'flex', flexDirection: 'column'
+        }} className="animate-fade-in">
+          <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--outline)' }}>
+            <button onClick={() => setShowHistoryModal(false)} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer' }}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 800 }}>Recently Viewed</h2>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            {viewedProducts.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', color: 'var(--on-surface-variant)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 16 }}>history</span>
+                <p>No recently viewed items</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {viewedProducts.map(product => (
+                  <Link key={product.id} href={`/product/${product.id}`} style={{ textDecoration: 'none' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--outline)', background: 'var(--surface-container)' }}>
+                        <img src={product.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={product.name} />
+                      </div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }} className="line-clamp-1">{product.name}</p>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--lime-400)' }}>GH₵{product.price.toFixed(2)}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

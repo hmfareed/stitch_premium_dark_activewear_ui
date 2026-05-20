@@ -24,8 +24,8 @@ export default function ChatPage() {
   useEffect(() => {
     // Initial greeting
     const greeting = user 
-      ? `Hi ${user.name.split(' ')[0]}! I'm your Reed Store AI Assistant. I can help you find products, track your orders, or manage your account. How can I assist you today?`
-      : "Welcome to Reed Store! I'm your AI Assistant. How can I help you discover amazing products today?";
+      ? `Hi ${user.name.split(' ')[0]}! I'm your AfriCart AI Assistant. I can help you find products, track your orders, or manage your account. How can I assist you today?`
+      : "Welcome to AfriCart! I'm your AI Assistant. How can I help you discover amazing products today?";
     
     setMessages([{ id: '1', sender: 'ai', text: greeting, timestamp: new Date() }]);
   }, [user]);
@@ -35,55 +35,87 @@ export default function ChatPage() {
   }, [messages, isTyping]);
 
   const generateAIResponse = (query: string): string => {
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
     
-    // Product Assistance
-    if (q.includes('cheap') || q.includes('under') || q.includes('affordable')) {
-      const cheapProducts = allProducts.filter(p => p.price < 100).slice(0, 2);
+    // 1. Greetings & Identity
+    if (/^(hi|hello|hey|greetings|yo)/.test(q)) {
+      return `Hello! I'm your AfriCart AI Assistant. I can help you find premium activewear, track your orders, or guide you through your account settings. What's on your mind?`;
+    }
+    if (q.includes('how are you')) {
+      return "I'm doing great, thank you for asking! Just powered up and ready to help you find the best deals on AfriCart. How about you?";
+    }
+    if (q.includes('who are you') || q.includes('what are you')) {
+      return "I'm the official AfriCart AI Assistant. I was created to make your shopping experience seamless, from finding products to tracking deliveries.";
+    }
+    if (q.includes('thank') || q.includes('thanks')) {
+      return "You're very welcome! Is there anything else I can help you with today?";
+    }
+    if (q.includes('bye') || q.includes('goodbye')) {
+      return "Goodbye! Have a great day and come back to AfriCart soon!";
+    }
+
+    // 2. Store Information
+    if (q.includes('about the store') || q.includes('what is reed store') || q.includes('what is africart')) {
+      return "AfriCart is Ghana's premium multi-vendor marketplace for high-quality activewear, electronics, and fashion. We connect top vendors with customers looking for quality and style.";
+    }
+    if (q.includes('where') && (q.includes('located') || q.includes('store') || q.includes('office'))) {
+      return "We are primarily an online marketplace, which allows us to ship anywhere in Ghana! Our main fulfillment hub is located in Accra.";
+    }
+    if (q.includes('contact') || q.includes('phone') || q.includes('email') || q.includes('support')) {
+      return "You can reach our support team at support@africart.com or call us at +233 24 000 0000. We're also available right here in this chat!";
+    }
+    if (q.includes('time') || q.includes('hours') || q.includes('open')) {
+      return "Our website is open 24/7! Our customer support team is available from 8:00 AM to 6:00 PM, Monday to Saturday.";
+    }
+
+    // 3. Vendor Inquiries (New!)
+    if (q.includes('sell') || q.includes('vendor') || q.includes('become a seller') || q.includes('join as vendor')) {
+      return "We'd love to have you! You can apply to become a vendor by going to your Account and clicking 'Become a Vendor', or visit /apply directly. We charge a flat 5% commission on sales.";
+    }
+
+    // 4. Product Assistance (Dynamic)
+    if (q.includes('cheap') || q.includes('under') || q.includes('affordable') || q.includes('price')) {
+      const cheapProducts = allProducts.filter(p => p.price < 100).sort((a,b) => a.price - b.price).slice(0, 3);
       if (cheapProducts.length > 0) {
-        return `I found some great affordable options! The ${cheapProducts[0].name} is $${cheapProducts[0].price}, and the ${cheapProducts[1]?.name || 'Classic Denim'} is only $${cheapProducts[1]?.price || 45}. Would you like me to add one to your cart?`;
+        return `I found some great affordable options! The ${cheapProducts[0].name} is just GH₵${cheapProducts[0].price}. We also have the ${cheapProducts[1]?.name} for GH₵${cheapProducts[1]?.price}. Should I show you more?`;
       }
     }
     
-    if (q.includes('recommend') || q.includes('suggest') || q.includes('looking for')) {
-      if (q.includes('tv') || q.includes('electronics')) {
-        return "For electronics, I highly recommend our UltraVision 4K Smart TV. It's currently $499 and has amazing reviews. Interested?";
+    if (q.includes('recommend') || q.includes('suggest') || q.includes('looking for') || q.includes('best')) {
+      const topRated = allProducts.filter(p => p.rating >= 4.8).slice(0, 2);
+      if (topRated.length > 0) {
+        return `Based on customer ratings, I highly recommend the ${topRated[0].name} (${topRated[0].rating}/5). It's one of our top sellers. What do you think?`;
       }
       return "Based on popular trends, our Classic Denim Jacket and Noise-Cancelling Headphones are top sellers right now. What specific category are you interested in?";
     }
 
-    // Order Management
+    if (q.includes('fashion') || q.includes('clothes') || q.includes('wear')) {
+      const fashion = allProducts.filter(p => p.category === 'Fashion').slice(0, 2);
+      return `We have amazing fashion pieces! Check out the ${fashion[0]?.name || 'Premium Activewear'}. We have a wide range of sizes and styles available.`;
+    }
+
+    // 5. Order Management
     if (q.includes('order') || q.includes('track') || q.includes('where is')) {
-      if (!user) return "Please log in first so I can fetch your order details.";
-      const savedOrders = JSON.parse(localStorage.getItem(`reed-orders-${user.email}`) || '[]');
-      if (savedOrders.length === 0) return "It looks like you haven't placed any orders yet. Check out our 'Fashion' section to get started!";
+      if (!user) return "I can certainly help with that! Please log in first so I can access your order history and give you a real-time update.";
+      const savedOrders = JSON.parse(localStorage.getItem(`africart-orders-${user.email}`) || '[]');
+      if (savedOrders.length === 0) return "It looks like you haven't placed any orders yet. Once you do, I can track them for you right here!";
       const latestOrder = savedOrders[0];
-      return `Your most recent order (#${latestOrder.id}) is currently marked as '${latestOrder.status}'. It was placed on ${latestOrder.date}.`;
+      return `I found your latest order (#${latestOrder.id}). It's currently in the '${latestOrder.status}' stage. You can see the full timeline in your 'Orders' section!`;
     }
 
-    // Customer Account Support
-    if (q.includes('address') || q.includes('location')) {
-      if (!user) return "Please log in to manage your delivery addresses.";
-      return "You can easily update your delivery address in the Account menu. I can take you there directly—just let me know!";
+    // 6. Checkout & Payment
+    if (q.includes('checkout') || q.includes('pay') || q.includes('payment')) {
+      if (cart.length === 0) return "Your cart is currently empty. Once you add some items, I can guide you through our secure checkout.";
+      return "Ready to shop? We support MTN MoMo, Telecel Cash, and all major bank cards. Our checkout is 100% secure.";
     }
 
-    if (q.includes('password') || q.includes('profile')) {
-      return "You can change your password and profile details in the 'Settings' tab under your Account.";
-    }
-
-    // Checkout Assistance
-    if (q.includes('checkout') || q.includes('pay')) {
-      if (cart.length === 0) return "Your cart is currently empty. Let's find some items to buy first!";
-      return "You have items ready to go! Our checkout supports Visa, Mastercard, MTN MoMo, and Telecel Cash. Would you like to proceed to checkout?";
-    }
-
-    // Returns & Refunds
+    // 7. Returns & Refunds
     if (q.includes('return') || q.includes('refund')) {
-      return "We offer a hassle-free 30-day return policy. If you're not satisfied, you can return items in their original condition for a full refund. Would you like to start a return?";
+      return "We offer a 30-day return policy for most items in original condition. Refunds are usually processed within 3-5 business days after we receive the item.";
     }
 
-    // Fallback
-    return "I'm not completely sure about that. Could you clarify? I can help with product recommendations, order tracking, and account management.";
+    // 8. Fallback
+    return "I'm sorry, I didn't quite catch that. I can help you with product recommendations, store information, order tracking, or becoming a vendor! Could you try rephrasing your question?";
   };
 
   const handleSend = (e: React.FormEvent) => {
@@ -122,7 +154,7 @@ export default function ChatPage() {
             <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, background: '#25D366', borderRadius: '50%', border: '2px solid var(--surface)' }} />
           </div>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 800, color: 'var(--foreground)' }}>Reed Assistant</h1>
+            <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 800, color: 'var(--foreground)' }}>AfriCart Assistant</h1>
             <p style={{ fontSize: 11, color: 'var(--lime-400)' }}>Online</p>
           </div>
         </div>

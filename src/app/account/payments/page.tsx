@@ -26,12 +26,12 @@ export default function PaymentsPage() {
       router.push('/login');
       return;
     }
-    const saved = localStorage.getItem(`reed-payments-${user.email}`);
+    const saved = localStorage.getItem(`africart-payments-${user.email}`);
     if (saved) {
       setMethods(JSON.parse(saved));
     } else {
       setMethods([]);
-      localStorage.setItem(`reed-payments-${user.email}`, JSON.stringify([]));
+      localStorage.setItem(`africart-payments-${user.email}`, JSON.stringify([]));
     }
   }, [user, router]);
 
@@ -56,7 +56,7 @@ export default function PaymentsPage() {
       
       const updated = [...methods, newMethod];
       setMethods(updated);
-      localStorage.setItem(`reed-payments-${user?.email}`, JSON.stringify(updated));
+      localStorage.setItem(`africart-payments-${user?.email}`, JSON.stringify(updated));
       setIsAdding(false);
       showToast('Payment method added securely');
     });
@@ -66,7 +66,7 @@ export default function PaymentsPage() {
     requireBiometric(() => {
       const updated = methods.filter(m => m.id !== id);
       setMethods(updated);
-      localStorage.setItem(`reed-payments-${user?.email}`, JSON.stringify(updated));
+      localStorage.setItem(`africart-payments-${user?.email}`, JSON.stringify(updated));
       showToast('Payment method removed', 'info');
     });
   };
@@ -76,10 +76,10 @@ export default function PaymentsPage() {
   return (
     <div style={{ padding: '0 16px', paddingBottom: 32 }}>
       <div className="animate-fade-in-up" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex' }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 24 }}>arrow_back</span>
         </button>
-        <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 24, fontWeight: 900, color: '#fff' }}>Payment Methods</h1>
+        <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 24, fontWeight: 900, color: 'var(--foreground)' }}>Payment Methods</h1>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
@@ -87,17 +87,17 @@ export default function PaymentsPage() {
           <>
             {methods.map((method, i) => (
               <div key={method.id} className={`animate-fade-in-up stagger-${i + 1}`} style={{
-                background: '#111', border: method.isDefault ? '1px solid var(--lime-400)' : '1px solid #1a1a1a', 
+                background: 'var(--surface)', border: method.isDefault ? '1px solid var(--lime-400)' : '1px solid var(--outline)', 
                 borderRadius: 12, padding: 16, position: 'relative', display: 'flex', alignItems: 'center', gap: 16
               }}>
-                <div style={{ width: 48, height: 32, background: '#222', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="material-symbols-outlined" style={{ color: '#fff' }}>
+                <div style={{ width: 48, height: 32, background: 'var(--surface-container)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--foreground)' }}>
                     {method.type === 'CARD' ? 'credit_card' : 'smartphone'}
                   </span>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, color: '#fff', marginBottom: 2 }}>{method.provider}</h3>
-                  <p style={{ color: '#888', fontSize: 13 }}>{method.details}</p>
+                  <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, color: 'var(--foreground)', marginBottom: 2 }}>{method.provider}</h3>
+                  <p style={{ color: 'var(--on-surface-variant)', fontSize: 13 }}>{method.details}</p>
                 </div>
                 <button onClick={() => handleDelete(method.id)} style={{
                   background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', display: 'flex'
@@ -107,13 +107,13 @@ export default function PaymentsPage() {
                 {method.isDefault && (
                   <span style={{
                     position: 'absolute', top: -8, right: 16, fontSize: 9, fontWeight: 800,
-                    background: 'var(--lime-400)', color: '#000', padding: '2px 8px', borderRadius: 10, textTransform: 'uppercase'
+                    background: 'var(--lime-400)', color: 'var(--on-lime-400)', padding: '2px 8px', borderRadius: 10, textTransform: 'uppercase'
                   }}>Default</span>
                 )}
               </div>
             ))}
             <button onClick={() => setIsAdding(true)} className="animate-fade-in-up" style={{
-              width: '100%', padding: '16px', marginTop: 16, border: '1px dashed #333', background: 'transparent',
+              width: '100%', padding: '16px', marginTop: 16, border: '1px dashed var(--outline)', background: 'transparent',
               color: 'var(--lime-400)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer',
               fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 14, textTransform: 'uppercase'
             }}>
@@ -121,19 +121,19 @@ export default function PaymentsPage() {
             </button>
           </>
         ) : (
-          <div className="animate-fade-in-up" style={{ background: '#111', padding: 16, borderRadius: 12, border: '1px solid #1a1a1a' }}>
-            <h3 style={{ fontFamily: 'var(--font-lexend)', color: '#fff', marginBottom: 16 }}>Select Method Type</h3>
+          <div className="animate-fade-in-up" style={{ background: 'var(--surface)', padding: 16, borderRadius: 12, border: '1px solid var(--outline)' }}>
+            <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 16 }}>Select Method Type</h3>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <button onClick={() => handleAdd('CARD')} style={{ flex: 1, padding: 16, background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, color: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => handleAdd('CARD')} style={{ flex: 1, padding: 16, background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 8, color: 'var(--foreground)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <span className="material-symbols-outlined">credit_card</span>
                 <span style={{ fontSize: 12, fontFamily: 'var(--font-lexend)' }}>Card</span>
               </button>
-              <button onClick={() => handleAdd('MOMO')} style={{ flex: 1, padding: 16, background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, color: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => handleAdd('MOMO')} style={{ flex: 1, padding: 16, background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 8, color: 'var(--foreground)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <span className="material-symbols-outlined">smartphone</span>
                 <span style={{ fontSize: 12, fontFamily: 'var(--font-lexend)' }}>Mobile Money</span>
               </button>
             </div>
-            <button onClick={() => setIsAdding(false)} style={{ width: '100%', padding: 12, background: 'transparent', color: '#888', border: 'none', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={() => setIsAdding(false)} style={{ width: '100%', padding: 12, background: 'transparent', color: 'var(--on-surface-variant)', border: 'none', cursor: 'pointer' }}>Cancel</button>
           </div>
         )}
       </div>
@@ -141,20 +141,20 @@ export default function PaymentsPage() {
       {/* Biometric Simulation Modal */}
       {showBiometric && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)'
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div className="animate-scale-in" style={{
-            background: '#111', padding: 32, borderRadius: 24, border: '1px solid #222',
+            background: 'var(--surface)', padding: 32, borderRadius: 24, border: '1px solid var(--outline)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', width: '80%', maxWidth: 300
           }}>
             <span className="material-symbols-outlined animate-pulse-glow" style={{ fontSize: 64, color: 'var(--lime-400)', marginBottom: 16 }}>fingerprint</span>
-            <h3 style={{ fontFamily: 'var(--font-lexend)', color: '#fff', marginBottom: 8, textAlign: 'center' }}>Verify Identity</h3>
-            <p style={{ color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>Touch the fingerprint sensor to authenticate this action securely.</p>
+            <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 8, textAlign: 'center' }}>Verify Identity</h3>
+            <p style={{ color: 'var(--on-surface-variant)', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>Touch the fingerprint sensor to authenticate this action securely.</p>
             
             <div style={{ display: 'flex', width: '100%', gap: 12 }}>
-              <button onClick={() => setShowBiometric(false)} style={{ flex: 1, padding: 12, background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={confirmBiometric} style={{ flex: 1, padding: 12, background: 'var(--lime-400)', border: 'none', color: '#000', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Simulate Touch</button>
+              <button onClick={() => setShowBiometric(false)} style={{ flex: 1, padding: 12, background: 'transparent', border: '1px solid var(--outline)', color: 'var(--on-surface-variant)', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={confirmBiometric} style={{ flex: 1, padding: 12, background: 'var(--lime-400)', border: 'none', color: 'var(--on-lime-400)', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Simulate Touch</button>
             </div>
           </div>
         </div>
