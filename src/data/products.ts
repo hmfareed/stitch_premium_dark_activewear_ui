@@ -41,6 +41,38 @@ export const categories = [
   'Accessories', 'Cosmetics', 'Food'
 ] as const;
 
+/** Normalized parent → children category hierarchy. */
+export const categoryHierarchy: Record<string, string[]> = {
+  'Electronics':      ['Laptops', 'Computing', 'Gaming'],
+  'Phones':           ['Phones/Tablets', 'Phone Accessories', 'Mobile Accessories'],
+  'Home':             ['Home Appliances', 'Cooling', 'Washers/Dryers'],
+  'Fashion':          ['Accessories'],
+  'Beauty':           ['Cosmetics'],
+  'Groceries':        ['Beverages', 'Food'],
+  'Health & Wellness':['Health', 'Sports'],
+  'Baby & Kids':      ['Baby', 'Baby Products', 'Toys'],
+  'Automotive':       [],
+  'Books':            [],
+  'Pet Supplies':     [],
+};
+
+/** Top-level categories to show as primary nav links (first 8 shown, rest in "More"). */
+export const topLevelCategories = Object.keys(categoryHierarchy);
+
+/** Resolve which top-level parent a raw product category belongs to. */
+export function getParentCategory(category: string): string | null {
+  for (const [parent, children] of Object.entries(categoryHierarchy)) {
+    if (parent === category || children.includes(category)) return parent;
+  }
+  return null;
+}
+
+/** Get all leaf + self categories that belong under a top-level parent. */
+export function getCategoryFamily(parent: string): string[] {
+  const children = categoryHierarchy[parent] ?? [];
+  return [parent, ...children];
+}
+
 export const products: Product[] = [
   {
     id: '1',

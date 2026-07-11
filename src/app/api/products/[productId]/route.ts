@@ -20,6 +20,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ productI
     const { productId } = await params;
     const updates = await req.json();
     
+    const oldProduct = await Product.findOne({ id: productId });
     const updated = await Product.findOneAndUpdate(
       { id: productId },
       { $set: updates },
@@ -28,6 +29,33 @@ export async function PUT(req: Request, { params }: { params: Promise<{ productI
 
     if (!updated) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Trigger price drop alert if price is reduced
+    if (oldProduct && updates.price !== undefined && updates.price < oldProduct.price) {
+      try {
+        // Find all users (in production we filter by wishlist, here we alert all registered buyers for demo/simulated experience)
+        const { User } = await import('@/models/User');
+        const users = await User.find({ role: 'customer' }).select('email').lean();
+        const emails = users.map((u: any) => u.email);
+
+        if (emails.length > 0) {
+          const origin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          await fetch(`${origin}/api/wishlist-alerts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: updated.id,
+              productName: updated.name,
+              oldPrice: oldProduct.price,
+              newPrice: updated.price,
+              subscriberEmails: emails,
+            }),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to trigger price drop notifications:', err);
+      }
     }
 
     return NextResponse.json({ success: true, product: updated });

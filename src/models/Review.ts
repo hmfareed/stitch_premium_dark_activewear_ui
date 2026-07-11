@@ -7,6 +7,10 @@ export interface IReview extends Document {
   customerEmail: string;
   rating: number;
   comment?: string;
+  images?: string[];
+  helpfulVotes?: number;
+  vendorReply?: string;
+  isVerifiedPurchase?: boolean;
   createdAt: Date;
 }
 
@@ -17,6 +21,10 @@ const ReviewSchema: Schema<IReview> = new Schema({
   customerEmail: { type: String, required: true },
   rating: { type: Number, required: true, min: 1, max: 5 },
   comment: { type: String },
+  images: { type: [String], default: [] },
+  helpfulVotes: { type: Number, default: 0 },
+  vendorReply: { type: String },
+  isVerifiedPurchase: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

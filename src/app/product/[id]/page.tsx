@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart, useWishlist, useToast, useStore, useAuth, useUserActivity } from '@/context/AppContext';
 import { useAdmin } from '@/context/AdminContext';
 
@@ -31,7 +32,7 @@ export default function ProductDetailPage() {
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToHistory } = useUserActivity();
+  const { addToHistory, recentlyViewed } = useUserActivity();
   const { showToast } = useToast();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -39,7 +40,125 @@ export default function ProductDetailPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
+  /* ── Q&A States ── */
+  const [qaList, setQaList] = useState<any[]>([]);
+  const [qaLoading, setQaLoading] = useState(true);
+  const [showQAModal, setShowQAModal] = useState(false);
+  const [newQuestion, setNewQuestion] = useState('');
+  const [replyingToQA, setReplyingToQA] = useState<string | null>(null);
+  const [newAnswer, setNewAnswer] = useState('');
+  const [qaActionLoading, setQaActionLoading] = useState(false);
+
   const product = allProducts.find(p => p.id === id);
+
+  const handleHelpfulVote = async (reviewId: string) => {
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId, action: 'voteHelpful' })
+      });
+      if (res.ok) {
+        setReviews(prev => prev.map(rev => (rev._id === reviewId || rev.id === reviewId) ? { ...rev, helpfulVotes: (rev.helpfulVotes || 0) + 1 } : rev));
+        showToast('Thanks for upvoting!');
+      }
+    } catch (err) {
+      console.error('Error voting helpful:', err);
+    }
+  };
+
+  const fetchQAs = async () => {
+    try {
+      const res = await fetch(`/api/product-qa?productId=${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setQaList(data.items || []);
+      }
+    } catch (err) {
+      console.error('Error fetching Q&As:', err);
+    } finally {
+      setQaLoading(false);
+    }
+  };
+
+  const handleAskQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      showToast('Please login to ask a question', 'error');
+      router.push('/login');
+      return;
+    }
+    if (!newQuestion.trim()) return;
+    setQaActionLoading(true);
+    try {
+      const res = await fetch('/api/product-qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: id,
+          question: newQuestion.trim(),
+          questionerEmail: user.email,
+          questionerName: user.name
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Question posted successfully!');
+        setNewQuestion('');
+        setShowQAModal(false);
+        fetchQAs();
+      } else {
+        showToast(data.error || 'Failed to post question', 'error');
+      }
+    } catch {
+      showToast('Error posting question', 'error');
+    } finally {
+      setQaActionLoading(false);
+    }
+  };
+
+  const handleAnswerQuestion = async (qaId: string) => {
+    if (!user) return;
+    if (!newAnswer.trim()) return;
+    setQaActionLoading(true);
+    try {
+      const res = await fetch('/api/product-qa', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qaId,
+          answer: newAnswer.trim(),
+          answeredByEmail: user.email,
+          answeredByName: user.role === 'super_admin' ? 'AfriCart Admin' : 'Store Owner'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Answer posted!');
+        setNewAnswer('');
+        setReplyingToQA(null);
+        fetchQAs();
+      }
+    } catch {
+      showToast('Error posting answer', 'error');
+    } finally {
+      setQaActionLoading(false);
+    }
+  };
+
+  const handleQAVoteHelpful = async (qaId: string) => {
+    try {
+      const res = await fetch('/api/product-qa', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qaId, action: 'helpful' })
+      });
+      if (res.ok) {
+        setQaList(prev => prev.map(item => item._id === qaId ? { ...item, helpful: (item.helpful || 0) + 1 } : item));
+        showToast('Vote registered!');
+      }
+    } catch {}
+  };
 
   React.useEffect(() => {
     const fetchReviews = async () => {
@@ -55,7 +174,10 @@ export default function ProductDetailPage() {
         setReviewsLoading(false);
       }
     };
-    if (id) fetchReviews();
+    if (id) {
+      fetchReviews();
+      fetchQAs();
+    }
   }, [id]);
 
   // Recently Viewed Tracking
@@ -181,13 +303,18 @@ export default function ProductDetailPage() {
                   }
                 }}
               >
-                <img
-                  key={activeImageIndex}
-                  className="animate-fade-in"
-                  style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: 400, transition: 'opacity 0.3s' }}
-                  alt={product.name}
-                  src={allImages[activeImageIndex] || product.image}
-                />
+                <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 300, maxHeight: 400 }}>
+                  <Image
+                    key={activeImageIndex}
+                    className="animate-fade-in"
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 500px"
+                    style={{ objectFit: 'contain', transition: 'opacity 0.3s' }}
+                    alt={product.name}
+                    src={allImages[activeImageIndex] || product.image}
+                  />
+                </div>
 
                 {/* Navigation Arrows (desktop) */}
                 {hasMultiple && activeImageIndex > 0 && (
@@ -241,7 +368,9 @@ export default function ProductDetailPage() {
                         opacity: activeImageIndex === i ? 1 : 0.6, transition: 'all 0.2s',
                       }}
                     >
-                      <img src={img} alt={`View ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                        <Image src={img} alt={`View ${i + 1}`} fill sizes="52px" style={{ objectFit: 'cover' }} />
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -390,7 +519,7 @@ export default function ProductDetailPage() {
                  ))}
                </div>
             ) : reviews.length > 0 ? (
-              reviews.map((r, i) => (
+               reviews.map((r, i) => (
                 <div key={i} style={{ paddingBottom: 24, borderBottom: '1px solid var(--outline-variant)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -398,7 +527,9 @@ export default function ProductDetailPage() {
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
                           {r.customerName}
-                          <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--lime-400)', fontVariationSettings: "'FILL' 1" }}>verified</span>
+                          {r.isVerifiedPurchase && (
+                            <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--lime-400)', fontVariationSettings: "'FILL' 1" }}>verified</span>
+                          )}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>{new Date(r.createdAt).toLocaleDateString()}</div>
                       </div>
@@ -410,23 +541,220 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
                   <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--on-surface-variant)', marginBottom: 12 }}>{r.comment}</p>
+                  
+                  {/* Uploaded Review Photos Grid */}
+                  {r.images && r.images.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                      {r.images.map((img: string, idx: number) => (
+                        <div key={idx} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--outline)' }}>
+                          <img src={img} alt="user review attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Helpful Vote Strip & Vendor Reply */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <button 
+                      onClick={() => handleHelpfulVote(r._id || r.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--lime-400)', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-lexend)' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>thumb_up</span>
+                      Helpful ({r.helpfulVotes || 0})
+                    </button>
+                    {r.isVerifiedPurchase && (
+                      <span style={{ fontSize: 10, color: 'var(--lime-400)', fontWeight: 800, fontFamily: 'var(--font-lexend)', letterSpacing: '0.04em' }}>VERIFIED PURCHASE</span>
+                    )}
+                  </div>
+
+                  {r.vendorReply && (
+                    <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--surface-container-high)', borderRadius: 10, borderLeft: '3px solid #00e5ff' }}>
+                      <p style={{ fontSize: 11, fontWeight: 800, color: '#00e5ff', marginBottom: 4, fontFamily: 'var(--font-lexend)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reply from {vendorStoreName}</p>
+                      <p style={{ fontSize: 13, color: 'var(--foreground)', lineHeight: 1.5, margin: 0 }}>{r.vendorReply}</p>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
               <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--on-surface-variant)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 40, opacity: 0.2, marginBottom: 8 }}>rate_review</span>
-                <p style={{ fontSize: 14 }}>No verified reviews yet.</p>
+                <p style={{ fontSize: 14 }}>No reviews yet.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Related Products */}
+        {/* ── PRODUCT Q&A SECTION ── */}
+        <div className="animate-fade-in-up stagger-5" style={{ marginBottom: 40, padding: '24px 0', borderTop: '1px solid var(--outline)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 900, marginBottom: 4 }}>PRODUCT Q&A</h2>
+              <p style={{ fontSize: 12, color: 'var(--on-surface-variant)' }}>Got questions? Ask the seller or community</p>
+            </div>
+            <button
+              onClick={() => {
+                if (!user) {
+                  showToast('Please login to ask a question', 'error');
+                  router.push('/login');
+                  return;
+                }
+                setShowQAModal(true);
+              }}
+              style={{
+                background: 'var(--lime-400)', color: '#000',
+                padding: '8px 16px', borderRadius: 8, border: 'none',
+                fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 11,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                textTransform: 'uppercase', letterSpacing: '0.04em'
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>help_outline</span>
+              Ask Question
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {qaLoading ? (
+              <div className="shimmer" style={{ height: 100, borderRadius: 12 }} />
+            ) : qaList.length > 0 ? (
+              qaList.map((qa) => {
+                const isSeller = user && (user.email === product.vendorEmail || user.role === 'super_admin');
+                return (
+                  <div key={qa._id} style={{ padding: '16px', background: 'var(--surface-container-low)', borderRadius: 12, border: '1px solid var(--outline-variant)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)', fontSize: 18 }}>help</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>{qa.question}</span>
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--on-surface-variant)' }}>{new Date(qa.createdAt).toLocaleDateString()}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>Asked by {qa.questionerName}</span>
+                      <button
+                        onClick={() => handleQAVoteHelpful(qa._id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer', fontSize: 11 }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>thumb_up</span>
+                        Helpful ({qa.helpful || 0})
+                      </button>
+                    </div>
+
+                    {qa.answer ? (
+                      <div style={{ marginTop: 12, padding: '12px', background: 'var(--surface-container-high)', borderRadius: 8, borderLeft: '3px solid var(--lime-400)' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                          <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)', fontSize: 14 }}>chat_bubble</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--lime-400)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{qa.answeredByName || 'Seller'}</span>
+                          <span style={{ fontSize: 9, color: 'var(--on-surface-variant)' }}>• {new Date(qa.answeredAt).toLocaleDateString()}</span>
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.5 }}>{qa.answer}</p>
+                      </div>
+                    ) : (
+                      isSeller && (
+                        <div style={{ marginTop: 12 }}>
+                          {replyingToQA === qa._id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              <textarea
+                                value={newAnswer}
+                                onChange={e => setNewAnswer(e.target.value)}
+                                placeholder="Write your answer..."
+                                style={{ width: '100%', padding: '10px', background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 8, color: 'var(--foreground)', fontSize: 13, outline: 'none' }}
+                                rows={2}
+                              />
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button onClick={() => setReplyingToQA(null)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--outline)', background: 'transparent', color: 'var(--foreground)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+                                <button onClick={() => handleAnswerQuestion(qa._id)} disabled={qaActionLoading} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--lime-400)', color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
+                                  {qaActionLoading ? 'Posting...' : 'Post Answer'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setReplyingToQA(qa._id)}
+                              style={{ background: 'var(--surface-container-highest)', border: '1px solid var(--outline)', borderRadius: 6, padding: '6px 12px', color: 'var(--foreground)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>reply</span>
+                              Answer Question
+                            </button>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--on-surface-variant)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, opacity: 0.2, marginBottom: 8 }}>help_center</span>
+                <p style={{ fontSize: 13 }}>No questions asked yet. Be the first to ask!</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── ASK QUESTION MODAL ── */}
+        {showQAModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div className="animate-scale-in" style={{ background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 450 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 900 }}>Ask a Question</h3>
+                <button onClick={() => setShowQAModal(false)} style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer' }}>
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <form onSubmit={handleAskQuestion} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--on-surface-variant)', marginBottom: 6, display: 'block' }}>Your Question</label>
+                  <textarea
+                    required
+                    value={newQuestion}
+                    onChange={e => setNewQuestion(e.target.value)}
+                    placeholder="e.g. Does this fit true to size?"
+                    style={{ width: '100%', padding: '12px', background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 10, color: 'var(--foreground)', fontSize: 14, outline: 'none' }}
+                    rows={4}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={qaActionLoading}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 10,
+                    background: 'var(--lime-400)', color: '#000',
+                    fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13,
+                    textTransform: 'uppercase', border: 'none', cursor: 'pointer'
+                  }}
+                >
+                  {qaActionLoading ? 'Submitting...' : 'Submit Question'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Related Products Carousel */}
         {related.length > 0 && (
-          <div className="animate-fade-in-up stagger-5" style={{ marginBottom: 24 }}>
+          <div className="animate-fade-in-up stagger-5" style={{ marginBottom: 28 }}>
             <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'block' }}>You Might Also Like</span>
-            <div className="no-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto' }}>
+            <div className="no-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
               {related.map(p => (
+                <Link key={p.id} href={`/product/${p.id}`} style={{ flexShrink: 0, width: 140, textDecoration: 'none' }}>
+                  <div style={{ aspectRatio: '3/4', background: 'var(--surface-container)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--outline)', marginBottom: 6 }}>
+                    <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={p.name} src={p.image} />
+                  </div>
+                  <p className="line-clamp-1" style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>{p.name}</p>
+                  <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 800, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recently Viewed Carousel */}
+        {recentlyViewed.length > 1 && (
+          <div className="animate-fade-in-up stagger-5" style={{ marginBottom: 28 }}>
+            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'block' }}>Recently Viewed Products</span>
+            <div className="no-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+              {recentlyViewed.filter(p => p.id !== product.id).map(p => (
                 <Link key={p.id} href={`/product/${p.id}`} style={{ flexShrink: 0, width: 140, textDecoration: 'none' }}>
                   <div style={{ aspectRatio: '3/4', background: 'var(--surface-container)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--outline)', marginBottom: 6 }}>
                     <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={p.name} src={p.image} />
@@ -470,12 +798,12 @@ export default function ProductDetailPage() {
               flex: 1, height: 52,
               background: 'var(--lime-400)',
               color: '#000',
-              fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14,
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              border: 'none', borderRadius: 10,
+              fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13,
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              border: '1px solid var(--lime-400)', borderRadius: 10,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'transform 0.15s',
+              transition: 'all 0.2s',
             }}>
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>shopping_bag</span>
               Add to Cart

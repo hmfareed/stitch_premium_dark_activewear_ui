@@ -18,6 +18,8 @@ export async function GET() {
         phone: user.phone,
         role: user.role,
         profilePic: user.profilePic,
+        isVerified: user.isVerified || false,
+        storeName: user.storeName,
         createdAt: user.createdAt
       }))
     });

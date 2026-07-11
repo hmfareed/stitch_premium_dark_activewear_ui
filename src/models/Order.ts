@@ -31,6 +31,7 @@ export interface IOrder extends Document {
     method: string;
     network?: string;
     momoPhone?: string;
+    paystackRef?: string;
     paymentStatus: 'Pending' | 'Paid' | 'Held' | 'Refunded';
     escrowStatus: 'Locked' | 'Released' | 'Disputed' | 'NA';
   };
@@ -72,6 +73,7 @@ const OrderSchema: Schema<IOrder> = new Schema({
     method: { type: String },
     network: { type: String },
     momoPhone: { type: String },
+    paystackRef: { type: String },
     paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Held', 'Refunded'], default: 'Pending' },
     escrowStatus: { type: String, enum: ['Locked', 'Released', 'Disputed', 'NA'], default: 'NA' },
   },

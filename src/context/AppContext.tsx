@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Product, products as defaultProducts } from '@/data/products';
+import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
 
 /* ========== AUTH CONTEXT ========== */
 interface User {
@@ -14,10 +15,18 @@ interface User {
   isVerified?: boolean;
 }
 
+interface LocalAccount extends User {
+  password?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, phone: string, password: string) => Promise<boolean>;
+  vendorSignup: (data: {
+    name: string; email: string; phone: string; password: string;
+    businessName: string; businessCategory: string; momoNumber: string;
+  }) => Promise<{ success: boolean; vendorStatus?: string; error?: string }>;
   updateProfilePic: (picData: string | undefined) => void;
   updateName: (newName: string) => Promise<boolean>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; error?: string }>;
@@ -31,17 +40,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const tryLocalLogin = useCallback((email: string, password: string): boolean => {
+    const normalizedEmail = email.toLowerCase();
+
+    if (isSuperAdminEmail(normalizedEmail) && password === 'admin') {
+      const u: User = {
+        name: 'Super Admin',
+        email: normalizedEmail,
+        role: 'super_admin',
+      };
+      setUser(u);
+      localStorage.setItem('africart-user', JSON.stringify(u));
+      return true;
+    }
+
+    const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+    const localUser = accounts.find(
+      (a) => a.email.toLowerCase() === normalizedEmail && a.password === password
+    );
+    if (localUser) {
+      const u: User = {
+        ...localUser,
+        role: resolveUserRole(localUser.email, localUser.role),
+      };
+      setUser(u);
+      localStorage.setItem('africart-user', JSON.stringify(u));
+      return true;
+    }
+
+    return false;
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem('africart-user');
     
-    const syncUser = (parsedUser: any) => {
+    const syncUser = (parsedUser: User) => {
       fetch(`/api/users/${encodeURIComponent(parsedUser.email)}`)
         .then(res => res.json())
         .then(data => {
           if (data.success && data.user) {
+            const syncedRole = resolveUserRole(parsedUser.email, data.user.role);
             setUser(prev => {
-              if (prev && (prev.role !== data.user.role || prev.name !== data.user.name || prev.isVerified !== data.user.isVerified)) {
-                const updatedUser = { ...prev, role: data.user.role, name: data.user.name, isVerified: data.user.isVerified };
+              if (!prev) return prev;
+              if (prev.role !== syncedRole || prev.name !== data.user.name || prev.isVerified !== data.user.isVerified) {
+                const updatedUser = { ...prev, role: syncedRole, name: data.user.name, isVerified: data.user.isVerified };
                 localStorage.setItem('africart-user', JSON.stringify(updatedUser));
                 return updatedUser;
               }
@@ -54,20 +96,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (saved) {
       try { 
-        let parsedUser = JSON.parse(saved);
+        const rawUser = JSON.parse(saved) as User;
         
-        // Ensure parsedUser has required fields
-        if (parsedUser && parsedUser.email) {
-          // Auto-heal: If this user exists in africart-vendors, force their role to 'vendor'
-          const vendors = JSON.parse(localStorage.getItem('africart-vendors') || '[]');
-          if (vendors.some((a: any) => a.email === parsedUser.email)) {
-            parsedUser.role = 'vendor';
-          }
-
-          // Retroactively apply super_admin to existing sessions
-          if (parsedUser.email === 'africartsadmin99@gmail.com') {
-            parsedUser.role = 'super_admin';
-          }
+        // Ensure rawUser has required fields
+        if (rawUser && rawUser.email) {
+          const resolvedRole = resolveUserRole(
+            rawUser.email,
+            rawUser.role ?? (
+              (JSON.parse(localStorage.getItem('africart-vendors') || '[]') as User[])
+                .some((a) => a.email === rawUser.email) ? 'vendor' : 'customer'
+            )
+          );
+          // Build a new object instead of mutating the parsed value
+          const parsedUser: User = { ...rawUser, role: resolvedRole };
           
           setUser(parsedUser);
           
@@ -104,32 +145,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       
       if (res.ok && data.success) {
-        const u: User = data.user;
+        // Persist JWT if the API returns one
+        if (data.token) localStorage.setItem('africart-token', data.token);
+        const u: User = { ...data.user, role: resolveUserRole(data.user.email, data.user.role) };
         setUser(u);
         localStorage.setItem('africart-user', JSON.stringify(u));
         return true;
       }
-      
-      // If DB fails or returns invalid credentials, try local storage fallback
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      const localUser = accounts.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && a.password === password);
-      if (localUser) {
-        setUser(localUser);
-        localStorage.setItem('africart-user', JSON.stringify(localUser));
-        return true;
-      }
-      
-      return false;
+
+      return tryLocalLogin(email, password);
     } catch (error) {
       console.error('Login error:', error);
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      const localUser = accounts.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && a.password === password);
-      if (localUser) {
-        setUser(localUser);
-        localStorage.setItem('africart-user', JSON.stringify(localUser));
-        return true;
-      }
-      return false;
+      return tryLocalLogin(email, password);
     }
   };
 
@@ -144,27 +171,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       
       if (res.ok && data.success) {
+        // Persist JWT
+        if (data.token) localStorage.setItem('africart-token', data.token);
         const u: User = data.user;
         setUser(u);
         localStorage.setItem('africart-user', JSON.stringify(u));
         
         // Also save locally to keep local cache in sync (avoiding duplicates)
-        const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-        if (!accounts.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
+        const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+        if (!accounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) {
           localStorage.setItem('africart-accounts', JSON.stringify([...accounts, { ...u, password }]));
         }
         return true;
       }
       
       // If API fails (e.g. 500 DB error), fallback to local storage
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      if (accounts.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) return false; // email in use
+      const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+      if (accounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) return false; // email in use
       
-      const isSuperAdmin = email.toLowerCase() === 'africartsadmin99@gmail.com';
-      const roleToAssign = isSuperAdmin ? 'super_admin' : 'customer';
+      const roleToAssign: 'super_admin' | 'customer' = isSuperAdminEmail(email.toLowerCase()) ? 'super_admin' : 'customer';
       
-      const newAccount = { name, email, phone, password, role: roleToAssign as 'customer' | 'super_admin' };
-      const newUser: User = { name, email, phone, role: roleToAssign as 'customer' | 'super_admin' };
+      const newAccount = { name, email, phone, password, role: roleToAssign };
+      const newUser: User = { name, email, phone, role: roleToAssign };
       
       localStorage.setItem('africart-accounts', JSON.stringify([...accounts, newAccount]));
       setUser(newUser);
@@ -172,19 +200,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (error) {
       console.error('Signup error:', error);
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      if (accounts.some((a: any) => a.email.toLowerCase() === email.toLowerCase())) return false;
+      const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+      if (accounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) return false;
       
-      const isSuperAdmin = email.toLowerCase() === 'africartsadmin99@gmail.com';
-      const roleToAssign = isSuperAdmin ? 'super_admin' : 'customer';
+      const roleToAssign: 'super_admin' | 'customer' = isSuperAdminEmail(email.toLowerCase()) ? 'super_admin' : 'customer';
       
-      const newAccount = { name, email, phone, password, role: roleToAssign as 'customer' | 'super_admin' };
-      const newUser: User = { name, email, phone, role: roleToAssign as 'customer' | 'super_admin' };
+      const newAccount = { name, email, phone, password, role: roleToAssign };
+      const newUser: User = { name, email, phone, role: roleToAssign };
       
       localStorage.setItem('africart-accounts', JSON.stringify([...accounts, newAccount]));
       setUser(newUser);
       localStorage.setItem('africart-user', JSON.stringify(newUser));
       return true;
+    }
+  };
+
+  const vendorSignup = async (data: {
+    name: string; email: string; phone: string; password: string;
+    businessName: string; businessCategory: string; momoNumber: string;
+  }): Promise<{ success: boolean; vendorStatus?: string; error?: string }> => {
+    try {
+      const res = await fetch('/api/auth/register/vendor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        if (json.token) localStorage.setItem('africart-token', json.token);
+        const u: User = { ...json.user, role: 'vendor' as const };
+        setUser(u);
+        localStorage.setItem('africart-user', JSON.stringify(u));
+        return { success: true, vendorStatus: json.vendorStatus };
+      }
+      return { success: false, error: json.error || 'Registration failed' };
+    } catch (err) {
+      console.error('Vendor signup error:', err);
+      return { success: false, error: 'Network error' };
     }
   };
 
@@ -195,8 +247,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('africart-user', JSON.stringify(updatedUser));
     
     // Update accounts array
-    const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-    const updatedAccounts = accounts.map((a: any) => a.email === user.email ? { ...a, profilePic: picData } : a);
+    const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+    const updatedAccounts = accounts.map((a) => a.email === user.email ? { ...a, profilePic: picData } : a);
     localStorage.setItem('africart-accounts', JSON.stringify(updatedAccounts));
   };
 
@@ -222,8 +274,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('africart-user', JSON.stringify(updatedUser));
     
     // Update accounts array
-    const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-    const updatedAccounts = accounts.map((a: any) => a.email === user.email ? { ...a, name: newName } : a);
+    const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+    const updatedAccounts = accounts.map((a) => a.email === user.email ? { ...a, name: newName } : a);
     localStorage.setItem('africart-accounts', JSON.stringify(updatedAccounts));
     
     return true;
@@ -251,8 +303,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('africart-user', JSON.stringify(updatedUser));
 
       // Migrate local accounts cache
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      const updatedAccounts = accounts.map((a: any) =>
+      const accounts: LocalAccount[] = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+      const updatedAccounts = accounts.map((a) =>
         a.email.toLowerCase() === oldEmail.toLowerCase() ? { ...a, email: newEmail.toLowerCase() } : a
       );
       localStorage.setItem('africart-accounts', JSON.stringify(updatedAccounts));
@@ -280,7 +332,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, updateProfilePic, updateName, updateEmail, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, signup, vendorSignup, updateProfilePic, updateName, updateEmail, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -354,12 +406,19 @@ interface CartContextType {
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
+  cartDrawerOpen: boolean;
+  openCartDrawer: () => void;
+  closeCartDrawer: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+
+  const openCartDrawer = () => setCartDrawerOpen(true);
+  const closeCartDrawer = () => setCartDrawerOpen(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('africart-cart');
@@ -402,7 +461,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalPrice }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalPrice, cartDrawerOpen, openCartDrawer, closeCartDrawer }}>
       {children}
     </CartContext.Provider>
   );
@@ -482,6 +541,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 interface ThemeContextType {
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+  accentColor: string;
+  setAccentColor: (color: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -490,13 +551,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Always start with 'system' to avoid SSR/client hydration mismatch.
   // The real saved theme is loaded in the useEffect below.
   const [theme, setThemeState] = useState<ThemeMode>('system');
+  const [accentColor, setAccentColorState] = useState<string>('#00E5FF');
+  const isLoaded = useRef(false);
 
-  // Load saved theme from localStorage AFTER mount (prevents hydration mismatch)
+  // Load saved theme and accent color from localStorage AFTER mount (prevents hydration mismatch)
   useEffect(() => {
     const saved = localStorage.getItem('africart-theme') as ThemeMode | null;
     if (saved && saved !== 'system') {
       setThemeState(saved);
     }
+    const savedAccent = localStorage.getItem('africart-accent-color');
+    if (savedAccent) {
+      setAccentColorState(savedAccent);
+      document.documentElement.style.setProperty('--lime-400', savedAccent);
+    }
+    isLoaded.current = true;
   }, []);
 
   useEffect(() => {
@@ -514,12 +583,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyTheme(theme);
     localStorage.setItem('africart-theme', theme);
 
-    // Restore custom accent color from platform settings
-    const savedAccent = localStorage.getItem('africart-accent-color');
-    if (savedAccent) {
-      root.style.setProperty('--lime-400', savedAccent);
-    }
-
     // Listen for OS-level theme changes when in 'system' mode
     const handleChange = (e: MediaQueryListEvent) => {
       if (theme === 'system') {
@@ -531,12 +594,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
+  // Apply accent color dynamically when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isLoaded.current) {
+      const root = document.documentElement;
+      root.style.setProperty('--lime-400', accentColor);
+      localStorage.setItem('africart-accent-color', accentColor);
+    }
+  }, [accentColor]);
+
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);
   };
 
+  const setAccentColor = (newColor: string) => {
+    setAccentColorState(newColor);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, accentColor, setAccentColor }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -627,7 +703,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (savedProducts) {
           try {
             setAllProducts(JSON.parse(savedProducts));
-          } catch (e) {
+          } catch {
             setAllProducts(defaultProducts);
           }
         } else {
@@ -853,10 +929,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
 
+    interface CachedOrder { status: string; [key: string]: unknown; }
+    interface CachedMessage { _id: string; fromRole: string; fromName: string; text: string; timestamp: string; read: boolean; }
+    interface CachedNotification { _id: string; type: string; title: string; message: string; createdAt: string; read: boolean; link?: string; }
+    interface MappedNotif { id: string; type: string; title: string; message: string; date: string; read: boolean; source: string; link?: string; }
+
     // Read active orders from localStorage (updated by order status poller)
     try {
-      const savedOrders = JSON.parse(localStorage.getItem(`africart-orders-${user.email}`) || '[]');
-      const active = savedOrders.filter((o: any) => 
+      const savedOrders: CachedOrder[] = JSON.parse(localStorage.getItem(`africart-orders-${user.email}`) || '[]');
+      const active = savedOrders.filter((o) =>
         o.status === 'Processing' || o.status === 'Ongoing' || o.status === 'Shipped' || o.status === 'Pending'
       );
       setActiveOrderCount(active.length);
@@ -873,22 +954,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const msgData = await msgRes.json();
       if (msgData.success && msgData.messages) {
-        totalUnread += msgData.messages.filter((m: any) => !m.read).length;
+        totalUnread += (msgData.messages as CachedMessage[]).filter((m) => !m.read).length;
         // Cache for the notifications page
-        const mapped = msgData.messages.map((m: any) => ({
+        const mapped: MappedNotif[] = (msgData.messages as CachedMessage[]).map((m) => ({
           id: m._id, type: m.fromRole === 'super_admin' ? 'admin' : 'order',
           title: m.fromName, message: m.text, date: m.timestamp, read: m.read, source: 'message'
         }));
         const notifData = await notifRes.json();
-        let allNotifs = mapped;
+        let allNotifs: MappedNotif[] = mapped;
         if (notifData.success && notifData.notifications) {
-          totalUnread += notifData.notifications.filter((n: any) => !n.read).length;
-          allNotifs = [...mapped, ...notifData.notifications.map((n: any) => ({
+          totalUnread += (notifData.notifications as CachedNotification[]).filter((n) => !n.read).length;
+          allNotifs = [...mapped, ...(notifData.notifications as CachedNotification[]).map((n) => ({
             id: n._id, type: n.type, title: n.title, message: n.message,
             date: n.createdAt, read: n.read, source: 'notification', link: n.link,
           }))];
         }
-        allNotifs.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        allNotifs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         localStorage.setItem(`africart-notifications-${user.email}`, JSON.stringify(allNotifs));
       }
 
@@ -896,8 +977,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch {
       // Fallback to localStorage if API fails
       try {
-        const savedNotifs = JSON.parse(localStorage.getItem(`africart-notifications-${user.email}`) || '[]');
-        setUnreadCount(savedNotifs.filter((n: any) => !n.read).length);
+        const savedNotifs: { read: boolean }[] = JSON.parse(localStorage.getItem(`africart-notifications-${user.email}`) || '[]');
+        setUnreadCount(savedNotifs.filter((n) => !n.read).length);
       } catch {}
     }
   }, [user]);

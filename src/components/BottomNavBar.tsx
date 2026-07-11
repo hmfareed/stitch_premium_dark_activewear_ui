@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useCart, useWishlist, useNotifications } from '@/context/AppContext';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 
 const navItems = [
   { href: '/', icon: 'home', label: 'Home' },
@@ -79,7 +80,7 @@ export const BottomNavBar: React.FC = () => {
         const d = active && paths ? paths.filled : (paths ? paths.outline : '');
 
         return (
-          <a
+          <Link
             key={item.href}
             href={item.href}
             style={{
@@ -114,7 +115,7 @@ export const BottomNavBar: React.FC = () => {
                 {badge}
               </span>
             )}
-          </a>
+          </Link>
         );
       })}
     </nav>

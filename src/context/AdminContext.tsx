@@ -61,6 +61,7 @@ export interface AdminUser {
   status: 'Active' | 'Pending' | 'Suspended';
   isVerified: boolean;
   storeName?: string;
+  phone?: string;
   createdAt: string;
 }
 
@@ -183,7 +184,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setAllCustomers(data.users);
         const vendors = data.users.filter((u: any) => u.role === 'vendor' || u.role === 'super_admin');
         setAllAdmins(vendors.map((u: any) => ({
-          id: u._id,
+          id: u.id || u._id,
           name: u.name,
           email: u.email,
           role: u.role === 'super_admin' ? 'Super Admin' : 'Vendor',
@@ -318,7 +319,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         body: JSON.stringify({ 
           name: admin.name, 
           email: admin.email, 
-          phone: '', 
+          phone: '0000000000', 
           password: 'password123', // Default password
           role: 'vendor' 
         })

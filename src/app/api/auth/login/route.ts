@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
 import { LoginEvent } from '@/models/LoginEvent';
+import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
+import { signToken } from '@/lib/jwt';
 
 // Simple in-memory rate limiter
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -77,7 +79,7 @@ export async function POST(req: Request) {
       user = await User.create({
         name: 'Super Admin',
         email: 'africartsadmin99@gmail.com',
-        phone: '',
+        phone: '0000000000',
         role: 'super_admin',
         password: hashedAdminPassword,
       });
@@ -152,6 +154,13 @@ export async function POST(req: Request) {
     // Successful login — clear rate limit
     clearAttempts(normalizedEmail);
 
+    // Ensure the designated super admin account always has super_admin role
+    let role = resolveUserRole(user.email, user.role);
+    if (isSuperAdminEmail(user.email) && user.role !== 'super_admin') {
+      await User.updateOne({ email: normalizedEmail }, { $set: { role: 'super_admin' } });
+      role = 'super_admin';
+    }
+
     // Record successful login
     try {
       await LoginEvent.create({
@@ -169,13 +178,21 @@ export async function POST(req: Request) {
       console.error('Failed to record login event:', err);
     }
 
+    // ── Issue JWT ───────────────────────────────────────────────────────────
+    const token = signToken({
+      userId: (user._id as unknown as string).toString(),
+      email: user.email,
+      role: role as 'customer' | 'vendor' | 'super_admin',
+    });
+
     return NextResponse.json({ 
-      success: true, 
+      success: true,
+      token,
       user: {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role,
+        role,
         profilePic: user.profilePic
       }
     });

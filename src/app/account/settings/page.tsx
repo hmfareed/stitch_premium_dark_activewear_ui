@@ -4,12 +4,25 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useToast, useTheme, ThemeMode, useNotifications } from '@/context/AppContext';
 
+const presetColors = [
+  '#00E5FF', // Electric Cyan
+  '#A855F7', // Royal Violet
+  '#FF9100', // Sunset Orange
+  '#6366F1', // Electric Indigo
+  '#FB7185', // Rose Pink
+  '#14B8A6', // Teal
+  '#FBBF24', // Amber Gold
+  '#10B981', // Emerald
+  '#FF4081', // Pink Accent
+  '#C3F400'  // Original Lime
+];
+
 export default function SettingsPage() {
   const { user, updateName, updateEmail } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
   
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, accentColor, setAccentColor } = useTheme();
   const { pushEnabled, pushPermission, requestPushPermission } = useNotifications();
   const [language, setLanguage] = useState('en');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -459,8 +472,55 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+
+            {/* Theme Accent Color */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTop: '1px solid var(--outline-variant)', paddingTop: 20, marginBottom: 20 }}>
+              <div>
+                <p style={{ color: 'var(--foreground)', fontSize: 14 }}>Theme Color Palette 🎨</p>
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Current accent: <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', backgroundColor: accentColor }} />
+                  <span style={{ fontFamily: 'monospace' }}>{accentColor}</span>
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {presetColors.map(color => (
+                  <button
+                    key={color}
+                    onClick={() => setAccentColor(color)}
+                    style={{
+                      width: '24px', height: '24px', borderRadius: '50%',
+                      backgroundColor: color,
+                      border: accentColor === color ? '2px solid white' : '1px solid var(--outline)',
+                      cursor: 'pointer', outline: 'none', transition: 'transform 0.1s',
+                      transform: accentColor === color ? 'scale(1.2)' : 'scale(1)',
+                      boxShadow: accentColor === color ? '0 0 6px var(--lime-400)' : 'none'
+                    }}
+                    title={color}
+                  />
+                ))}
+                
+                {/* Inline Color Picker */}
+                <div style={{ position: 'relative', width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: !presetColors.includes(accentColor) ? '2px solid white' : '1px solid var(--outline)', boxShadow: !presetColors.includes(accentColor) ? '0 0 6px var(--lime-400)' : 'none' }} title="Custom Accent Color">
+                  <input
+                    type="color"
+                    value={accentColor}
+                    onChange={e => setAccentColor(e.target.value)}
+                    style={{
+                      position: 'absolute',
+                      width: '140%',
+                      height: '140%',
+                      cursor: 'pointer',
+                      border: 'none',
+                      padding: 0,
+                      backgroundColor: 'transparent'
+                    }}
+                  />
+                  <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '12px', pointerEvents: 'none', zIndex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>palette</span>
+                </div>
+              </div>
+            </div>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--outline-variant)', paddingTop: 20, marginBottom: 20 }}>
               <div>
                 <p style={{ color: 'var(--foreground)', fontSize: 14 }}>Push Notifications 🔔</p>
                 <p style={{ color: 'var(--on-surface-variant)', fontSize: 12 }}>Real-time order status alerts</p>

@@ -11,7 +11,7 @@ const VendorMetricCard = ({ title, value, trend, icon, color }: { title: string,
     <div style={{ backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minWidth: '240px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', fontWeight: 500 }}>{title}</span>
-        <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: `color-mix(in srgb, GH₵{color} 15%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
+        <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
           <span className="material-symbols-outlined">{icon}</span>
         </div>
       </div>
@@ -100,6 +100,17 @@ export default function VendorDashboard() {
     Shipped: '#7c4dff', Delivered: 'var(--lime-400)', 'Picked Up': '#26a69a', Cancelled: 'var(--error)' 
   };
 
+  // Onboarding steps computation
+  const onboardingSteps = [
+    { title: 'Add your first product', done: vendorProducts.length > 0, link: '/vendor/products', desc: 'Publish products to start receiving orders' },
+    { title: 'Set delivery zones', done: !!(vendorSettings?.deliveryPlaces && vendorSettings.deliveryPlaces.length > 0), link: '/vendor/settings', desc: 'Add region locations you can deliver to' },
+    { title: 'Configure store profile', done: !!(vendorSettings?.storeName), link: '/vendor/settings', desc: 'Set store name, logo, contact, description' },
+    { title: 'Verify account ID', done: !!(user.isVerified), link: '/vendor/settings', desc: 'Complete registration verification check' },
+  ];
+  const completedStepsCount = onboardingSteps.filter(s => s.done).length;
+  const onboardingProgress = Math.round((completedStepsCount / onboardingSteps.length) * 100);
+  const showOnboardingChecklist = onboardingProgress < 100;
+
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
@@ -112,6 +123,56 @@ export default function VendorDashboard() {
           Add Product
         </button>
       </div>
+
+      {/* Onboarding Checklist progress bar */}
+      {showOnboardingChecklist && (
+        <div style={{ backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ color: '#00e5ff' }}>checklist</span>
+                Store Onboarding Checklist
+              </h3>
+              <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>Complete these steps to set up your store and get verified</p>
+            </div>
+            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#00e5ff', fontFamily: 'var(--font-lexend)' }}>{onboardingProgress}% Done</span>
+          </div>
+
+          {/* Progress bar container */}
+          <div style={{ width: '100%', height: '8px', background: 'var(--surface-container-high)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${onboardingProgress}%`, height: '100%', background: 'linear-gradient(to right, #00e5ff, var(--lime-400))', borderRadius: '4px', transition: 'width 0.4s ease-in-out' }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '8px' }}>
+            {onboardingSteps.map((step, idx) => (
+              <div 
+                key={idx} 
+                onClick={() => router.push(step.link)}
+                style={{ 
+                  backgroundColor: 'var(--surface-container)', 
+                  padding: '16px', 
+                  borderRadius: '16px', 
+                  border: `1px solid ${step.done ? 'var(--lime-400)' : 'var(--outline)'}`,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  opacity: step.done ? 0.7 : 1,
+                  transition: 'transform 0.15s'
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ color: step.done ? 'var(--lime-400)' : 'var(--on-surface-variant)', fontVariationSettings: step.done ? "'FILL' 1" : "'FILL' 0" }}>
+                  {step.done ? 'check_circle' : 'radio_button_unchecked'}
+                </span>
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, margin: '0 0 4px 0', color: step.done ? 'var(--lime-400)' : 'var(--foreground)' }}>{step.title}</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', margin: 0 }}>{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
         <VendorMetricCard title="Store Revenue" value={`GH₵${totalRevenue.toLocaleString()}`} trend={0} icon="payments" color="#00e5ff" />
@@ -242,7 +303,7 @@ export default function VendorDashboard() {
                     <span style={{ fontWeight: 600 }}>GH₵{order.total.toFixed(2)}</span>
                     <span style={{ 
                       fontSize: '0.78rem', padding: '3px 8px', borderRadius: '12px', fontWeight: 600,
-                      backgroundColor: `color-mix(in srgb, GH₵{statusColors[order.status] || '#888'} 15%, transparent)`,
+                      backgroundColor: `color-mix(in srgb, ${statusColors[order.status] || '#888'} 15%, transparent)`,
                       color: statusColors[order.status] || '#888'
                     }}>{order.status}</span>
                   </div>

@@ -31,13 +31,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const menuItems = [
     { name: 'Dashboard', icon: 'dashboard', path: '/admin' },
-    { name: 'Admins & Vendors', icon: 'shield_person', path: '/admin/admins' },
+    { name: 'Admins & Staff', icon: 'shield_person', path: '/admin/admins' },
+    { name: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
     { name: 'Products', icon: 'inventory_2', path: '/admin/products' },
     { name: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
     { name: 'Customers', icon: 'group', path: '/admin/customers' },
     { name: 'Messages', icon: 'chat', path: '/admin/messages' },
     { name: 'Finance', icon: 'account_balance', path: '/admin/finance' },
     { name: 'Security', icon: 'security', path: '/admin/security' },
+    { name: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
+    { name: 'Compliance', icon: 'gavel', path: '/admin/compliance' },
     { name: 'Settings', icon: 'settings', path: '/admin/settings' },
   ];
 

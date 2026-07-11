@@ -2,13 +2,43 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useWishlist, useCart, useToast } from '@/context/AppContext';
+import { useWishlist, useCart, useToast, useAuth } from '@/context/AppContext';
 
 export default function WishlistPage() {
   const { wishlist, removeFromWishlist } = useWishlist();
   const { addToCart } = useCart();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [showShareMenu, setShowShareMenu] = useState(false);
+  
+  // Track alert status locally in localStorage
+  const [alerts, setAlerts] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('africart-wishlist-alerts') || '[]');
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const toggleAlert = (productId: string) => {
+    if (!user) {
+      showToast('Please sign in to enable price drop alerts', 'error');
+      return;
+    }
+    let updated;
+    if (alerts.includes(productId)) {
+      updated = alerts.filter(id => id !== productId);
+      showToast('Price alert disabled');
+    } else {
+      updated = [...alerts, productId];
+      showToast('Price alert enabled! You will receive SMS alerts.');
+    }
+    setAlerts(updated);
+    localStorage.setItem('africart-wishlist-alerts', JSON.stringify(updated));
+  };
 
   const generateShareUrl = () => {
     const ids = wishlist.map(p => p.id).join(',');
@@ -165,6 +195,24 @@ export default function WishlistPage() {
                 <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 800, color: 'var(--price-color)' }}>GH₵{product.price.toFixed(0)}</span>
               </div>
             </div>
+
+            {/* Price drop alert toggle */}
+            <button
+              onClick={() => toggleAlert(product.id)}
+              style={{
+                width: '100%', marginTop: 6, padding: '4px 0',
+                background: 'var(--surface-container-high)',
+                border: '1px solid var(--outline)',
+                borderRadius: 6,
+                color: alerts.includes(product.id) ? 'var(--lime-400)' : 'var(--on-surface-variant)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-lexend)', fontSize: 8, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 12, fontVariationSettings: alerts.includes(product.id) ? "'FILL' 1" : "'FILL' 0" }}>notifications_active</span>
+              {alerts.includes(product.id) ? 'ALERT ON' : 'SET PRICE ALERT'}
+            </button>
 
             {/* Quick Add to Cart */}
             <button

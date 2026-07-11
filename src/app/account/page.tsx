@@ -5,11 +5,24 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useCart, useWishlist, useTheme, ThemeMode, useToast, useNotifications, useUserActivity } from '@/context/AppContext';
 
+const presetColors = [
+  '#00E5FF', // Electric Cyan
+  '#A855F7', // Royal Violet
+  '#FF9100', // Sunset Orange
+  '#6366F1', // Electric Indigo
+  '#FB7185', // Rose Pink
+  '#14B8A6', // Teal
+  '#FBBF24', // Amber Gold
+  '#10B981', // Emerald
+  '#FF4081', // Pink Accent
+  '#C3F400'  // Original Lime
+];
+
 export default function AccountPage() {
   const { user, logout, updateProfilePic, isLoading } = useAuth();
   const { totalItems } = useCart();
   const { totalWishlist } = useWishlist();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, accentColor, setAccentColor } = useTheme();
   const { showToast } = useToast();
   const router = useRouter();
   
@@ -166,6 +179,93 @@ export default function AccountPage() {
             )}
           </div>
         </div>
+
+        {/* ─── Loyalty Tier Card ─────────────────────────── */}
+        {user.role === 'customer' && (() => {
+          const points = user.points || 0;
+          const tiers = [
+            { name: 'Bronze', icon: '🥉', color: '#CD7F32', min: 0,    max: 499,  perks: ['5% birthday discount', 'Early sale access'] },
+            { name: 'Silver', icon: '🥈', color: '#C0C0C0', min: 500,  max: 1999, perks: ['Free shipping ≥ GH₵50', '2× points on Fridays'] },
+            { name: 'Gold',   icon: '🥇', color: '#FFD700', min: 2000, max: 4999, perks: ['Flash sale early access', 'Free returns'] },
+            { name: 'Platinum', icon: '💎', color: '#e5e4e2', min: 5000, max: 9999, perks: ['5% cashback', 'Personal shopper'] },
+          ];
+          const tier = tiers.find(t => points <= t.max) || tiers[tiers.length - 1];
+          const nextTier = tiers[tiers.indexOf(tier) + 1];
+          const progress = nextTier
+            ? Math.min(100, ((points - tier.min) / (nextTier.min - tier.min)) * 100)
+            : 100;
+          const remaining = nextTier ? nextTier.min - points : 0;
+
+          return (
+            <div className="animate-fade-in-up" style={{
+              background: `linear-gradient(135deg, var(--surface) 0%, var(--surface-container) 100%)`,
+              border: `1px solid ${tier.color}44`, borderRadius: 20, padding: 20,
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Glow */}
+              <div style={{ position: 'absolute', top: -40, right: -20, width: 160, height: 160, background: `${tier.color}18`, filter: 'blur(50px)', borderRadius: '50%', pointerEvents: 'none' }} />
+
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 28 }}>{tier.icon}</span>
+                  <div>
+                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loyalty Tier</p>
+                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 900, color: tier.color, letterSpacing: '-0.01em' }}>{tier.name}</p>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 900, color: 'var(--lime-400)' }}>{points.toLocaleString()}</p>
+                  <p style={{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'var(--on-surface-variant)', fontWeight: 600 }}>POINTS</p>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              {nextTier && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'var(--on-surface-variant)' }}>{tier.name}</span>
+                    <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: tier.color }}>
+                      {remaining} pts to {nextTier.name} {nextTier.icon}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: 'var(--outline)', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${progress}%`, borderRadius: 6,
+                      background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})`,
+                      transition: 'width 1.2s cubic-bezier(0.4,0,0.2,1)',
+                      boxShadow: `0 0 8px ${tier.color}66`,
+                    }} />
+                  </div>
+                </div>
+              )}
+              {!nextTier && (
+                <div style={{ textAlign: 'center', padding: '8px 0 12px', color: tier.color, fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700 }}>
+                  🎉 Maximum tier achieved — you&apos;re the best!
+                </div>
+              )}
+
+              {/* Perks */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Your Perks</p>
+                {tier.perks.map(perk => (
+                  <div key={perk} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: tier.color }}>check_circle</span>
+                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--foreground)' }}>{perk}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Earn more CTA */}
+              <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--lime-400)' }}>info</span>
+                <span style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'var(--on-surface-variant)' }}>
+                  Earn 1 point per GH₵1 spent. +50 pts for leaving a review!
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Email Verification Banner */}
         {!user.isVerified && (
@@ -391,13 +491,13 @@ export default function AccountPage() {
         }} onClick={() => setShowThemeModal(false)}>
           <div className="animate-slide-in" onClick={e => e.stopPropagation()} style={{
             background: 'var(--surface)', width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24,
-            borderTop: '1px solid var(--outline)'
+            borderTop: '1px solid var(--outline)', maxHeight: '90vh', overflowY: 'auto'
           }}>
             <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 16, fontSize: 18 }}>Select Appearance</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               {(['light', 'dark', 'system'] as ThemeMode[]).map((t) => (
                 <button key={t} onClick={() => handleThemeChange(t)} style={{
-                  padding: 16, background: theme === t ? 'rgba(195,244,0,0.1)' : 'var(--surface-container)',
+                  padding: 16, background: theme === t ? 'color-mix(in srgb, var(--lime-400) 10%, transparent)' : 'var(--surface-container)',
                   border: theme === t ? '1px solid var(--lime-400)' : '1px solid var(--outline)',
                   borderRadius: 12, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontSize: 15, cursor: 'pointer',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -411,6 +511,53 @@ export default function AccountPage() {
                   {theme === t && <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)' }}>check</span>}
                 </button>
               ))}
+            </div>
+
+            <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 16, fontSize: 18 }}>Select Theme Accent Color</h3>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+              {presetColors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setAccentColor(color)}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    backgroundColor: color,
+                    border: accentColor === color ? '3px solid white' : '2px solid transparent',
+                    boxShadow: accentColor === color ? '0 0 12px var(--lime-400)' : '0 2px 6px rgba(0,0,0,0.3)',
+                    cursor: 'pointer',
+                    transform: accentColor === color ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.2s ease',
+                    outline: 'none'
+                  }}
+                  title={color}
+                />
+              ))}
+
+              <div style={{ position: 'relative', width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: !presetColors.includes(accentColor) ? '3px solid white' : '2px solid transparent', boxShadow: !presetColors.includes(accentColor) ? '0 0 12px var(--lime-400)' : '0 2px 6px rgba(0,0,0,0.3)', cursor: 'pointer' }} title="Custom Accent Color">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  style={{
+                    position: 'absolute',
+                    width: '140%',
+                    height: '140%',
+                    cursor: 'pointer',
+                    border: 'none',
+                    padding: 0,
+                    backgroundColor: 'transparent'
+                  }}
+                />
+                <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '18px', pointerEvents: 'none', zIndex: 1, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>palette</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--on-surface-variant)' }}>
+              <span style={{ fontSize: 14 }}>Active Accent:</span>
+              <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: accentColor }} />
+              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{accentColor}</span>
             </div>
           </div>
         </div>

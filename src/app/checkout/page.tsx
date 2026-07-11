@@ -35,6 +35,13 @@ const AIRTELTIGO_PREFIXES = ['026', '056'];
 
 type MobileNetwork = 'MTN' | 'TELECEL' | 'AIRTELTIGO';
 
+// Map our internal network label → Paystack mobile_money_type value
+const NETWORK_TO_PAYSTACK: Record<MobileNetwork, string> = {
+  MTN: 'mtn',
+  TELECEL: 'vod',
+  AIRTELTIGO: 'tgo',
+};
+
 function detectNetwork(phoneNumber: string): MobileNetwork | null {
   // Strip spaces, dashes, and leading +233 or 233
   const cleaned = phoneNumber.replace(/[\s\-]/g, '').replace(/^(\+233|233)/, '0');
@@ -52,18 +59,49 @@ export default function CheckoutPage() {
   const { user, isLoading } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<'MOBILE_MONEY' | 'CARD'>('MOBILE_MONEY');
+  const [paymentMethod, setPaymentMethod] = useState<'MOBILE_MONEY' | 'CARD' | 'CASH_ON_DELIVERY' | 'INSTALLMENT'>('MOBILE_MONEY');
   const [mobileNetwork, setMobileNetwork] = useState<MobileNetwork>('MTN');
   const [loading, setLoading] = useState(false);
   const [shippingRates, setShippingRates] = useState<any[]>([]);
   const [shippingFee, setShippingFee] = useState(0);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'verifying' | 'success' | 'failed'>('idle');
+  const [paystackReady, setPaystackReady] = useState(false);
+
+  /* ── OTP State ── */
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpSimCode, setOtpSimCode] = useState(''); // dev: show simulated code
+
+  /* ── BNPL / Installment State ── */
+  const [installmentMonths, setInstallmentMonths] = useState(3);
+
+  /* ── Loyalty Points State ── */
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [redeemPoints, setRedeemPoints] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const POINTS_PER_CEDI = 1000;
+
+  /* ── Click-and-Collect State ── */
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
 
   /* ── Promo Code State ── */
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const [promoError, setPromoError] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
+
+  /* Fetch loyalty balance when user logs in */
+  useEffect(() => {
+    if (user?.email) {
+      fetch(`/api/loyalty?email=${encodeURIComponent(user.email)}`)
+        .then(r => r.json())
+        .then(data => { if (data.success) setLoyaltyBalance(data.points); })
+        .catch(() => {});
+    }
+  }, [user]);
 
   /* ── Shipping form state (pre-filled from profile) ── */
   const [fullName, setFullName] = useState('');
@@ -86,17 +124,27 @@ export default function CheckoutPage() {
       .catch(err => console.error('Failed to fetch shipping rates:', err));
   }, []);
 
-  // Load Paystack script dynamically for Phase 5 Inline Modal
+  // Load Paystack inline script — track when it is ready so Pay button can use popup
   useEffect(() => {
+    // If already loaded by a previous mount, mark ready immediately
+    if ((window as any).PaystackPop) {
+      setPaystackReady(true);
+      return;
+    }
+    // Avoid injecting duplicate scripts
+    const existing = document.querySelector('script[src*="paystack"]');
+    if (existing) {
+      existing.addEventListener('load', () => setPaystackReady(true));
+      return;
+    }
     const script = document.createElement('script');
     script.src = 'https://js.paystack.co/v1/inline.js';
     script.async = true;
+    script.onload = () => setPaystackReady(true);
+    script.onerror = () => console.warn('Paystack inline script failed to load — will use hosted redirect.');
     document.body.appendChild(script);
     return () => {
-      // Clean up script on unmount
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
+      // Leave the script in DOM so it stays available; just clean up state
     };
   }, []);
 
@@ -109,6 +157,10 @@ export default function CheckoutPage() {
       setShippingFee(0);
     }
   }, [region, shippingRates]);
+
+  /* Whether the current region allows Cash on Delivery */
+  const selectedRateData = shippingRates.find(r => r.region === region);
+  const regionCoversCOD = selectedRateData ? selectedRateData.coversCOD : true;
 
   /* Pre-fill from user profile if logged in (guest checkout allowed) */
   useEffect(() => {
@@ -130,6 +182,13 @@ export default function CheckoutPage() {
         .catch(() => {});
     }
   }, [user, isLoading, router]);
+
+  /* If CoD was selected but region no longer supports it, fall back to MoMo */
+  useEffect(() => {
+    if (paymentMethod === 'CASH_ON_DELIVERY' && !regionCoversCOD && region) {
+      setPaymentMethod('MOBILE_MONEY');
+    }
+  }, [region, regionCoversCOD]);
 
   const selectSavedAddress = (addr: any) => {
     setSelectedAddressId(addr._id);
@@ -202,34 +261,154 @@ export default function CheckoutPage() {
   // Ensure discount doesn't exceed total
   if (discountAmount > totalPrice) discountAmount = totalPrice;
 
-  const actualShippingFee = (appliedPromo && appliedPromo.type === 'Shipping') ? 0 : shippingFee;
-  const finalTotal = totalPrice - discountAmount + actualShippingFee;
+  /* ── Loyalty Points Discount ── */
+  const maxRedeemablePts = Math.min(loyaltyBalance, Math.floor(totalPrice * POINTS_PER_CEDI * 0.2)); // max 20% of order
+  const loyaltyDiscount = redeemPoints ? parseFloat((pointsToRedeem / POINTS_PER_CEDI).toFixed(2)) : 0;
 
-  const buildOrderData = (paymentRef?: string) => ({
-    orderId: `ORD-${Math.floor(Math.random() * 900000) + 100000}`,
-    date: new Date(),
-    status: paymentRef ? 'Confirmed' : 'Pending',
-    total: finalTotal,
-    itemsCount: cart.length,
-    shippingAddress: { fullName, email, phone, address, city, region },
-    paymentInfo: {
-      method: paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : 'Card',
-      ...(paymentMethod === 'MOBILE_MONEY' ? { network: mobileNetwork, momoPhone } : {}),
-      ...(paymentRef ? { paystackRef: paymentRef, verified: true } : {}),
-    },
-    products: cart.map(item => ({
-      id: item.id, name: item.name, price: item.price, image: item.image,
-      quantity: item.quantity, selectedSize: item.selectedSize,
-      category: item.category, vendorEmail: item.vendorEmail, vendorStoreName: item.vendorStoreName,
-    })),
-    customerName: user?.name || '',
-    customerEmail: user?.email || '',
-    promoCode: appliedPromo ? appliedPromo.code : undefined,
-    discountAmount: discountAmount || undefined,
-  });
+  const actualShippingFee = (deliveryType === 'pickup') ? 0 : ((appliedPromo && appliedPromo.type === 'Shipping') ? 0 : shippingFee);
+  const finalTotal = Math.max(0, totalPrice - discountAmount - loyaltyDiscount + actualShippingFee);
 
-  const saveOrderAndRedirect = async (paymentRef?: string) => {
-    const orderData = buildOrderData(paymentRef);
+  /* ── MoMo OTP Handlers ── */
+  const handleSendOTP = async () => {
+    if (!momoPhone) { setOtpError('Enter your MoMo number first'); return; }
+    setOtpLoading(true); setOtpError('');
+    try {
+      const res = await fetch('/api/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: momoPhone, purpose: 'checkout' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOtpSent(true);
+        if (data.simulated && data.message) {
+          // Extract code from dev message for testing
+          const match = data.message.match(/Code: (\d{6})/);
+          if (match) setOtpSimCode(match[1]);
+        }
+        showToast('OTP sent to your phone!', 'success');
+      } else {
+        setOtpError(data.error || 'Failed to send OTP');
+      }
+    } catch { setOtpError('Network error'); }
+    setOtpLoading(false);
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpCode || otpCode.length !== 6) { setOtpError('Enter the 6-digit code'); return; }
+    setOtpLoading(true); setOtpError('');
+    try {
+      const res = await fetch(`/api/otp?phone=${encodeURIComponent(momoPhone)}&code=${otpCode}`);
+      const data = await res.json();
+      if (data.success) {
+        setOtpVerified(true);
+        showToast('Phone verified! ✅', 'success');
+      } else {
+        setOtpError(data.error || 'Invalid OTP');
+      }
+    } catch { setOtpError('Verification failed'); }
+    setOtpLoading(false);
+  };
+
+  /* ── Cash on Delivery handler ── */
+  const handlePlaceOrderCOD = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const customerEmail = user?.email || email;
+    if (!customerEmail || !fullName) {
+      showToast('Please fill in your name and email', 'error');
+      setStep(1);
+      return;
+    }
+    setLoading(true);
+    setPaymentStatus('processing');
+    const orderId = `ORD-${Math.floor(Math.random() * 900000) + 100000}`;
+    const orderData = {
+      orderId,
+      date: new Date(),
+      status: 'Pending',
+      total: finalTotal,
+      itemsCount: cart.length,
+      shippingAddress: { fullName, email: customerEmail, phone, address, city, region },
+      paymentInfo: {
+        method: deliveryType === 'pickup' ? 'Click & Collect' : 'Cash on Delivery',
+        paymentStatus: 'Pending',
+        escrowStatus: 'NA',
+      },
+      products: cart.map(item => ({
+        id: item.id, name: item.name, price: item.price, image: item.image,
+        quantity: item.quantity, selectedSize: item.selectedSize,
+        category: item.category, vendorEmail: item.vendorEmail, vendorStoreName: item.vendorStoreName,
+      })),
+      customerName: user?.name || fullName || '',
+      customerEmail,
+      promoCode: appliedPromo ? appliedPromo.code : undefined,
+      discountAmount: discountAmount || undefined,
+    };
+    try {
+      await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderData) });
+      // SMS order confirmation
+      if (phone) {
+        try {
+          await fetch('/api/otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, purpose: 'checkout' }),
+          });
+        } catch {}
+      }
+      // Award loyalty points (1 point per GH₵1 spent)
+      if (user?.email) {
+        const earnedPoints = Math.floor(finalTotal);
+        fetch('/api/loyalty', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, action: 'award', points: earnedPoints, reason: `Order ${orderId}` }),
+        }).catch(() => {});
+        // Deduct redeemed points
+        if (redeemPoints && pointsToRedeem > 0) {
+          fetch('/api/loyalty', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email, action: 'redeem', points: pointsToRedeem, reason: `Redeemed on ${orderId}` }),
+          }).catch(() => {});
+        }
+      }
+    } catch (err) { console.error('Failed to save COD order:', err); }
+    clearCart();
+    setLoading(false);
+    setPaymentStatus('success');
+    showToast('Order placed! Pay cash on delivery.', 'success');
+    router.push(`/confirmation?orderId=${orderId}&verified=true&cod=true`);
+  };
+
+  const buildOrderData = (customOrderId?: string, paymentRef?: string) => {
+    const finalOrderId = customOrderId || `ORD-${Math.floor(Math.random() * 900000) + 100000}`;
+    return {
+      orderId: finalOrderId,
+      date: new Date(),
+      status: paymentRef ? 'Confirmed' : 'Pending',
+      total: finalTotal,
+      itemsCount: cart.length,
+      shippingAddress: { fullName, email, phone, address, city, region },
+      paymentInfo: {
+        method: paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : 'Card',
+        ...(paymentMethod === 'MOBILE_MONEY' ? { network: mobileNetwork, momoPhone } : {}),
+        ...(paymentRef ? { paystackRef: paymentRef, verified: true } : {}),
+      },
+      products: cart.map(item => ({
+        id: item.id, name: item.name, price: item.price, image: item.image,
+        quantity: item.quantity, selectedSize: item.selectedSize,
+        category: item.category, vendorEmail: item.vendorEmail, vendorStoreName: item.vendorStoreName,
+      })),
+      customerName: user?.name || fullName || '',
+      customerEmail: user?.email || email || '',
+      promoCode: appliedPromo ? appliedPromo.code : undefined,
+      discountAmount: discountAmount || undefined,
+    };
+  };
+
+  const saveOrderAndRedirect = async (customOrderId: string, paymentRef?: string) => {
+    const orderData = buildOrderData(customOrderId, paymentRef);
     try {
       await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderData) });
     } catch (err) { console.error('Failed to save order:', err); }
@@ -237,10 +416,39 @@ export default function CheckoutPage() {
     setLoading(false);
     setPaymentStatus('success');
     showToast('Order placed successfully!');
-    router.push('/confirmation');
+    router.push(`/confirmation?reference=${paymentRef || customOrderId}&orderId=${customOrderId}&verified=true`);
+  };
+
+  /**
+   * Wait up to `maxMs` milliseconds for window.PaystackPop to become available.
+   * Returns true if it becomes available, false on timeout.
+   */
+  const waitForPaystackPop = (maxMs = 4000): Promise<boolean> => {
+    return new Promise(resolve => {
+      if ((window as any).PaystackPop) { resolve(true); return; }
+      const interval = setInterval(() => {
+        if ((window as any).PaystackPop) {
+          clearInterval(interval);
+          clearTimeout(timeout);
+          resolve(true);
+        }
+      }, 100);
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        resolve(false);
+      }, maxMs);
+    });
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
+    if (paymentMethod === 'CASH_ON_DELIVERY') {
+      return handlePlaceOrderCOD(e);
+    }
+    // MoMo OTP check
+    if (paymentMethod === 'MOBILE_MONEY' && !otpVerified) {
+      showToast('Please verify your MoMo number with the OTP first', 'error');
+      return;
+    }
     e.preventDefault();
     const customerEmail = user?.email || email;
     const customerName = user?.name || fullName;
@@ -254,38 +462,47 @@ export default function CheckoutPage() {
 
     const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
 
+    const orderId = `ORD-${Math.floor(Math.random() * 900000) + 100000}`;
+
     // If Paystack is not configured, fall back to direct order (simulation)
     if (!paystackKey || paystackKey === 'pk_test_xxxx' || paystackKey === 'pk_live_xxxx' || paystackKey.includes('xxxx')) {
       console.warn('Paystack public key is missing or using placeholder. Falling back to simulated checkout.');
-      await saveOrderAndRedirect();
+      await saveOrderAndRedirect(orderId);
       return;
     }
 
-    const orderId = `ORD-${Math.floor(Math.random() * 900000) + 100000}`;
     const paystackChannels = paymentMethod === 'MOBILE_MONEY' ? ['mobile_money'] : ['card', 'bank', 'bank_transfer'];
+    const momoType = paymentMethod === 'MOBILE_MONEY' ? NETWORK_TO_PAYSTACK[mobileNetwork] : undefined;
 
-    // If dynamic inline script is loaded, launch the interactive popup modal!
-    if ((window as any).PaystackPop) {
+    const orderDataForMetadata = buildOrderData(orderId);
+
+    // Wait up to 4s for the Paystack inline script to fully load
+    const isPopAvailable = await waitForPaystackPop(4000);
+
+    // If the Paystack inline popup is available, use it — best UX
+    if (isPopAvailable && (window as any).PaystackPop) {
       try {
-        const handler = (window as any).PaystackPop.setup({
+        const popupConfig: Record<string, any> = {
           key: paystackKey,
           email: customerEmail,
           amount: Math.round(finalTotal * 100), // convert GHS to pesewas
           currency: 'GHS',
           ref: orderId,
+          channels: paystackChannels,
           metadata: {
             custom_fields: [
               { display_name: 'Customer Name', variable_name: 'customer_name', value: customerName },
-              { display_name: 'Order ID', variable_name: 'order_id', value: orderId }
-            ]
+              { display_name: 'Order ID', variable_name: 'order_id', value: orderId },
+            ],
+            orderData: orderDataForMetadata,
           },
           callback: async (response: any) => {
             setPaymentStatus('verifying');
             try {
-              const verifyRes = await fetch(`/api/payment/verify?reference=${response.reference}`);
+              const verifyRes = await fetch(`/api/paystack/verify?reference=${response.reference}`);
               const verifyData = await verifyRes.json();
               if (verifyData.success) {
-                await saveOrderAndRedirect(response.reference);
+                await saveOrderAndRedirect(orderId, response.reference);
               } else {
                 showToast('Payment verification failed', 'error');
                 setLoading(false);
@@ -302,16 +519,25 @@ export default function CheckoutPage() {
             showToast('Payment cancelled', 'info');
             setLoading(false);
             setPaymentStatus('idle');
-          }
-        });
+          },
+        };
+
+        // Pass mobile_money_type so Paystack routes to the correct MoMo provider
+        if (momoType) popupConfig.mobile_money_type = momoType;
+        if (paymentMethod === 'MOBILE_MONEY' && momoPhone) popupConfig.phone = momoPhone;
+
+        const handler = (window as any).PaystackPop.setup(popupConfig);
         handler.openIframe();
-        return;
+        return; // popup opened — do not fall through to hosted redirect
       } catch (err) {
-        console.warn('Paystack inline checkout failed. Falling back to hosted checkout:', err);
+        console.warn('Paystack inline popup setup failed, falling back to hosted redirect:', err);
+        // Fall through to hosted checkout below
       }
+    } else {
+      console.warn('PaystackPop not available after waiting — using hosted redirect.');
     }
 
-    // Fallback: Hosted payment redirect if inline setup is unavailable
+    // ── Fallback: Hosted payment page redirect ──────────────────────────────
     try {
       const initRes = await fetch('/api/paystack/initialize', {
         method: 'POST',
@@ -319,33 +545,48 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           email: customerEmail,
           amount: finalTotal,
+          reference: orderId,
           callback_url: `${window.location.origin}/confirmation`,
-          metadata: { orderId, customerName, items: cart.length },
+          metadata: {
+            orderId,
+            customerName,
+            items: cart.length,
+            custom_fields: [
+              { display_name: 'Customer Name', variable_name: 'customer_name', value: customerName },
+              { display_name: 'Order ID', variable_name: 'order_id', value: orderId },
+            ],
+            orderData: orderDataForMetadata,
+          },
           channels: paystackChannels,
           ...(paymentMethod === 'MOBILE_MONEY' && momoPhone ? { phone: momoPhone } : {}),
+          ...(momoType ? { mobile_money_type: momoType } : {}),
         }),
       });
       const initData = await initRes.json();
 
       if (!initData.success) {
         showToast(initData.error || 'Payment initialization failed', 'error');
-        setLoading(false); setPaymentStatus('failed');
+        setLoading(false);
+        setPaymentStatus('failed');
         return;
       }
 
       if (initData.authorization_url) {
-        const orderData = buildOrderData(initData.reference);
-        localStorage.setItem('africart-pending-order', JSON.stringify(orderData));
-        localStorage.setItem('africart-pending-ref', initData.reference);
+        const pendingOrder = buildOrderData(orderId);
+        localStorage.setItem('africart-pending-order', JSON.stringify(pendingOrder));
+        localStorage.setItem('africart-pending-ref', initData.reference || orderId);
+        // Navigate to Paystack-hosted payment page
         window.location.href = initData.authorization_url;
       } else {
         showToast('Payment gateway not available. Please try again.', 'error');
-        setLoading(false); setPaymentStatus('failed');
+        setLoading(false);
+        setPaymentStatus('failed');
       }
     } catch (err: any) {
-      console.error('Paystack error:', err);
+      console.error('Paystack hosted checkout error:', err);
       showToast(`Payment error: ${err.message || 'Please try again.'}`, 'error');
-      setLoading(false); setPaymentStatus('failed');
+      setLoading(false);
+      setPaymentStatus('failed');
     }
   };
 
@@ -362,6 +603,26 @@ export default function CheckoutPage() {
     letterSpacing: '0.08em', marginBottom: 6, display: 'block',
   };
 
+  // Award loyalty points and save order after successful payment
+  const finalizeOrderWithLoyalty = async (orderId: string, paymentRef?: string) => {
+    if (user?.email) {
+      const earnedPoints = Math.floor(finalTotal);
+      fetch('/api/loyalty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, action: 'award', points: earnedPoints, reason: `Order ${orderId}` }),
+      }).catch(() => {});
+      if (redeemPoints && pointsToRedeem > 0) {
+        fetch('/api/loyalty', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, action: 'redeem', points: pointsToRedeem, reason: `Redeemed on ${orderId}` }),
+        }).catch(() => {});
+      }
+    }
+    await saveOrderAndRedirect(orderId, paymentRef);
+  };
+
   if (isLoading) return null;
 
   if (cart.length === 0) {
@@ -375,6 +636,36 @@ export default function CheckoutPage() {
     );
   }
 
+  /* Guest checkout banner — shown when visitor is not logged in */
+  const GuestBanner = !user ? (
+    <div className="animate-fade-in" style={{
+      margin: '0 0 20px', padding: '12px 16px', borderRadius: 12,
+      background: 'linear-gradient(135deg, rgba(195,244,0,0.06) 0%, rgba(0,229,255,0.06) 100%)',
+      border: '1px solid rgba(195,244,0,0.18)',
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--lime-400)', flexShrink: 0 }}>person_outline</span>
+      <div style={{ flex: 1 }}>
+        <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 800, color: 'var(--foreground)', marginBottom: 2 }}>
+          Checking out as Guest
+        </p>
+        <p style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'var(--on-surface-variant)', lineHeight: 1.5 }}>
+          You&apos;re not signed in. Fill in your details below to complete your order.
+        </p>
+      </div>
+      <a href="/login?redirect=/checkout" style={{
+        flexShrink: 0, padding: '6px 12px', borderRadius: 8,
+        background: 'var(--lime-400)', color: '#000',
+        fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 10,
+        textTransform: 'uppercase', letterSpacing: '0.05em',
+        textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+      }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>login</span>
+        Sign In
+      </a>
+    </div>
+  ) : null;
+
   /* Network button config */
   const networkOptions: { key: MobileNetwork; label: string; bg: string; color: string }[] = [
     { key: 'MTN', label: 'MTN MoMo', bg: '#FFCB05', color: '#000' },
@@ -384,6 +675,9 @@ export default function CheckoutPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '80vh', padding: '0 16px', paddingBottom: 140 }}>
+
+      {/* Guest checkout banner */}
+      {GuestBanner}
 
       {/* Hidden datalists for browser autocomplete suggestions */}
       <datalist id="ghana-cities">
@@ -398,6 +692,7 @@ export default function CheckoutPage() {
         <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
           <div style={{ height: 3, flex: 1, background: 'var(--lime-400)', borderRadius: 4, transition: 'all 0.3s' }} />
           <div style={{ height: 3, flex: 1, background: step >= 2 ? 'var(--lime-400)' : 'var(--outline)', borderRadius: 4, transition: 'all 0.3s' }} />
+          {paymentMethod === 'MOBILE_MONEY' && <div style={{ height: 3, flex: 1, background: step >= 3 ? 'var(--lime-400)' : 'var(--outline)', borderRadius: 4, transition: 'all 0.3s' }} />}
         </div>
       </div>
 
@@ -408,6 +703,26 @@ export default function CheckoutPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 800, color: 'var(--foreground)' }}>Shipping Details</h2>
               <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: 'var(--lime-400)', letterSpacing: '0.08em' }}>STEP 1/2</span>
+            </div>
+
+            {/* Click-and-Collect Toggle */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {(['delivery', 'pickup'] as const).map(type => (
+                <button key={type} type="button" onClick={() => setDeliveryType(type)} style={{
+                  flex: 1, padding: '12px 8px', borderRadius: 10,
+                  border: deliveryType === type ? '2px solid var(--lime-400)' : '1px solid var(--outline)',
+                  background: deliveryType === type ? 'rgba(195,244,0,0.06)' : 'var(--surface-container)',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: deliveryType === type ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>
+                    {type === 'delivery' ? 'local_shipping' : 'storefront'}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: deliveryType === type ? 'var(--lime-400)' : 'var(--on-surface-variant)', textTransform: 'uppercase' }}>
+                    {type === 'delivery' ? 'Home Delivery' : 'Pickup at Store'}
+                  </span>
+                  {type === 'pickup' && <span style={{ fontSize: 9, color: 'var(--lime-400)', fontWeight: 600 }}>FREE · No delivery fee</span>}
+                </button>
+              ))}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -579,24 +894,54 @@ export default function CheckoutPage() {
             </div>
 
             {/* Payment method toggle */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {(['MOBILE_MONEY', 'CARD'] as const).map(m => (
-                <button key={m} type="button" onClick={() => setPaymentMethod(m)} style={{
-                  flex: 1, padding: '14px', borderRadius: 10,
-                  border: paymentMethod === m ? '2px solid var(--lime-400)' : '1px solid var(--outline)',
-                  background: paymentMethod === m ? 'rgba(195,244,0,0.06)' : 'var(--surface-container)',
-                  cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 24, color: paymentMethod === m ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>
-                    {m === 'MOBILE_MONEY' ? 'smartphone' : 'credit_card'}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+              {([
+                { key: 'MOBILE_MONEY', label: 'Mobile Money', icon: 'smartphone', disabled: false },
+                { key: 'CARD', label: 'Card', icon: 'credit_card', disabled: false },
+                { key: 'INSTALLMENT', label: 'Installment', icon: 'calendar_month', disabled: false },
+                { key: 'CASH_ON_DELIVERY', label: 'Cash on Delivery', icon: 'local_shipping', disabled: !regionCoversCOD && deliveryType !== 'pickup' },
+              ] as const).map(m => (
+                <button
+                  key={m.key}
+                  type="button"
+                  disabled={m.disabled}
+                  onClick={() => !m.disabled && setPaymentMethod(m.key as typeof paymentMethod)}
+                  title={m.disabled ? 'Not available in your region' : undefined}
+                  style={{
+                    flex: '1 1 80px', padding: '12px 8px', borderRadius: 10,
+                    border: paymentMethod === m.key ? '2px solid var(--lime-400)' : '1px solid var(--outline)',
+                    background: m.disabled ? 'var(--surface-container)' : paymentMethod === m.key ? 'rgba(195,244,0,0.06)' : 'var(--surface-container)',
+                    cursor: m.disabled ? 'not-allowed' : 'pointer',
+                    opacity: m.disabled ? 0.38 : 1,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                    position: 'relative',
+                  }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22, color: m.disabled ? 'var(--on-surface-variant)' : paymentMethod === m.key ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>
+                    {m.icon}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: paymentMethod === m ? 'var(--lime-400)' : 'var(--on-surface-variant)', textTransform: 'uppercase' }}>
-                    {m === 'MOBILE_MONEY' ? 'Mobile Money' : 'Card'}
+                  <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 9, fontWeight: 700, color: m.disabled ? 'var(--on-surface-variant)' : paymentMethod === m.key ? 'var(--lime-400)' : 'var(--on-surface-variant)', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>
+                    {m.label}
                   </span>
+                  {m.disabled && (
+                    <span style={{ position: 'absolute', bottom: 3, fontSize: 7, color: 'var(--error)', fontWeight: 700, fontFamily: 'var(--font-lexend)', letterSpacing: '0.02em' }}>N/A IN REGION</span>
+                  )}
                 </button>
               ))}
             </div>
+
+            {/* CoD unavailable notice */}
+            {!regionCoversCOD && region && region !== 'Other' && (
+              <div style={{
+                marginBottom: 16, padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(255,152,0,0.08)', border: '1px solid rgba(255,152,0,0.2)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ff9800', flexShrink: 0 }}>info</span>
+                <p style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: '#ff9800', lineHeight: 1.5 }}>
+                  Cash on Delivery is not available in <strong>{region}</strong>. Please pay via Mobile Money or Card.
+                </p>
+              </div>
+            )}
 
             {paymentMethod === 'MOBILE_MONEY' ? (
               <div className="animate-fade-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 12, padding: 20 }}>
@@ -644,8 +989,88 @@ export default function CheckoutPage() {
                 <p style={{ fontSize: 10, color: 'var(--on-surface-variant)', marginTop: 8, lineHeight: 1.5 }}>
                   Network is auto-detected from your number prefix. MTN: 054, 024, 025, 055, 029, 059, 027, 057 · Telecel: 050, 020 · AirtelTigo: 026, 056
                 </p>
+                {/* OTP Verification */}
+                {!otpVerified ? (
+                  <div style={{ marginTop: 16, padding: 16, background: 'var(--surface-container)', borderRadius: 10, border: '1px solid var(--outline)' }}>
+                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Verify Your MoMo Number</p>
+                    {!otpSent ? (
+                      <button type="button" onClick={handleSendOTP} disabled={otpLoading || !momoPhone} style={{ width: '100%', padding: '12px', borderRadius: 8, background: 'var(--lime-400)', color: '#000', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, border: 'none', cursor: otpLoading || !momoPhone ? 'not-allowed' : 'pointer', opacity: !momoPhone ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        {otpLoading ? <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18 }}>progress_activity</span> : <span className="material-symbols-outlined" style={{ fontSize: 18 }}>sms</span>}
+                        {otpLoading ? 'Sending...' : 'Send OTP to My Phone'}
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {otpSimCode && (
+                          <div style={{ padding: '8px 12px', background: 'rgba(255,152,0,0.1)', borderRadius: 8, border: '1px solid rgba(255,152,0,0.3)' }}>
+                            <p style={{ fontSize: 11, color: '#ff9800', fontWeight: 700 }}>🔧 DEV MODE — OTP: <strong>{otpSimCode}</strong></p>
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="Enter 6-digit OTP"
+                          style={{ ...inputStyle, letterSpacing: '0.3em', fontSize: 18, textAlign: 'center', fontWeight: 800 }}
+                        />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" onClick={handleVerifyOTP} disabled={otpLoading} style={{ flex: 1, padding: '12px', borderRadius: 8, background: 'var(--lime-400)', color: '#000', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, border: 'none', cursor: 'pointer' }}>
+                            {otpLoading ? 'Verifying...' : 'Verify OTP'}
+                          </button>
+                          <button type="button" onClick={() => { setOtpSent(false); setOtpCode(''); setOtpSimCode(''); }} style={{ padding: '12px 16px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface-variant)', cursor: 'pointer', fontSize: 12 }}>Resend</button>
+                        </div>
+                      </div>
+                    )}
+                    {otpError && <p style={{ color: 'var(--error)', fontSize: 11, marginTop: 8 }}>{otpError}</p>}
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(195,244,0,0.08)', border: '1px solid var(--lime-400)', borderRadius: 10 }}>
+                    <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)', fontSize: 20, fontVariationSettings: "'FILL' 1" }}>verified</span>
+                    <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700, color: 'var(--lime-400)' }}>MoMo number verified ✅</span>
+                  </div>
+                )}
               </div>
-            ) : (
+            ) : paymentMethod === 'INSTALLMENT' ? (
+              <div className="animate-fade-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 12, padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'color-mix(in srgb, #a855f7 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 26, color: '#a855f7' }}>calendar_month</span>
+                  </div>
+                  <div>
+                    <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--foreground)', marginBottom: 2 }}>Pay in Installments (BNPL)</h3>
+                    <p style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>Powered by Paystack Payment Plans</p>
+                  </div>
+                </div>
+                <label style={labelStyle}>Select Payment Plan</label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                  {[3, 6, 12].map(months => {
+                    const monthly = (finalTotal / months).toFixed(2);
+                    return (
+                      <button key={months} type="button" onClick={() => setInstallmentMonths(months)} style={{
+                        flex: 1, padding: '14px 8px', borderRadius: 10, textAlign: 'center',
+                        border: installmentMonths === months ? '2px solid #a855f7' : '1px solid var(--outline)',
+                        background: installmentMonths === months ? 'color-mix(in srgb, #a855f7 8%, transparent)' : 'var(--surface-container)',
+                        cursor: 'pointer',
+                      }}>
+                        <div style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 800, color: installmentMonths === months ? '#a855f7' : 'var(--foreground)' }}>{months}</div>
+                        <div style={{ fontSize: 10, color: 'var(--on-surface-variant)', fontWeight: 600 }}>months</div>
+                        <div style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700, color: installmentMonths === months ? '#a855f7' : 'var(--on-surface-variant)', marginTop: 4 }}>GH₵{monthly}/mo</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ padding: '14px', background: 'var(--surface-container)', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 12, color: 'var(--on-surface-variant)' }}>Monthly payment</span><span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, color: '#a855f7' }}>GH₵{(finalTotal / installmentMonths).toFixed(2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 12, color: 'var(--on-surface-variant)' }}>Duration</span><span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700 }}>{installmentMonths} months</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 12, color: 'var(--on-surface-variant)' }}>Total amount</span><span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, color: 'var(--price-color)' }}>GH₵{finalTotal.toFixed(2)}</span></div>
+                </div>
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'color-mix(in srgb, #a855f7 8%, transparent)', borderRadius: 8, border: '1px solid color-mix(in srgb, #a855f7 20%, transparent)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#a855f7' }}>info</span>
+                  <span style={{ fontSize: 11, color: '#a855f7', fontWeight: 600 }}>First payment processed today · Powered by Paystack</span>
+                </div>
+              </div>
+            ) : paymentMethod === 'CARD' ? (
               <div className="animate-fade-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center' }}>
                 <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'color-mix(in srgb, var(--lime-400) 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--lime-400)' }}>credit_card</span>
@@ -662,6 +1087,33 @@ export default function CheckoutPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', opacity: 0.5 }}>
                   <span style={{ fontSize: 10, color: 'var(--on-surface-variant)', fontWeight: 600 }}>Accepts: Visa, Mastercard, Verve, Bank Transfer</span>
+                </div>
+              </div>
+            ) : (
+              /* Cash on Delivery Info Box */
+              <div className="animate-fade-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'color-mix(in srgb, #ff9800 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: '#ff9800' }}>local_shipping</span>
+                  </div>
+                  <div>
+                    <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--foreground)', marginBottom: 4 }}>Cash on Delivery</h3>
+                    <p style={{ fontSize: 12, color: 'var(--on-surface-variant)', lineHeight: 1.5 }}>Pay in cash when your order arrives at your door. No upfront payment needed.</p>
+                  </div>
+                </div>
+                {[
+                  { icon: 'check_circle', text: 'Place your order now — no upfront payment' },
+                  { icon: 'local_shipping', text: 'Your items will be prepared and shipped' },
+                  { icon: 'payments', text: 'Pay the rider in cash upon delivery' },
+                ].map((step, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--surface-container)', borderRadius: 10 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ff9800' }}>{step.icon}</span>
+                    <span style={{ fontSize: 13, color: 'var(--foreground)', fontFamily: 'var(--font-inter)' }}>{step.text}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'color-mix(in srgb, #ff9800 8%, transparent)', borderRadius: 10, border: '1px solid color-mix(in srgb, #ff9800 20%, transparent)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ff9800' }}>info</span>
+                  <span style={{ fontSize: 11, color: '#ff9800', fontWeight: 600, fontFamily: 'var(--font-lexend)' }}>Available in all Ghana regions · Exact change appreciated</span>
                 </div>
               </div>
             )}
@@ -724,13 +1176,39 @@ export default function CheckoutPage() {
                 {promoError && <p style={{ color: 'var(--error)', fontSize: 11, marginTop: 6 }}>{promoError}</p>}
               </div>
 
+              {/* Loyalty Points Redemption */}
+              {user && loyaltyBalance >= POINTS_PER_CEDI && (
+                <div style={{ marginBottom: 16, padding: '14px', background: 'color-mix(in srgb, #fbbf24 6%, transparent)', border: '1px solid color-mix(in srgb, #fbbf24 25%, transparent)', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#fbbf24' }}>stars</span>
+                      <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>Loyalty Points: {loyaltyBalance.toLocaleString()} pts</span>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <div onClick={() => { setRedeemPoints(!redeemPoints); if (!redeemPoints) setPointsToRedeem(Math.min(loyaltyBalance, Math.floor(finalTotal * POINTS_PER_CEDI * 0.2))); else setPointsToRedeem(0); }} style={{ width: 40, height: 22, borderRadius: 11, background: redeemPoints ? '#fbbf24' : 'var(--outline-variant)', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: redeemPoints ? '#000' : 'var(--on-surface-variant)', position: 'absolute', top: 2, left: redeemPoints ? 20 : 2, transition: 'left 0.3s' }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>Redeem</span>
+                    </label>
+                  </div>
+                  {redeemPoints && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--on-surface-variant)' }}>Redeeming {pointsToRedeem.toLocaleString()} pts</span>
+                      <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, color: '#fbbf24', fontSize: 13 }}>-GH₵{loyaltyDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--on-surface-variant)', fontSize: 13 }}>Subtotal</span>
                 <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--foreground)', fontSize: 13 }}>GH₵{totalPrice.toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                 <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--on-surface-variant)', fontSize: 13 }}>Delivery</span>
-                {appliedPromo && appliedPromo.type === 'Shipping' ? (
+                {deliveryType === 'pickup' ? (
+                  <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--lime-400)', fontSize: 13 }}>FREE (Pickup)</span>
+                ) : appliedPromo && appliedPromo.type === 'Shipping' ? (
                   <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--lime-400)', fontSize: 13 }}>FREE</span>
                 ) : (
                   <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: shippingFee > 0 ? 'var(--foreground)' : 'var(--on-surface-variant)', fontSize: 13 }}>{shippingFee > 0 ? `GH₵${shippingFee.toFixed(2)}` : 'Select Region'}</span>
@@ -740,6 +1218,12 @@ export default function CheckoutPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                   <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--lime-400)', fontSize: 13 }}>Discount ({appliedPromo?.code})</span>
                   <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--lime-400)', fontSize: 13 }}>-GH₵{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              {loyaltyDiscount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: '#fbbf24', fontSize: 13 }}>Points Discount</span>
+                  <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: '#fbbf24', fontSize: 13 }}>-GH₵{loyaltyDiscount.toFixed(2)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>

@@ -2,6 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
+interface FraudRules {
+  velocityThreshold: number;
+  maxOrderValueAlert: number;
+  bannedKeywords: string[];
+  autoSuspendEnabled: boolean;
+  autoSuspendThreshold: number;
+  requirePhoneVerification: boolean;
+  blockVPNOrders: boolean;
+}
+
 interface LoginEvt {
   _id: string;
   email: string;
@@ -33,6 +43,20 @@ export default function AdminSecurityPage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [selectedEvent, setSelectedEvent] = useState<LoginEvt | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>('all');
+
+  // Fraud Rules Engine state
+  const [fraudRules, setFraudRules] = useState<FraudRules>({
+    velocityThreshold: 5,
+    maxOrderValueAlert: 2000,
+    bannedKeywords: ['scam', 'fake', 'replica', 'counterfeit', 'fraud'],
+    autoSuspendEnabled: true,
+    autoSuspendThreshold: 3,
+    requirePhoneVerification: true,
+    blockVPNOrders: false,
+  });
+  const [fraudRulesLoading, setFraudRulesLoading] = useState(false);
+  const [fraudRulesSaved, setFraudRulesSaved] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -93,7 +117,31 @@ export default function AdminSecurityPage() {
     { id: 3, type: 'Bot Activity', desc: 'Automated scraping detected from IP range 91.234.x.x', severity: 'Medium', time: '4h ago' },
   ];
 
-  const tabList = ['overview', 'live_logins', 'activity_logs', 'fraud_alerts', '2fa_settings'];
+  const tabList = ['overview', 'live_logins', 'activity_logs', 'fraud_alerts', 'fraud_rules', '2fa_settings'];
+
+  const fetchFraudRules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/fraud-rules');
+      const data = await res.json();
+      if (data.success) setFraudRules(data.rules);
+    } catch { /* use defaults */ }
+  }, []);
+
+  const saveFraudRules = async () => {
+    setFraudRulesLoading(true);
+    try {
+      await fetch('/api/fraud-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fraudRules),
+      });
+      setFraudRulesSaved(true);
+      setTimeout(() => setFraudRulesSaved(false), 3000);
+    } catch { /* silent */ }
+    setFraudRulesLoading(false);
+  };
+
+  useEffect(() => { fetchFraudRules(); }, [fetchFraudRules]);
 
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -301,6 +349,142 @@ export default function AdminSecurityPage() {
       )}
 
       {/* 2FA Settings */}
+      {/* ── FRAUD RULES ENGINE ── */}
+      {activeTab === 'fraud_rules' && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 className="font-lexend" style={{ fontSize: '1.3rem', margin: '0 0 4px 0' }}>Fraud Rules Engine</h3>
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.85rem', margin: 0 }}>Configure automated fraud detection thresholds and actions.</p>
+              </div>
+              <button
+                onClick={saveFraudRules}
+                disabled={fraudRulesLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 10, border: 'none', background: fraudRulesSaved ? '#00e5ff' : 'var(--lime-400)', color: '#000', fontWeight: 700, cursor: 'pointer', transition: 'all 0.3s' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{fraudRulesSaved ? 'check' : 'save'}</span>
+                {fraudRulesLoading ? 'Saving…' : fraudRulesSaved ? 'Saved!' : 'Save Rules'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Velocity Threshold */}
+              <div style={{ padding: '20px', borderRadius: 12, border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <h4 style={{ fontWeight: 700, margin: '0 0 4px 0', fontSize: '1rem' }}>Order Velocity Threshold</h4>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', margin: 0 }}>Alert when a single buyer places more than N orders per hour.</p>
+                  </div>
+                  <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 800, backgroundColor: 'color-mix(in srgb, #ff9800 15%, transparent)', color: '#ff9800' }}>
+                    {fraudRules.velocityThreshold} orders/hr
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <input type="range" min={1} max={20} value={fraudRules.velocityThreshold}
+                    onChange={e => setFraudRules(prev => ({ ...prev, velocityThreshold: parseInt(e.target.value) }))}
+                    style={{ flex: 1, accentColor: 'var(--lime-400)' }}
+                  />
+                  <input type="number" min={1} max={20} value={fraudRules.velocityThreshold}
+                    onChange={e => setFraudRules(prev => ({ ...prev, velocityThreshold: parseInt(e.target.value) || 1 }))}
+                    style={{ width: 64, padding: '8px', borderRadius: 8, border: '1px solid var(--outline)', background: 'var(--surface)', color: 'var(--foreground)', textAlign: 'center', fontSize: '0.95rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Max Order Value Alert */}
+              <div style={{ padding: '20px', borderRadius: 12, border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <h4 style={{ fontWeight: 700, margin: '0 0 4px 0', fontSize: '1rem' }}>High-Value Order Alert</h4>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', margin: 0 }}>Flag orders above this amount for manual review (GH₵).</p>
+                  </div>
+                  <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 800, backgroundColor: 'color-mix(in srgb, #ff9800 15%, transparent)', color: '#ff9800' }}>
+                    GH₵{fraudRules.maxOrderValueAlert.toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <input type="range" min={100} max={10000} step={100} value={fraudRules.maxOrderValueAlert}
+                    onChange={e => setFraudRules(prev => ({ ...prev, maxOrderValueAlert: parseInt(e.target.value) }))}
+                    style={{ flex: 1, accentColor: 'var(--lime-400)' }}
+                  />
+                  <input type="number" min={100} max={10000} step={100} value={fraudRules.maxOrderValueAlert}
+                    onChange={e => setFraudRules(prev => ({ ...prev, maxOrderValueAlert: parseInt(e.target.value) || 100 }))}
+                    style={{ width: 80, padding: '8px', borderRadius: 8, border: '1px solid var(--outline)', background: 'var(--surface)', color: 'var(--foreground)', textAlign: 'center', fontSize: '0.95rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Banned Keywords */}
+              <div style={{ padding: '20px', borderRadius: 12, border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)' }}>
+                <h4 style={{ fontWeight: 700, margin: '0 0 4px 0', fontSize: '1rem' }}>Banned Keywords</h4>
+                <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', margin: '0 0 14px 0' }}>Products or orders containing these words are auto-flagged.</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {fraudRules.bannedKeywords.map((kw, i) => (
+                    <span key={i} style={{ padding: '5px 12px', borderRadius: 20, fontSize: '0.82rem', fontWeight: 600, backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {kw}
+                      <button type="button" onClick={() => setFraudRules(prev => ({ ...prev, bannedKeywords: prev.bannedKeywords.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', padding: 0, display: 'flex', alignItems: 'center' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input
+                    type="text"
+                    placeholder="Add keyword…"
+                    value={newKeyword}
+                    onChange={e => setNewKeyword(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newKeyword.trim() && !fraudRules.bannedKeywords.includes(newKeyword.trim())) { setFraudRules(prev => ({ ...prev, bannedKeywords: [...prev.bannedKeywords, newKeyword.trim().toLowerCase()] })); setNewKeyword(''); } } }}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--outline)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '0.9rem' }}
+                  />
+                  <button type="button" onClick={() => { if (newKeyword.trim() && !fraudRules.bannedKeywords.includes(newKeyword.trim())) { setFraudRules(prev => ({ ...prev, bannedKeywords: [...prev.bannedKeywords, newKeyword.trim().toLowerCase()] })); setNewKeyword(''); } }} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--error)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[
+                  { key: 'autoSuspendEnabled', label: 'Auto-Suspend Accounts', desc: 'Automatically suspend accounts that repeatedly trigger fraud alerts.' },
+                  { key: 'requirePhoneVerification', label: 'Require Phone Verification for MoMo', desc: 'Force OTP verification before Mobile Money orders are processed.' },
+                  { key: 'blockVPNOrders', label: 'Block VPN / Proxy Orders', desc: 'Reject orders from known VPN or proxy IP addresses.' },
+                ].map(toggle => (
+                  <div key={toggle.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: 12, border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4 }}>{toggle.label}</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)' }}>{toggle.desc}</div>
+                    </div>
+                    <div
+                      onClick={() => setFraudRules(prev => ({ ...prev, [toggle.key]: !(prev as any)[toggle.key] }))}
+                      style={{ width: 52, height: 28, backgroundColor: (fraudRules as any)[toggle.key] ? 'var(--lime-400)' : 'var(--outline-variant)', borderRadius: 14, position: 'relative', cursor: 'pointer', transition: 'background-color 0.3s', flexShrink: 0 }}
+                    >
+                      <div style={{ width: 24, height: 24, backgroundColor: (fraudRules as any)[toggle.key] ? 'black' : 'var(--on-surface-variant)', borderRadius: '50%', position: 'absolute', top: 2, left: (fraudRules as any)[toggle.key] ? 26 : 2, transition: 'left 0.3s' }} />
+                    </div>
+                  </div>
+                ))}
+
+                {/* Auto-suspend threshold (conditional) */}
+                {fraudRules.autoSuspendEnabled && (
+                  <div style={{ padding: '20px', borderRadius: 12, border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', marginTop: -8 }}>
+                    <h4 style={{ fontWeight: 700, margin: '0 0 4px 0', fontSize: '0.95rem' }}>Auto-Suspend After</h4>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', margin: '0 0 14px 0' }}>Number of consecutive velocity violations before auto-suspension.</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <input type="range" min={1} max={10} value={fraudRules.autoSuspendThreshold}
+                        onChange={e => setFraudRules(prev => ({ ...prev, autoSuspendThreshold: parseInt(e.target.value) }))}
+                        style={{ flex: 1, accentColor: 'var(--error)' }}
+                      />
+                      <span style={{ fontWeight: 800, color: 'var(--error)', minWidth: 40, textAlign: 'center' }}>{fraudRules.autoSuspendThreshold}x</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === '2fa_settings' && (
         <div className="animate-fade-in" style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', padding: '32px', border: '1px solid var(--outline)', maxWidth: '600px' }}>
           <h3 className="font-lexend" style={{ fontSize: '1.4rem', marginBottom: '24px' }}>Two-Factor Authentication</h3>

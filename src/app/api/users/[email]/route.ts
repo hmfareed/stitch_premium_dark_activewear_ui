@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
+import { resolveUserRole } from '@/lib/super-admin';
 
 export async function GET(req: Request, props: { params: Promise<{ email: string }> }) {
   try {
@@ -20,7 +21,7 @@ export async function GET(req: Request, props: { params: Promise<{ email: string
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role,
+        role: resolveUserRole(user.email, user.role),
         profilePic: user.profilePic
       }
     });

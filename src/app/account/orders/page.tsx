@@ -145,7 +145,39 @@ export default function OrdersPage() {
     }
   };
 
-  const [reviewModal, setReviewModal] = useState<{ productId: string, orderId: string, rating: number, comment: string } | null>(null);
+  const [reviewModal, setReviewModal] = useState<{ productId: string, orderId: string, rating: number, comment: string, images?: string[] } | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const compressReviewImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round(h * maxDim / w);
+            w = maxDim;
+          } else if (h > w && h > maxDim) {
+            w = Math.round(w * maxDim / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/webp', 0.8));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +188,7 @@ export default function OrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...reviewModal,
+          images: reviewModal.images || [],
           customerName: user?.name,
           customerEmail: user?.email
         })
@@ -578,10 +611,62 @@ export default function OrdersPage() {
             placeholder="What did you like or dislike about this product?"
             value={reviewModal.comment}
             onChange={e => setReviewModal({ ...reviewModal, comment: e.target.value })}
-            style={{ width: '100%', padding: '16px', background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, color: 'var(--foreground)', fontSize: 14, outline: 'none', minHeight: 100, resize: 'vertical', marginBottom: 24, fontFamily: 'var(--font-inter)' }}
+            style={{ width: '100%', padding: '16px', background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, color: 'var(--foreground)', fontSize: 14, outline: 'none', minHeight: 100, resize: 'vertical', marginBottom: 16, fontFamily: 'var(--font-inter)' }}
           />
 
-          <button type="submit" style={{ width: '100%', padding: '16px', borderRadius: 12, background: 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+          {/* Photo upload field */}
+          <div style={{ marginBottom: 24 }}>
+            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 800, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, display: 'block' }}>Add Photos</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {reviewModal.images?.map((img, i) => (
+                <div key={i} style={{ width: 60, height: 60, borderRadius: 8, overflow: 'hidden', position: 'relative', border: '1px solid var(--outline)' }}>
+                  <img src={img} alt="review preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const filtered = reviewModal.images?.filter((_, idx) => idx !== i) || [];
+                      setReviewModal({ ...reviewModal, images: filtered });
+                    }} 
+                    style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%', width: 16, height: 16, color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 10 }}>close</span>
+                  </button>
+                </div>
+              ))}
+              {(!reviewModal.images || reviewModal.images.length < 3) && (
+                <label style={{ width: 60, height: 60, borderRadius: 8, border: '1px dashed var(--outline)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--surface-container-low)' }}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    hidden 
+                    disabled={uploadingImage}
+                    onChange={async (e) => {
+                      if (!e.target.files) return;
+                      setUploadingImage(true);
+                      try {
+                        const newImages = [...(reviewModal.images || [])];
+                        for (let k = 0; k < e.target.files.length; k++) {
+                          if (newImages.length >= 3) break;
+                          const compressed = await compressReviewImage(e.target.files[k]);
+                          newImages.push(compressed);
+                        }
+                        setReviewModal({ ...reviewModal, images: newImages });
+                      } catch (err) {
+                        showToast('Error uploading images', 'error');
+                      } finally {
+                        setUploadingImage(false);
+                      }
+                    }} 
+                  />
+                  <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 20 }}>{uploadingImage ? 'progress_activity' : 'add_a_photo'}</span>
+                </label>
+              )}
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--on-surface-variant)', marginTop: 6 }}>Max 3 photos (optional)</p>
+          </div>
+
+          <button type="submit" disabled={uploadingImage} style={{ width: '100%', padding: '16px', borderRadius: 12, background: uploadingImage ? 'var(--outline-variant)' : 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14, cursor: uploadingImage ? 'not-allowed' : 'pointer' }}>
             Submit Review
           </button>
         </form>

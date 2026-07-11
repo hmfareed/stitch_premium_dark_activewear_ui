@@ -12,8 +12,7 @@ interface Message {
   type?: 'text' | 'product_list' | 'faq';
 }
 
-export default function AIChatAssistant() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AIChatAssistant({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user } = useAuth();
   const { allProducts } = useStore();
   const { recentlyViewed } = useUserActivity();
@@ -201,30 +200,6 @@ export default function AIChatAssistant() {
 
   return (
     <>
-      {/* Floating Button with Pulse Effect */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: 'fixed', bottom: 100, right: 24, zIndex: 100,
-          width: 60, height: 60, borderRadius: '50%',
-          background: 'var(--lime-400)', color: '#000',
-          boxShadow: '0 8px 32px rgba(195, 244, 0, 0.4)',
-          border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-        }}
-        className={isOpen ? 'rotate-90' : 'hover-scale'}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 32, fontWeight: 'bold' }}>
-          {isOpen ? 'close' : 'forum'}
-        </span>
-        {!isOpen && (
-          <div style={{
-            position: 'absolute', top: -4, right: -4, width: 14, height: 14,
-            background: '#ff4444', borderRadius: '50%', border: '2px solid var(--surface)'
-          }} />
-        )}
-      </button>
 
       {/* Chat Window */}
       {isOpen && (
@@ -259,8 +234,26 @@ export default function AIChatAssistant() {
                 </button>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer' }}>
-              <span className="material-symbols-outlined">expand_more</span>
+            <button 
+              onClick={onClose} 
+              aria-label="Close Assistant"
+              style={{ 
+                background: 'var(--surface-container-highest)', 
+                border: 'none', 
+                color: 'var(--on-surface)', 
+                cursor: 'pointer',
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.2s',
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'var(--outline)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'var(--surface-container-highest)'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
             </button>
           </div>
 
@@ -284,7 +277,7 @@ export default function AIChatAssistant() {
                 {msg.products && (
                   <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {msg.products.map((p: any) => (
-                      <Link key={p.id} href={`/product/${p.id}`} onClick={() => setIsOpen(false)} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', background: 'var(--surface-container-high)', borderRadius: 16, border: '1px solid var(--outline)', overflow: 'hidden', transition: 'transform 0.2s' }}>
+                      <Link key={p.id} href={`/product/${p.id}`} onClick={onClose} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', background: 'var(--surface-container-high)', borderRadius: 16, border: '1px solid var(--outline)', overflow: 'hidden', transition: 'transform 0.2s' }}>
                         <div style={{ width: '100%', aspectRatio: '1', position: 'relative' }}>
                           <img src={p.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={p.name} />
                           <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, color: '#fff', fontSize: 10, fontWeight: 800 }}>

@@ -16,6 +16,14 @@ const FinanceMetric = ({ title, value, icon, color }: { title: string, value: st
   </div>
 );
 
+const EmptyState = ({ icon, text }: { icon: string; text: string }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--on-surface-variant)' }}>
+    <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.4 }}>{icon}</span>
+    <p style={{ fontSize: '0.9rem' }}>{text}</p>
+  </div>
+);
+
+
 export default function AdminFinancePage() {
   const { allOrders, totalRevenue, totalOrderCount, deliveredOrders, allAdmins, allPayouts, updatePayoutStatus, refreshData } = useAdmin();
   const { user } = useAuth();
@@ -121,12 +129,7 @@ export default function AdminFinancePage() {
   // Cancelled orders = potential refunds
   const cancelledTotal = allOrders.filter(o => o.status === 'Cancelled').reduce((s, o) => s + (o.total || 0), 0);
 
-  const EmptyState = ({ icon, text }: { icon: string; text: string }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--on-surface-variant)' }}>
-      <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.4 }}>{icon}</span>
-      <p style={{ fontSize: '0.9rem' }}>{text}</p>
-    </div>
-  );
+
 
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

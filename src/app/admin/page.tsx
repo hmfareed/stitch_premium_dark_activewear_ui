@@ -50,6 +50,13 @@ const MetricCard = ({ title, value, icon, color }: { title: string, value: strin
   </div>
 );
 
+const EmptyState = ({ icon, text }: { icon: string; text: string }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--on-surface-variant)' }}>
+    <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.4 }}>{icon}</span>
+    <p style={{ fontSize: '0.9rem' }}>{text}</p>
+  </div>
+);
+
 export default function AdminDashboard() {
   const {
     allOrders, allCustomers, allAdmins,
@@ -109,13 +116,7 @@ export default function AdminDashboard() {
   // Recent 5 orders
   const recentOrders = allOrders.slice(0, 5);
 
-  // Empty state helper
-  const EmptyState = ({ icon, text }: { icon: string; text: string }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--on-surface-variant)' }}>
-      <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.4 }}>{icon}</span>
-      <p style={{ fontSize: '0.9rem' }}>{text}</p>
-    </div>
-  );
+
 
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(req: NextRequest) {
   try {
-    const { email, amount, metadata, callback_url, channels, phone } = await req.json();
+    const { email, amount, metadata, callback_url, channels, phone, reference, mobile_money_type } = await req.json();
 
     if (!email || !amount) {
       return NextResponse.json({ error: 'Email and amount are required' }, { status: 400 });
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
       },
     };
 
+    // Use custom reference if provided
+    if (reference) {
+      body.reference = reference;
+    }
+
     // Route to specific payment channel if specified
     if (channels && channels.length > 0) {
       body.channels = channels;
@@ -41,6 +46,11 @@ export async function POST(req: NextRequest) {
     // Pass phone for mobile money
     if (phone) {
       body.phone = phone;
+    }
+
+    // Pass mobile_money_type for mobile money
+    if (mobile_money_type) {
+      body.mobile_money_type = mobile_money_type;
     }
 
     const response = await fetch('https://api.paystack.co/transaction/initialize', {

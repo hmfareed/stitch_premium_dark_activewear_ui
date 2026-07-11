@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/context/AppContext';
+import Link from 'next/link';
 
 const STORAGE_KEY = 'africart-platform-settings';
 
@@ -316,6 +317,12 @@ export default function AdminSettingsPage() {
                 <label style={{ fontWeight: 500 }}>Delivery Zones / Regions</label>
                 <textarea value={settings.deliveryZones} onChange={e => update({ deliveryZones: e.target.value })} rows={3} style={{ ...inputStyle, maxWidth: '100%', resize: 'vertical' }} />
                 <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Comma-separated list of regions you deliver to</span>
+                <div style={{ marginTop: '8px' }}>
+                  <Link href="/admin/settings/delivery-zones" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: `1px solid ${settings.accentColor}`, color: settings.accentColor, textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem', backgroundColor: `color-mix(in srgb, ${settings.accentColor} 8%, transparent)`, transition: 'all 0.2s' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>zone</span>
+                    Configure Zone Rates & COD
+                  </Link>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline)', maxWidth: '400px' }}>
                 <div>

@@ -41,20 +41,74 @@ export default function VendorProductsPage() {
     }
   };
 
-  const confirmBulkUpload = () => {
-    bulkFile.forEach(p => {
-      addProduct({
+  const confirmBulkUpload = async () => {
+    const isUnverified = user && !user.isVerified;
+    const currentCount = allProducts.filter(p => p.vendorEmail === user?.email).length;
+    const totalFutureProducts = currentCount + bulkFile.length;
+
+    if (isUnverified && totalFutureProducts > 5) {
+      showToast(`Upload failed. Unverified vendors are capped at 5 products maximum. Please verify your ID.`, 'error');
+      return;
+    }
+
+    showToast(`Uploading ${bulkFile.length} products to database…`, 'info');
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const p of bulkFile) {
+      const productPayload = {
         ...p,
         subCategory: 'Bulk Upload',
         rating: 0,
         vendorEmail: user?.email || '',
         vendorStoreName: storeName,
-      });
-    });
+      };
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(productPayload),
+        });
+        const data = await res.json();
+        if (data.success && data.product) {
+          // Also update local state for instant UI feedback
+          addProduct({ ...productPayload, id: data.product.id || data.product._id });
+          successCount++;
+        } else {
+          // Fallback: persist to local state even if API fails
+          addProduct(productPayload);
+          failCount++;
+        }
+      } catch {
+        addProduct(productPayload);
+        failCount++;
+      }
+    }
+
     setBulkFile([]);
     setShowBulkModal(false);
-    showToast(`${bulkFile.length} products added successfully!`);
+    if (failCount === 0) {
+      showToast(`${successCount} products saved to database successfully!`, 'success');
+    } else {
+      showToast(`${successCount} saved to DB, ${failCount} saved locally only.`, 'info');
+    }
   };
+
+  const downloadCSVTemplate = () => {
+    const headers = 'Name,Category,Price,Stock,Description,Image URL';
+    const example = 'Premium Activewear Tee,Fashion,149.99,50,High-quality moisture-wicking performance tee,https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800';
+    const csv = [headers, example].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'africart-bulk-product-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('CSV template downloaded!', 'success');
+  };
+
+
 
   // New product state
   const [name, setName] = useState('');
@@ -156,6 +210,12 @@ export default function VendorProductsPage() {
   const handleAddProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !price || !description) return;
+
+    const isUnverified = user && !user.isVerified;
+    if (isUnverified && vendorProducts.length >= 5) {
+      showToast(`Listing failed. Unverified vendors are capped at 5 products. Complete verification to list more.`, 'error');
+      return;
+    }
     
     addProduct({
       name,
@@ -211,7 +271,11 @@ export default function VendorProductsPage() {
   };
 
   const handleStockUpdate = (productId: string, newStock: number) => {
-    updateProduct(productId, { stock: Math.max(0, newStock) });
+    const stockVal = Math.max(0, newStock);
+    updateProduct(productId, { stock: stockVal });
+    if (stockVal === 0) {
+      showToast('Product out of stock. Listing is now automatically hidden from buyers!', 'info');
+    }
   };
 
   return (
@@ -221,7 +285,11 @@ export default function VendorProductsPage() {
           <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>My Products</h1>
           <p style={{ color: 'var(--on-surface-variant)' }}>Manage your store's product catalog</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button onClick={downloadCSVTemplate} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline)', background: 'var(--surface-container)', color: 'var(--on-surface-variant)', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+            CSV Template
+          </button>
           <button onClick={() => setShowBulkModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline)', background: 'var(--surface-container)', color: 'var(--on-surface)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>upload_file</span>
             Bulk Upload
@@ -231,7 +299,18 @@ export default function VendorProductsPage() {
             {showAddModal ? 'Cancel' : 'Add Product'}
           </button>
         </div>
+
       </div>
+
+      {user && !user.isVerified && (
+        <div style={{ padding: '16px', background: 'rgba(255,152,0,0.08)', border: '1px solid #ff9800', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className="material-symbols-outlined" style={{ color: '#ff9800', fontSize: '28px' }}>warning</span>
+          <div>
+            <h4 style={{ margin: '0 0 4px 0', color: '#ff9800', fontWeight: 700, fontFamily: 'var(--font-lexend)' }}>Informal / Unverified Seller Tier Limits</h4>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Your store is currently unverified. You are capped at a maximum of <strong>5 product listings</strong>. Verify your identity/business to list unlimited products.</p>
+          </div>
+        </div>
+      )}
 
       {/* Add Product Modal */}
       {showAddModal && (

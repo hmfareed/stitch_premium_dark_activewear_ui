@@ -7,14 +7,11 @@ import { useAuth, useToast } from '@/context/AppContext';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, signup } = useAuth();
+  const { login } = useAuth();
   const { showToast } = useToast();
-  const [isSignup, setIsSignup] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
@@ -23,17 +20,14 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      let success;
-      if (isSignup) {
-        success = await signup(name, email, phone, password);
-      } else {
-        success = await login(email, password);
-      }
+      const success = await login(email, password);
       if (success) {
-        showToast(isSignup ? 'Account created successfully!' : 'Welcome back!');
-        router.push('/account');
+        showToast('Welcome back!');
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        router.push(redirect && redirect.startsWith('/') ? redirect : '/account');
       } else {
-        showToast(isSignup ? 'Email already in use or failed' : 'Invalid email or password', 'error');
+        showToast('Invalid email or password', 'error');
       }
     } catch {
       showToast('An error occurred', 'error');
@@ -86,7 +80,7 @@ export default function LoginPage() {
           <div className="animate-fade-in-up" style={{ textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--lime-400)', marginBottom: 16 }}>mark_email_read</span>
             <p style={{ fontSize: 14, color: 'var(--on-surface-variant)', lineHeight: 1.6, marginBottom: 24 }}>
-              We&apos;ve sent a password reset link to <strong style={{ color: 'var(--foreground)' }}>{forgotEmail}</strong>. 
+              We&apos;ve sent a password reset link to <strong style={{ color: 'var(--foreground)' }}>{forgotEmail}</strong>.{' '}
               Check your inbox and spam folder.
             </p>
             <button onClick={() => { setShowForgotPassword(false); setForgotSent(false); }} style={{ padding: '14px 32px', background: 'var(--lime-400)', color: '#000', border: 'none', borderRadius: 10, fontFamily: 'var(--font-lexend)', fontWeight: 800, cursor: 'pointer' }}>
@@ -117,24 +111,11 @@ export default function LoginPage() {
       <div className="animate-scale-in" style={{ textAlign: 'center', marginBottom: 40 }}>
         <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 32, fontWeight: 900, color: 'var(--lime-400)', letterSpacing: '-0.03em' }}>AfriCart</h1>
         <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--on-surface-variant)', marginTop: 4 }}>
-          {isSignup ? 'Create your account' : 'Sign in to your account'}
+          Sign in to your account
         </p>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400, margin: '0 auto', width: '100%' }}>
-        {isSignup && (
-          <>
-            <div className="animate-fade-in-up">
-              <label style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block' }}>Full Name</label>
-              <input required value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="John Doe" />
-            </div>
-            <div className="animate-fade-in-up stagger-1">
-              <label style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block' }}>Phone Number</label>
-              <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} placeholder="050 000 0000" />
-            </div>
-          </>
-        )}
-
         <div className="animate-fade-in-up stagger-1">
           <label style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block' }}>Email</label>
           <input required type="email" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} placeholder="you@example.com" />
@@ -142,17 +123,15 @@ export default function LoginPage() {
 
         <div className="animate-fade-in-up stagger-2">
           <label style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, display: 'block' }}>Password</label>
-          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} placeholder="••••••••" minLength={isSignup ? 6 : undefined} />
+          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} placeholder="••••••••" />
         </div>
 
         {/* Forgot Password Link */}
-        {!isSignup && (
-          <div className="animate-fade-in-up stagger-2" style={{ textAlign: 'right', marginTop: -8 }}>
-            <button type="button" onClick={() => setShowForgotPassword(true)} style={{ background: 'none', border: 'none', color: 'var(--lime-400)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-inter)', fontWeight: 600 }}>
-              Forgot password?
-            </button>
-          </div>
-        )}
+        <div className="animate-fade-in-up stagger-2" style={{ textAlign: 'right', marginTop: -8 }}>
+          <button type="button" onClick={() => setShowForgotPassword(true)} style={{ background: 'none', border: 'none', color: 'var(--lime-400)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-inter)', fontWeight: 600 }}>
+            Forgot password?
+          </button>
+        </div>
 
         <button
           type="submit"
@@ -168,21 +147,22 @@ export default function LoginPage() {
             marginTop: 8,
           }}
         >
-          {loading ? 'Please wait...' : isSignup ? 'Create Account' : 'Sign In'}
+          {loading ? 'Please wait...' : 'Sign In'}
         </button>
       </form>
 
-      <div className="animate-fade-in-up stagger-4" style={{ textAlign: 'center', marginTop: 24 }}>
-        <button
-          onClick={() => setIsSignup(!isSignup)}
-          style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-inter)' }}
-        >
-          {isSignup ? 'Already have an account? ' : "Don't have an account? "}
-          <span style={{ color: 'var(--lime-400)', fontWeight: 600 }}>{isSignup ? 'Sign In' : 'Sign Up'}</span>
-        </button>
+      <div className="animate-fade-in-up stagger-4" style={{ textAlign: 'center', marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--on-surface-variant)' }}>
+          Don&apos;t have an account?{' '}
+          <Link href="/register/customer" style={{ color: 'var(--on-surface-variant)', fontWeight: 600 }}>Create account</Link>
+        </p>
+        <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--on-surface-variant)' }}>
+          Want to sell on AfriCart?{' '}
+          <Link href="/register/vendor" style={{ color: 'var(--on-surface-variant)', fontWeight: 600 }}>Apply as Vendor →</Link>
+        </p>
       </div>
 
-      <div className="animate-fade-in-up stagger-5" style={{ textAlign: 'center', marginTop: 32 }}>
+      <div className="animate-fade-in-up stagger-5" style={{ textAlign: 'center', marginTop: 24 }}>
         <Link href="/" style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--on-surface-variant)' }}>Continue as Guest →</Link>
       </div>
     </div>
