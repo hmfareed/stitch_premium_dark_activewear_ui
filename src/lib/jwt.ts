@@ -1,6 +1,10 @@
 import jwt, { SignOptions, JwtPayload } from 'jsonwebtoken';
 
 const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  console.warn('WARNING: JWT_SECRET environment variable is not defined. Using a fallback secret key for development.');
+}
+const ACTUAL_SECRET = SECRET || 'africart-premium-secret-fallback-key-998877';
 
 export interface AfriCartTokenPayload extends JwtPayload {
   userId: string;
@@ -17,10 +21,7 @@ const DEFAULT_OPTIONS: SignOptions = {
  * Returns the signed token string.
  */
 export function signToken(payload: Omit<AfriCartTokenPayload, keyof JwtPayload>): string {
-  if (!SECRET) {
-    throw new Error('JWT_SECRET is not defined in environment variables');
-  }
-  return jwt.sign(payload, SECRET, DEFAULT_OPTIONS);
+  return jwt.sign(payload, ACTUAL_SECRET, DEFAULT_OPTIONS);
 }
 
 /**
@@ -28,11 +29,8 @@ export function signToken(payload: Omit<AfriCartTokenPayload, keyof JwtPayload>)
  * Returns the decoded payload, or null if the token is invalid/expired.
  */
 export function verifyToken(token: string): AfriCartTokenPayload | null {
-  if (!SECRET) {
-    throw new Error('JWT_SECRET is not defined in environment variables');
-  }
   try {
-    return jwt.verify(token, SECRET) as AfriCartTokenPayload;
+    return jwt.verify(token, ACTUAL_SECRET) as AfriCartTokenPayload;
   } catch {
     return null;
   }
