@@ -2,11 +2,14 @@
 
 import React, { useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
-import { useStore } from '@/context/AppContext';
+import { useStore, useAuth, useToast } from '@/context/AppContext';
 
 export default function AdminProductsPage() {
   const { allOrders } = useAdmin();
-  const { allProducts } = useStore();
+  const { allProducts, deleteProduct } = useStore();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const isSuperAdmin = user?.role === 'super_admin';
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
 
@@ -77,6 +80,7 @@ export default function AdminProductsPage() {
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Rating</th>
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Units Sold</th>
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Tags</th>
+                {isSuperAdmin && <th style={{ padding: '14px 24px', fontWeight: 500, textAlign: 'center' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -111,6 +115,44 @@ export default function AdminProductsPage() {
                       {p.isLimited && <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, backgroundColor: 'color-mix(in srgb, #ff4081 20%, transparent)', color: '#ff4081' }}>LIMITED</span>}
                     </div>
                   </td>
+                  {isSuperAdmin && (
+                    <td data-label="Actions" style={{ padding: '16px 24px', textAlign: 'center' }}>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete "${p.name}"?`)) {
+                            deleteProduct(p.id);
+                            showToast(`Product "${p.name}" deleted successfully`, 'error');
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(255, 68, 68, 0.1)',
+                          color: '#ff4444',
+                          border: '1px solid rgba(255, 68, 68, 0.3)',
+                          borderRadius: '8px',
+                          padding: '6px 12px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-lexend)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#ff4444';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)';
+                          e.currentTarget.style.color = '#ff4444';
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+                        Delete
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
