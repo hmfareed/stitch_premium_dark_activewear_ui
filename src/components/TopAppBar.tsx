@@ -33,6 +33,40 @@ export const TopAppBar: React.FC = () => {
   const moreRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // PWA install states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Turn off button if the app is already in standalone mode
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setShowInstallBtn(false);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the PWA install prompt');
+    }
+    setDeferredPrompt(null);
+    setShowInstallBtn(false);
+  };
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const isCheckout = pathname === '/checkout' || pathname === '/confirmation';
@@ -165,6 +199,32 @@ export const TopAppBar: React.FC = () => {
 
           {/* Icon group — Search · Notifications · AI */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Custom PWA Install Button */}
+            {showInstallBtn && (
+              <button
+                onClick={handleInstallClick}
+                className="animate-pulse-glow"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: 'var(--lime-400)',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '6px 12px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginRight: '8px',
+                  fontFamily: 'var(--font-lexend)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+                <span>Install App</span>
+              </button>
+            )}
             {/* Search */}
             <button
               id="header-search-btn"
