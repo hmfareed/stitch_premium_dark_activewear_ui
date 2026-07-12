@@ -30,8 +30,8 @@ export default function LoginPage() {
       } else {
         showToast('Invalid email or password', 'error');
       }
-    } catch {
-      showToast('An error occurred', 'error');
+    } catch (err: any) {
+      showToast(err?.message || 'An error occurred', 'error');
     }
     setLoading(false);
   };

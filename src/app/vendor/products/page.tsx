@@ -6,7 +6,7 @@ import { useAdmin } from '@/context/AdminContext';
 import { categories } from '@/data/products';
 
 export default function VendorProductsPage() {
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkFile, setBulkFile] = useState<any[]>([]);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -241,7 +241,7 @@ export default function VendorProductsPage() {
     setAdditionalImages([]);
     setStock('');
     setWholesaleTiers([]);
-    setShowAddModal(false);
+    setActiveTab('list');
     showToast('Product published successfully!');
   };
 
@@ -300,295 +300,340 @@ export default function VendorProductsPage() {
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>upload_file</span>
             Bulk Upload
           </button>
-          <button onClick={() => setShowAddModal(!showAddModal)} style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: '#00e5ff', color: 'var(--on-lime-400)', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{showAddModal ? 'close' : 'add'}</span>
-            {showAddModal ? 'Cancel' : 'Add Product'}
+          <button 
+            onClick={() => setActiveTab(activeTab === 'list' ? 'add' : 'list')} 
+            style={{ 
+              padding: '10px 20px', 
+              borderRadius: '8px', 
+              backgroundColor: activeTab === 'list' ? '#00e5ff' : 'var(--surface-container-high)', 
+              color: activeTab === 'list' ? '#000' : 'var(--on-surface)', 
+              border: activeTab === 'list' ? 'none' : '1px solid var(--outline)', 
+              fontWeight: 600, 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px' 
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{activeTab === 'add' ? 'arrow_back' : 'add'}</span>
+            {activeTab === 'add' ? 'Back to List' : 'Add Product'}
           </button>
         </div>
 
       </div>
 
-      {user && !user.isVerified && (
-        <div style={{ padding: '16px', background: 'rgba(255,152,0,0.08)', border: '1px solid #ff9800', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span className="material-symbols-outlined" style={{ color: '#ff9800', fontSize: '28px' }}>warning</span>
-          <div>
-            <h4 style={{ margin: '0 0 4px 0', color: '#ff9800', fontWeight: 700, fontFamily: 'var(--font-lexend)' }}>Informal / Unverified Seller Tier Limits</h4>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Your store is currently unverified. You are capped at a maximum of <strong>5 product listings</strong>. Verify your identity/business to list unlimited products.</p>
+      {/* Sliding Tab Switcher */}
+      <div className="responsive-tabs-row" style={{ display: 'flex', borderBottom: '1px solid var(--outline)', gap: '24px', overflowX: 'auto', paddingBottom: '1px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('list')}
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'list' ? '2px solid var(--lime-400)' : '2px solid transparent',
+            color: activeTab === 'list' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-lexend)',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s',
+          }}
+        >
+          My Products ({vendorProducts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('add')}
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'add' ? '2px solid var(--lime-400)' : '2px solid transparent',
+            color: activeTab === 'add' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-lexend)',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s',
+          }}
+        >
+          Add Product
+        </button>
+      </div>
+
+      {activeTab === 'list' && (
+        <>
+          {user && !user.isVerified && (
+            <div style={{ padding: '16px', background: 'rgba(255,152,0,0.08)', border: '1px solid #ff9800', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#ff9800', fontSize: '28px' }}>warning</span>
+              <div>
+                <h4 style={{ margin: '0 0 4px 0', color: '#ff9800', fontWeight: 700, fontFamily: 'var(--font-lexend)' }}>Informal / Unverified Seller Tier Limits</h4>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Your store is currently unverified. You are capped at a maximum of <strong>5 product listings</strong>. Verify your identity/business to list unlimited products.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Stats */}
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {[
+              { label: 'Total Products', val: vendorProducts.length.toString(), color: '#00e5ff', icon: 'inventory_2' },
+              { label: 'Total Stock Value', val: `GH₵${totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--lime-400)', icon: 'payments' },
+              { label: 'Low Stock', val: lowStockCount.toString(), color: '#ff9800', icon: 'warning' },
+              { label: 'Out of Stock', val: outOfStockCount.toString(), color: 'var(--error)', icon: 'block' },
+            ].map(s => (
+              <div key={s.label} style={{ flex: '1 1 150px', padding: '20px', backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{s.label}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: s.color }}>{s.icon}</span>
+                </div>
+                <div className="font-lexend" style={{ fontSize: '1.6rem', fontWeight: 600, color: s.color }}>{s.val}</div>
+              </div>
+            ))}
           </div>
-        </div>
+
+          {/* Search */}
+          <div style={{ backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: '22px' }}>search</span>
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search products by name, category, or ID..."
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--on-surface)', fontSize: '0.95rem', fontFamily: 'inherit' }}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', display: 'flex' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            )}
+          </div>
+
+          {/* Products Table */}
+          <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="responsive-table">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Product</th>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Category</th>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Price</th>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Stock</th>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Rating</th>
+                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.length === 0 ? (
+                    <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '40px', marginBottom: '8px', display: 'block', opacity: 0.5 }}>inventory_2</span>
+                      {searchQuery ? 'No products match your search.' : 'No products published yet.'}
+                    </td></tr>
+                  ) : filteredProducts.map((p, idx) => (
+                    <tr key={p.id} style={{ borderBottom: idx !== filteredProducts.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
+                      <td data-label="Product" style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <img src={p.image} alt={p.name} style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }} />
+                          <div><span style={{ fontWeight: 500 }}>{p.name}</span><br /><span style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>ID: {p.id}</span></div>
+                        </div>
+                      </td>
+                      <td data-label="Category" style={{ padding: '16px 24px' }}><span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span></td>
+                      <td data-label="Price" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</td>
+                      <td data-label="Stock" style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleStockUpdate(p.id, (p.stock || 0) - 1)} 
+                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
+                          >−</button>
+                          <span style={{ 
+                            fontWeight: 600, minWidth: '28px', textAlign: 'center', 
+                            color: (p.stock || 0) === 0 ? 'var(--error)' : (p.stock || 0) <= 5 ? '#ff9800' : 'var(--on-surface)' 
+                          }}>{p.stock || 0}</span>
+                          <button 
+                            onClick={() => handleStockUpdate(p.id, (p.stock || 0) + 1)} 
+                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
+                          >+</button>
+                        </div>
+                      </td>
+                      <td data-label="Rating" style={{ padding: '16px 24px', color: 'var(--on-surface)' }}>{p.rating} / 5</td>
+                      <td data-label="Actions" style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button onClick={() => openEditModal(p)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit">
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
+                          </button>
+                          <button onClick={() => setDeleteConfirm(p.id)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete">
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Add Product Modal */}
-      {showAddModal && (
-        <div 
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-          onClick={() => setShowAddModal(false)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()} 
-            className="animate-scale-in" 
-            style={{ background: 'var(--surface)', borderRadius: '24px', padding: '32px', maxWidth: '600px', width: '90%', border: '1px solid var(--outline)', maxHeight: '90vh', overflowY: 'auto' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="font-lexend" style={{ fontSize: '1.4rem', margin: 0, color: 'var(--foreground)' }}>Add New Product</h3>
-              <button 
-                onClick={() => setShowAddModal(false)} 
-                style={{ background: 'var(--surface-container-high)', border: 'none', cursor: 'pointer', color: 'var(--on-surface)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      {activeTab === 'add' && (
+        <div className="animate-scale-in" style={{ padding: '24px', backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+          <h2 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-symbols-outlined">add_box</span>
+            Add New Product
+          </h2>
+          
+          <form onSubmit={handleAddProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Name</label>
+                <input required value={name} onChange={e => setName(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="e.g. Compression Shirt" />
+              </div>
+              <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Price (GH₵)</label>
+                <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0.00" />
+              </div>
             </div>
-            
-            <form onSubmit={handleAddProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Name</label>
-                  <input required value={name} onChange={e => setName(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="e.g. Compression Shirt" />
-                </div>
-                <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Price (GH₵)</label>
-                  <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0.00" />
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Stock</label>
-                  <input type="number" value={stock} onChange={e => setStock(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0" />
-                </div>
-                <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Category</label>
-                  <select value={category} onChange={e => setCategory(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', width: '100%' }}>
-                    {categories.filter(cat => cat !== 'All').map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Stock</label>
+                <input type="number" value={stock} onChange={e => setStock(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0" />
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Image</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} disabled={imageUploading} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', opacity: imageUploading ? 0.5 : 1 }} />
-                  {imageUploading && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--lime-400)', fontSize: '0.8rem', fontWeight: 600 }}>
-                      <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>progress_activity</span>
-                      Uploading...
-                    </div>
-                  )}
-                  {image && !imageUploading && (
-                    <div style={{ position: 'relative' }}>
-                      <img src={image} alt="Preview" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--outline)' }} />
-                      {image.includes('cloudinary') && (
-                        <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--lime-400)', color: '#000', fontSize: '7px', fontWeight: 900, padding: '1px 4px', borderRadius: '4px', fontFamily: 'var(--font-lexend)' }}>CDN</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Gallery Images <span style={{ fontSize: '0.7rem', color: 'var(--outline)' }}>({additionalImages.length}/4 — optional)</span></label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {additionalImages.map((img, i) => (
-                    <div key={i} style={{ position: 'relative' }}>
-                      <img src={img} alt={`Gallery ${i + 1}`} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--outline)' }} />
-                      <button type="button" onClick={() => setAdditionalImages(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--error)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                    </div>
+              <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Category</label>
+                <select value={category} onChange={e => setCategory(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', width: '100%' }}>
+                  {categories.filter(cat => cat !== 'All').map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
                   ))}
-                  {additionalImages.length < 4 && (
-                    <label style={{ width: 52, height: 52, borderRadius: 8, border: '1px dashed var(--outline)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: galleryUploading ? 'wait' : 'pointer', opacity: galleryUploading ? 0.5 : 1 }}>
-                      {galleryUploading ? (
-                        <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18, color: 'var(--lime-400)' }}>progress_activity</span>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--on-surface-variant)' }}>add_photo_alternate</span>
-                          <span style={{ fontSize: 7, color: 'var(--on-surface-variant)', fontWeight: 700 }}>ADD</span>
-                        </>
-                      )}
-                      <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
-                    </label>
-                  )}
-                </div>
+                </select>
               </div>
+            </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
-                <textarea required value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} placeholder="Product description..." />
-              </div>
-
-              {/* Wholesale Pricing Tiers Row Builder */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
-                  <button
-                    type="button"
-                    onClick={() => setWholesaleTiers([...wholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
-                    style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
-                    Add Bracket
-                  </button>
-                </div>
-                
-                {wholesaleTiers.length === 0 ? (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {wholesaleTiers.map((tier, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
-                          <input
-                            type="number"
-                            min="2"
-                            required
-                            value={tier.minQuantity}
-                            onChange={(e) => {
-                              const updated = [...wholesaleTiers];
-                              updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
-                              setWholesaleTiers(updated);
-                            }}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            required
-                            value={tier.discountPercent}
-                            onChange={(e) => {
-                              const updated = [...wholesaleTiers];
-                              updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
-                              setWholesaleTiers(updated);
-                            }}
-                            style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                          />
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setWholesaleTiers(wholesaleTiers.filter((_, i) => i !== idx))}
-                          style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                        </button>
-                      </div>
-                    ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Image</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={imageUploading} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', opacity: imageUploading ? 0.5 : 1 }} />
+                {imageUploading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--lime-400)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>progress_activity</span>
+                    Uploading...
+                  </div>
+                )}
+                {image && !imageUploading && (
+                  <div style={{ position: 'relative' }}>
+                    <img src={image} alt="Preview" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--outline)' }} />
+                    {image.includes('cloudinary') && (
+                      <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--lime-400)', color: '#000', fontSize: '7px', fontWeight: 900, padding: '1px 4px', borderRadius: '4px', fontFamily: 'var(--font-lexend)' }}>CDN</span>
+                    )}
                   </div>
                 )}
               </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-                <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#00e5ff', color: '#000', cursor: 'pointer', fontWeight: 600 }}>Publish Product</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        {[
-          { label: 'Total Products', val: vendorProducts.length.toString(), color: '#00e5ff', icon: 'inventory_2' },
-          { label: 'Total Stock Value', val: `GH₵${totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--lime-400)', icon: 'payments' },
-          { label: 'Low Stock', val: lowStockCount.toString(), color: '#ff9800', icon: 'warning' },
-          { label: 'Out of Stock', val: outOfStockCount.toString(), color: 'var(--error)', icon: 'block' },
-        ].map(s => (
-          <div key={s.label} style={{ flex: '1 1 150px', padding: '20px', backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{s.label}</span>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', color: s.color }}>{s.icon}</span>
             </div>
-            <div className="font-lexend" style={{ fontSize: '1.6rem', fontWeight: 600, color: s.color }}>{s.val}</div>
-          </div>
-        ))}
-      </div>
 
-      {/* Search */}
-      <div style={{ backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: '22px' }}>search</span>
-        <input 
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search products by name, category, or ID..."
-          style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--on-surface)', fontSize: '0.95rem', fontFamily: 'inherit' }}
-        />
-        {searchQuery && (
-          <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', display: 'flex' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
-          </button>
-        )}
-      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Gallery Images <span style={{ fontSize: '0.7rem', color: 'var(--outline)' }}>({additionalImages.length}/4 — optional)</span></label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {additionalImages.map((img, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img src={img} alt={`Gallery ${i + 1}`} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--outline)' }} />
+                    <button type="button" onClick={() => setAdditionalImages(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--error)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                  </div>
+                ))}
+                {additionalImages.length < 4 && (
+                  <label style={{ width: 52, height: 52, borderRadius: 8, border: '1px dashed var(--outline)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: galleryUploading ? 'wait' : 'pointer', opacity: galleryUploading ? 0.5 : 1 }}>
+                    {galleryUploading ? (
+                      <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18, color: 'var(--lime-400)' }}>progress_activity</span>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--on-surface-variant)' }}>add_photo_alternate</span>
+                        <span style={{ fontSize: 7, color: 'var(--on-surface-variant)', fontWeight: 700 }}>ADD</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
+                  </label>
+                )}
+              </div>
+            </div>
 
-      {/* Products Table */}
-      <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="responsive-table">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Product</th>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Category</th>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Price</th>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Stock</th>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Rating</th>
-                <th style={{ padding: '14px 24px', fontWeight: 500 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '40px', marginBottom: '8px', display: 'block', opacity: 0.5 }}>inventory_2</span>
-                  {searchQuery ? 'No products match your search.' : 'No products published yet.'}
-                </td></tr>
-              ) : filteredProducts.map((p, idx) => (
-                <tr key={p.id} style={{ borderBottom: idx !== filteredProducts.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                  <td data-label="Product" style={{ padding: '16px 24px' }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <img src={p.image} alt={p.name} style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }} />
-                      <div><span style={{ fontWeight: 500 }}>{p.name}</span><br /><span style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>ID: {p.id}</span></div>
-                    </div>
-                  </td>
-                  <td data-label="Category" style={{ padding: '16px 24px' }}><span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span></td>
-                  <td data-label="Price" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</td>
-                  <td data-label="Stock" style={{ padding: '16px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button 
-                        onClick={() => handleStockUpdate(p.id, (p.stock || 0) - 1)} 
-                        style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
-                      >−</button>
-                      <span style={{ 
-                        fontWeight: 600, minWidth: '28px', textAlign: 'center', 
-                        color: (p.stock || 0) === 0 ? 'var(--error)' : (p.stock || 0) <= 5 ? '#ff9800' : 'var(--on-surface)' 
-                      }}>{p.stock || 0}</span>
-                      <button 
-                        onClick={() => handleStockUpdate(p.id, (p.stock || 0) + 1)} 
-                        style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
-                      >+</button>
-                    </div>
-                  </td>
-                  <td data-label="Rating" style={{ padding: '16px 24px', color: 'var(--on-surface)' }}>{p.rating} / 5</td>
-                  <td data-label="Actions" style={{ padding: '16px 24px' }}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => openEditModal(p)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit">
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
-                      </button>
-                      <button onClick={() => setDeleteConfirm(p.id)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
+              <textarea required value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} placeholder="Product description..." />
+            </div>
+
+            {/* Wholesale Pricing Tiers Row Builder */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
+                <button
+                  type="button"
+                  onClick={() => setWholesaleTiers([...wholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
+                  style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+                  Add Bracket
+                </button>
+              </div>
+              
+              {wholesaleTiers.length === 0 ? (
+                <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {wholesaleTiers.map((tier, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
+                        <input
+                          type="number"
+                          min="2"
+                          required
+                          value={tier.minQuantity}
+                          onChange={(e) => {
+                            const updated = [...wholesaleTiers];
+                            updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
+                            setWholesaleTiers(updated);
+                          }}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                      <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="90"
+                          required
+                          value={tier.discountPercent}
+                          onChange={(e) => {
+                            const updated = [...wholesaleTiers];
+                            updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
+                            setWholesaleTiers(updated);
+                          }}
+                          style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                        />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWholesaleTiers(wholesaleTiers.filter((_, i) => i !== idx))}
+                        style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
+                      >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <button type="button" onClick={() => setActiveTab('list')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#00e5ff', color: '#000', cursor: 'pointer', fontWeight: 600 }}>Publish Product</button>
+            </div>
+          </form>
         </div>
-      </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

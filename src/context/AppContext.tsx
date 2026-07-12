@@ -164,12 +164,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (error) {
       console.error('Login error:', error);
-      if (error instanceof Error && error.message !== 'Failed to fetch') {
+      
+      // Determine if this is a network/connectivity error to trigger local fallback
+      const isNetworkError = error instanceof TypeError || 
+        (error instanceof Error && (
+          error.message === 'Failed to fetch' ||
+          error.message.toLowerCase().includes('fetch') ||
+          error.message.toLowerCase().includes('network') ||
+          error.message.toLowerCase().includes('load failed')
+        ));
+
+      if (!isNetworkError && error instanceof Error) {
         throw error;
       }
+      
       const localSuccess = tryLocalLogin(email, password);
       if (!localSuccess) {
-        throw new Error('Invalid email or password');
+        throw new Error('Connection error: Offline login failed');
       }
       return true;
     }

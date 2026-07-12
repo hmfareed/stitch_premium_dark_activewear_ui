@@ -1,4 +1,4 @@
-const CACHE_NAME = 'africart-pwa-v2';
+const CACHE_NAME = 'africart-pwa-v3';
 
 // 1. Guaranteed Instant Installation:
 // Statically pre-caching files during install is prone to hanging if a single request fails or returns a 404.
@@ -23,7 +23,8 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 3. Dynamic Cache-First / Network-Fallback Strategy:
+// 3. Dynamic Network-First / Cache-Fallback Strategy:
+// This ensures online users always get the latest pages and assets, while offline users still have full cache fallback.
 self.addEventListener('fetch', (event) => {
   // Only handle standard GET requests
   if (event.request.method !== 'GET') return;
@@ -41,23 +42,20 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          // Cache successful GET responses from our same origin
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          // Return cached version if network fails
-        });
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Cache successful GET responses from our same origin
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        // Fallback to cache if network fails (offline)
+        return caches.match(event.request);
+      })
   );
 });
