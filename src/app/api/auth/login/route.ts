@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
 import { LoginEvent } from '@/models/LoginEvent';
+import { VendorProfile } from '@/models/VendorProfile';
 import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
 import { signToken } from '@/lib/jwt';
 
@@ -153,6 +154,30 @@ export async function POST(req: Request) {
 
     // Successful login — clear rate limit
     clearAttempts(normalizedEmail);
+
+    // Check if the user is a vendor, and if so, if their vendor profile is approved
+    if (user.role === 'vendor') {
+      const profile = await VendorProfile.findOne({ userId: user._id });
+      if (!profile || profile.status !== 'approved') {
+        try {
+          await LoginEvent.create({
+            email: normalizedEmail,
+            userName: user.name,
+            success: false,
+            ip,
+            userAgent,
+            device: parseDevice(userAgent),
+            browser: parseBrowser(userAgent),
+            os: parseOS(userAgent),
+            failReason: 'Vendor profile not approved',
+          });
+        } catch {}
+        return NextResponse.json(
+          { error: 'Your vendor account is pending admin approval. You will receive an email/SMS once approved.' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Ensure the designated super admin account always has super_admin role
     let role = resolveUserRole(user.email, user.role);

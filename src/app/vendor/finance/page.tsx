@@ -14,6 +14,7 @@ export default function VendorFinancePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState<'request' | 'history'>('request');
 
   if (!user) return null;
 
@@ -140,116 +141,160 @@ export default function VendorFinancePage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px', alignItems: 'start' }}>
-        {/* Request Payout Form */}
-        <div style={{ padding: '24px', backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)' }}>
-          <h2 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined">request_quote</span>
-            Request Payout
-          </h2>
+      {/* Sliding Tab Switcher */}
+      <div className="responsive-tabs-row" style={{ display: 'flex', borderBottom: '1px solid var(--outline)', gap: '24px', overflowX: 'auto', paddingBottom: '1px' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('request')}
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'request' ? '2px solid var(--lime-400)' : '2px solid transparent',
+            color: activeTab === 'request' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-lexend)',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s',
+          }}
+        >
+          Request Payout
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'history' ? '2px solid var(--lime-400)' : '2px solid transparent',
+            color: activeTab === 'history' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-lexend)',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s',
+          }}
+        >
+          Payout History ({vendorPayoutRequests.length})
+        </button>
+      </div>
 
-          <form onSubmit={handleRequestPayout} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {error && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', fontSize: '0.9rem' }}>{error}</div>}
-            {success && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--lime-400) 15%, transparent)', color: 'var(--lime-400)', fontSize: '0.9rem' }}>{success}</div>}
+      <div style={{ width: '100%' }}>
+        {activeTab === 'request' && (
+          <div className="animate-scale-in" style={{ padding: '24px', backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', maxWidth: '600px', margin: '0 auto' }}>
+            <h2 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="material-symbols-outlined">request_quote</span>
+              Request Payout
+            </h2>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Amount to Withdraw (GH₵)</label>
-              <input 
-                type="number" 
-                max={currentBalance}
-                step="0.01"
-                value={requestAmount} 
-                onChange={e => setRequestAmount(e.target.value)}
-                style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
-                placeholder={`Max: ${currentBalance.toFixed(2)}`}
-                required
-              />
-            </div>
+            <form onSubmit={handleRequestPayout} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {error && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', fontSize: '0.9rem' }}>{error}</div>}
+              {success && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--lime-400) 15%, transparent)', color: 'var(--lime-400)', fontSize: '0.9rem' }}>{success}</div>}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Payment Method</label>
-              <select 
-                value={paymentMethod} 
-                onChange={e => setPaymentMethod(e.target.value)}
-                style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Amount to Withdraw (GH₵)</label>
+                <input 
+                  type="number" 
+                  max={currentBalance}
+                  step="0.01"
+                  value={requestAmount} 
+                  onChange={e => setRequestAmount(e.target.value)}
+                  style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
+                  placeholder={`Max: ${currentBalance.toFixed(2)}`}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Payment Method</label>
+                <select 
+                  value={paymentMethod} 
+                  onChange={e => setPaymentMethod(e.target.value)}
+                  style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
+                >
+                  <option value="Mobile Money">Mobile Money (MTN, Telecel, AirtelTigo)</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Account Details</label>
+                <textarea 
+                  value={accountDetails} 
+                  onChange={e => setAccountDetails(e.target.value)}
+                  style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit', minHeight: '80px', resize: 'vertical' }}
+                  placeholder="e.g. 024XXXXXXX (MTN) - John Doe"
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading || currentBalance <= 0}
+                style={{ padding: '14px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: loading || currentBalance <= 0 ? 'not-allowed' : 'pointer', opacity: loading || currentBalance <= 0 ? 0.7 : 1, marginTop: '8px' }}
               >
-                <option value="Mobile Money">Mobile Money (MTN, Telecel, AirtelTigo)</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>Account Details</label>
-              <textarea 
-                value={accountDetails} 
-                onChange={e => setAccountDetails(e.target.value)}
-                style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit', minHeight: '80px', resize: 'vertical' }}
-                placeholder="e.g. 024XXXXXXX (MTN) - John Doe"
-                required
-              />
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={loading || currentBalance <= 0}
-              style={{ padding: '14px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: loading || currentBalance <= 0 ? 'not-allowed' : 'pointer', opacity: loading || currentBalance <= 0 ? 0.7 : 1, marginTop: '8px' }}
-            >
-              {loading ? 'Submitting...' : 'Submit Request'}
-            </button>
-          </form>
-        </div>
-
-        {/* Payout History */}
-        <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
-          <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--outline)' }}>
-            <h2 className="font-lexend" style={{ fontSize: '1.2rem', margin: 0 }}>Payout History</h2>
+                {loading ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </form>
           </div>
-          
-          <div style={{ overflowX: 'auto' }}>
-            <table className="responsive-table">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-                  <th style={{ padding: '16px 24px', fontWeight: 500 }}>Date</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500 }}>Amount</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500 }}>Method</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500 }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendorPayoutRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                      No payout requests found.
-                    </td>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="animate-scale-in" style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--outline)' }}>
+              <h2 className="font-lexend" style={{ fontSize: '1.2rem', margin: 0 }}>Payout History</h2>
+            </div>
+            
+            <div style={{ overflowX: 'auto' }}>
+              <table className="responsive-table">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
+                    <th style={{ padding: '16px 24px', fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: '16px 24px', fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: '16px 24px', fontWeight: 500 }}>Method</th>
+                    <th style={{ padding: '16px 24px', fontWeight: 500 }}>Status</th>
                   </tr>
-                ) : vendorPayoutRequests.map(payout => (
-                  <tr key={payout._id} style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                    <td data-label="Date" style={{ padding: '16px 24px' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
-                    <td data-label="Amount" style={{ padding: '16px 24px', fontWeight: 600 }}>GH₵{payout.amount.toFixed(2)}</td>
-                    <td data-label="Method" style={{ padding: '16px 24px' }}>
-                      <span style={{ fontSize: '0.9rem' }}>{payout.paymentMethod}</span>
-                    </td>
-                    <td data-label="Status" style={{ padding: '16px 24px' }}>
-                      <span style={{ 
-                        padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
-                        backgroundColor: payout.status === 'Paid' ? 'color-mix(in srgb, var(--lime-400) 15%, transparent)' : 
-                                       payout.status === 'Rejected' ? 'color-mix(in srgb, var(--error) 15%, transparent)' :
-                                       payout.status === 'Processing' ? 'color-mix(in srgb, #00e5ff 15%, transparent)' :
-                                       'color-mix(in srgb, var(--warning) 15%, transparent)',
-                        color: payout.status === 'Paid' ? 'var(--lime-400)' : 
-                               payout.status === 'Rejected' ? 'var(--error)' :
-                               payout.status === 'Processing' ? '#00e5ff' :
-                               'var(--warning)'
-                      }}>
-                        {payout.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {vendorPayoutRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
+                        No payout requests found.
+                      </td>
+                    </tr>
+                  ) : vendorPayoutRequests.map(payout => (
+                    <tr key={payout._id} style={{ borderBottom: '1px solid var(--outline-variant)' }}>
+                      <td data-label="Date" style={{ padding: '16px 24px' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
+                      <td data-label="Amount" style={{ padding: '16px 24px', fontWeight: 600 }}>GH₵{payout.amount.toFixed(2)}</td>
+                      <td data-label="Method" style={{ padding: '16px 24px' }}>
+                        <span style={{ fontSize: '0.9rem' }}>{payout.paymentMethod}</span>
+                      </td>
+                      <td data-label="Status" style={{ padding: '16px 24px' }}>
+                        <span style={{ 
+                          padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
+                          backgroundColor: payout.status === 'Paid' ? 'color-mix(in srgb, var(--lime-400) 15%, transparent)' : 
+                                         payout.status === 'Rejected' ? 'color-mix(in srgb, var(--error) 15%, transparent)' :
+                                         payout.status === 'Processing' ? 'color-mix(in srgb, #00e5ff 15%, transparent)' :
+                                         'color-mix(in srgb, var(--warning) 15%, transparent)',
+                          color: payout.status === 'Paid' ? 'var(--lime-400)' : 
+                                 payout.status === 'Rejected' ? 'var(--error)' :
+                                 payout.status === 'Processing' ? '#00e5ff' :
+                                 'var(--warning)'
+                        }}>
+                          {payout.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

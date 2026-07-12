@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useCart, useWishlist, useUserActivity, useToast } from '@/context/AppContext';
 
 export const CartDrawer: React.FC = () => {
-  const { cart, cartDrawerOpen, closeCartDrawer, removeFromCart, updateQuantity, totalItems, totalPrice, addToCart } = useCart();
+  const { cart, cartDrawerOpen, closeCartDrawer, removeFromCart, updateQuantity, totalItems, totalPrice, addToCart, getCartItemPrice } = useCart();
   const { wishlist, removeFromWishlist } = useWishlist();
   const { recentlyViewed } = useUserActivity();
   const { showToast } = useToast();
@@ -159,12 +159,32 @@ export const CartDrawer: React.FC = () => {
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span style={{
-                      fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800,
-                      color: 'var(--price-color)',
-                    }}>
-                      GH&#x20B5;{(item.price * item.quantity).toFixed(2)}
-                    </span>
+                    {(() => {
+                      const unitPrice = getCartItemPrice(item);
+                      const isDiscounted = unitPrice < item.price;
+                      return isDiscounted ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 800, color: 'var(--lime-400)' }}>
+                              GH₵{(unitPrice * item.quantity).toFixed(2)}
+                            </span>
+                            <span style={{ textDecoration: 'line-through', fontSize: 11, color: 'var(--on-surface-variant)', opacity: 0.7 }}>
+                              GH₵{(item.price * item.quantity).toFixed(2)}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '8px', background: 'rgba(0,229,255,0.12)', color: '#00e5ff', padding: '1px 5px', borderRadius: '4px', width: 'fit-content', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Volume/Promo Deal
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{
+                          fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800,
+                          color: 'var(--price-color)',
+                        }}>
+                          GH₵{(item.price * item.quantity).toFixed(2)}
+                        </span>
+                      );
+                    })()}
 
                     {/* Quantity controls */}
                     <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-container)', borderRadius: 8, border: '1px solid var(--outline)', overflow: 'hidden' }}>

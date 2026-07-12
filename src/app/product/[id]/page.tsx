@@ -27,7 +27,7 @@ const getRealisticFeatures = (category: string) => {
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { allProducts, isFollowing, followVendor, unfollowVendor } = useStore();
+  const { allProducts, isFollowing, followVendor, unfollowVendor, campaigns } = useStore();
   const { allAdmins } = useAdmin();
   const { user } = useAuth();
   const { addToCart } = useCart();
@@ -405,12 +405,71 @@ export default function ProductDetailPage() {
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>{product.rating}</span>
           </div>
         </div>
+
+        {(() => {
+          const productCampaign = product.campaignId ? (campaigns || []).find((c: any) => c.id === product.campaignId && c.status === 'active') : null;
+          return productCampaign ? (
+            <div 
+              className="animate-pulse"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '12px', 
+                padding: '12px 16px', 
+                background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.12) 0%, rgba(195, 244, 0, 0.12) 100%)', 
+                border: '1px solid rgba(0, 229, 255, 0.35)', 
+                borderRadius: '12px', 
+                marginBottom: '14px',
+                boxShadow: '0 0 15px rgba(0, 229, 255, 0.1)'
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ color: '#00e5ff', animation: 'spin 4s linear infinite', fontSize: '20px' }}>campaign</span>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: '#00e5ff', fontFamily: 'var(--font-lexend)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Event promotion: {productCampaign.name}
+                </h4>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.72rem', color: 'var(--on-surface-variant)', lineHeight: 1.2 }}>
+                  Enjoy a flat <strong>{productCampaign.discountValue}% OFF</strong> as part of this exclusive platform sale!
+                </p>
+              </div>
+            </div>
+          ) : null;
+        })()}
+
         <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 28, fontWeight: 900, color: 'var(--foreground)', lineHeight: 1.1, textTransform: 'uppercase', marginBottom: 12 }}>{product.name}</h1>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
           <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 28, fontWeight: 900, color: 'var(--price-color)' }}>GH₵{product.price.toFixed(2)}</span>
           {product.originalPrice && <span style={{ fontSize: 16, color: 'var(--on-surface-variant)', textDecoration: 'line-through' }}>GH₵{product.originalPrice.toFixed(2)}</span>}
           {product.originalPrice && <span style={{ fontSize: 12, fontWeight: 700, color: '#ff4444', fontFamily: 'var(--font-lexend)' }}>-{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF</span>}
         </div>
+
+        {product.wholesaleTiers && product.wholesaleTiers.length > 0 && (
+          <div style={{ marginTop: '4px', marginBottom: '24px', padding: '16px', background: 'var(--surface-container-low)', borderRadius: '12px', border: '1px solid var(--outline-variant)' }}>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', fontWeight: 800, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>widgets</span>
+              B2B Wholesale Price Brackets
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+              {product.wholesaleTiers.map((tier: any, idx: number) => {
+                const discountPrice = product.price * (1 - tier.discountPercent / 100);
+                return (
+                  <div key={idx} style={{ padding: '8px 10px', background: 'var(--surface-container-high)', borderRadius: '8px', border: '1px solid var(--outline)', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)', fontWeight: 700 }}>Buy {tier.minQuantity}+ Units</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', margin: '2px 0' }}>
+                      GH₵{discountPrice.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#00e5ff', fontWeight: 800, textTransform: 'uppercase' }}>
+                      {tier.discountPercent}% Discount
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ margin: '8px 0 0 0', fontSize: '0.7rem', color: 'var(--on-surface-variant)', opacity: 0.8, lineHeight: 1.2 }}>
+              *Bulk wholesale discounts apply dynamically during cart checkout based on your final quantities.
+            </p>
+          </div>
+        )}
 
         {/* Size Selector */}
         {requiresSize && (

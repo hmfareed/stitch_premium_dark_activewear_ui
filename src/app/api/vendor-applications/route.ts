@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { VendorApplication } from '@/models/VendorApplication';
 import { User } from '@/models/User';
+import { VendorProfile } from '@/models/VendorProfile';
 import { sendSMS } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
 
@@ -91,7 +92,7 @@ export async function PUT(req: Request) {
 
     if (status === 'approved') {
       // Promote user role to vendor with trust tier + store name
-      await User.findOneAndUpdate(
+      const user = await User.findOneAndUpdate(
         { email: application.email },
         {
           role: 'vendor',
@@ -100,6 +101,20 @@ export async function PUT(req: Request) {
         },
         { new: true }
       );
+
+      // Synchronize VendorProfile status to approved
+      if (user) {
+        await VendorProfile.findOneAndUpdate(
+          { userId: user._id },
+          {
+            status: 'approved',
+            businessName: application.storeName || user.name,
+            businessCategory: application.storeCategories?.[0] || 'Fashion',
+            momoNumber: application.payoutDetails?.momoNumber || '',
+          },
+          { upsert: true, new: true }
+        );
+      }
 
       // SMS approval notification
       if (application.phone) {
@@ -125,6 +140,14 @@ export async function PUT(req: Request) {
     }
 
     if (status === 'rejected') {
+      const user = await User.findOne({ email: application.email });
+      if (user) {
+        await VendorProfile.findOneAndUpdate(
+          { userId: user._id },
+          { status: 'rejected' }
+        );
+      }
+
       // SMS rejection notification
       if (application.phone) {
         await sendSMS(application.phone,

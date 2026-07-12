@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useCart, useToast, useWishlist, useUserActivity } from '@/context/AppContext';
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, totalPrice, totalItems, addToCart } = useCart();
+  const { cart, updateQuantity, removeFromCart, totalPrice, totalItems, addToCart, getCartItemPrice } = useCart();
   const { wishlist, removeFromWishlist } = useWishlist();
   const { recentlyViewed } = useUserActivity();
   const { showToast } = useToast();
@@ -70,7 +70,27 @@ export default function CartPage() {
                         <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
                       </button>
                     </div>
-                    <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--lime-400)' }}>GH₵{(item.price * item.quantity).toFixed(2)}</span>
+                    {(() => {
+                      const unitPrice = getCartItemPrice(item);
+                      const isDiscounted = unitPrice < item.price;
+                      return isDiscounted ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: 'var(--lime-400)' }}>
+                              GH₵{(unitPrice * item.quantity).toFixed(2)}
+                            </span>
+                            <span style={{ textDecoration: 'line-through', fontSize: 11, color: 'var(--on-surface-variant)', opacity: 0.7 }}>
+                              GH₵{(item.price * item.quantity).toFixed(2)}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '8px', background: 'rgba(0,229,255,0.12)', color: '#00e5ff', padding: '1px 5px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Volume/Promo Deal
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--lime-400)' }}>GH₵{(item.price * item.quantity).toFixed(2)}</span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

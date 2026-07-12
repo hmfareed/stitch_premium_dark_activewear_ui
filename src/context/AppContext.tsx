@@ -153,10 +153,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
 
-      return tryLocalLogin(email, password);
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const localSuccess = tryLocalLogin(email, password);
+      if (!localSuccess) {
+        throw new Error('Invalid email or password');
+      }
+      return true;
     } catch (error) {
       console.error('Login error:', error);
-      return tryLocalLogin(email, password);
+      if (error instanceof Error && error.message !== 'Failed to fetch') {
+        throw error;
+      }
+      const localSuccess = tryLocalLogin(email, password);
+      if (!localSuccess) {
+        throw new Error('Invalid email or password');
+      }
+      return true;
     }
   };
 
@@ -409,6 +424,7 @@ interface CartContextType {
   cartDrawerOpen: boolean;
   openCartDrawer: () => void;
   closeCartDrawer: () => void;
+  getCartItemPrice: (item: CartItem) => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -416,6 +432,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
 
   const openCartDrawer = () => setCartDrawerOpen(true);
   const closeCartDrawer = () => setCartDrawerOpen(false);
@@ -423,11 +440,49 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const saved = localStorage.getItem('africart-cart');
     if (saved) { try { setCart(JSON.parse(saved)); } catch {} }
+
+    // Fetch campaigns for price calculations
+    fetch('/api/campaigns')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setCampaigns(data.campaigns || []);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     localStorage.setItem('africart-cart', JSON.stringify(cart));
   }, [cart]);
+
+  const getCartItemPrice = useCallback((item: CartItem) => {
+    let finalPrice = item.price;
+    let appliedDiscount = 0;
+
+    // 1. Check Wholesale Tiers
+    if (item.wholesaleTiers && item.wholesaleTiers.length > 0) {
+      const sortedTiers = [...item.wholesaleTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+      const matchingTier = sortedTiers.find(tier => item.quantity >= tier.minQuantity);
+      if (matchingTier) {
+        appliedDiscount = Math.max(appliedDiscount, matchingTier.discountPercent);
+      }
+    }
+
+    // 2. Check Campaigns
+    if (item.campaignId) {
+      const activeCampaign = campaigns.find(c => c.id === item.campaignId && c.status === 'active');
+      if (activeCampaign) {
+        appliedDiscount = Math.max(appliedDiscount, activeCampaign.discountValue);
+      }
+    }
+
+    if (appliedDiscount > 0) {
+      finalPrice = finalPrice * (1 - appliedDiscount / 100);
+    }
+
+    return finalPrice;
+  }, [campaigns]);
 
   const addToCart = (product: Product, size?: string) => {
     setCart(prev => {
@@ -458,10 +513,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearCart = () => setCart([]);
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalPrice = cart.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalPrice, cartDrawerOpen, openCartDrawer, closeCartDrawer }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalPrice, cartDrawerOpen, openCartDrawer, closeCartDrawer, getCartItemPrice }}>
       {children}
     </CartContext.Provider>
   );
@@ -653,6 +708,8 @@ interface StoreContextType {
   isFollowing: (vendorEmail: string, userEmail: string) => boolean;
   getVendorSettings: (vendorEmail: string) => VendorSettings;
   saveVendorSettings: (vendorEmail: string, settings: VendorSettings) => void;
+  campaigns: any[];
+  refreshCampaigns: () => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -675,7 +732,28 @@ const DEFAULT_VENDOR_SETTINGS: VendorSettings = {
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   const [followers, setFollowers] = useState<{ vendorEmail: string, userEmail: string, userName?: string }[]>([]);
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      const res = await fetch('/api/campaigns');
+      const data = await res.json();
+      if (data.success) {
+        setCampaigns(data.campaigns || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch campaigns in AppContext:', err);
+    }
+  }, []);
+
+  const refreshCampaigns = useCallback(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
 
   const fetchProducts = useCallback(() => {
     setProductsLoading(true);
@@ -839,7 +917,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings }}>
+    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings, campaigns, refreshCampaigns }}>
       {children}
     </StoreContext.Provider>
   );

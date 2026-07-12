@@ -42,6 +42,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     { name: 'Orders', icon: 'shopping_bag', path: '/vendor/orders' },
     { name: 'Customers', icon: 'group', path: '/vendor/customers' },
     { name: 'Promotions', icon: 'local_offer', path: '/vendor/promotions' },
+    { name: 'Campaigns', icon: 'campaign', path: '/vendor/campaigns' },
     { name: 'Messages', icon: 'chat', path: '/vendor/messages' },
     { name: 'Staff', icon: 'badge', path: '/vendor/staff' },
     { name: 'Finance', icon: 'account_balance_wallet', path: '/vendor/finance' },

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
 import { VendorProfile } from '@/models/VendorProfile';
+import { VendorApplication } from '@/models/VendorApplication';
 import { signToken } from '@/lib/jwt';
 import { vendorRegisterSchema, validateRequest } from '@/lib/validation';
 
@@ -82,6 +83,26 @@ export async function POST(req: Request) {
       momoNumber: momoNumber.trim(),
       status: 'pending',
       verificationDocs: [],
+    });
+
+    // ── Create linked VendorApplication (status: pending) ─────────────────────
+    await VendorApplication.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: phone.trim(),
+      role: 'Vendor',
+      businessType: 'sole_trader',
+      storeName: businessName.trim(),
+      storeHandle: businessName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      storeCategories: [businessCategory],
+      payoutMethod: 'momo',
+      payoutDetails: {
+        momoNumber: momoNumber.trim(),
+        momoNetwork: 'MTN',
+      },
+      reason: 'Registered via direct vendor sign-up page.',
+      status: 'pending',
+      appliedAt: new Date(),
     });
 
     // ── Sign JWT ──────────────────────────────────────────────────────────────

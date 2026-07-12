@@ -118,6 +118,7 @@ export default function VendorProductsPage() {
   const [image, setImage] = useState('');
   const [additionalImages, setAdditionalImages] = useState<string[]>([]);
   const [stock, setStock] = useState('');
+  const [wholesaleTiers, setWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
   const [imageUploading, setImageUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
@@ -127,6 +128,7 @@ export default function VendorProductsPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editStock, setEditStock] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editWholesaleTiers, setEditWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -229,6 +231,7 @@ export default function VendorProductsPage() {
       vendorEmail: user.email,
       vendorStoreName: storeName,
       stock: parseInt(stock) || 0,
+      wholesaleTiers,
     });
 
     setName('');
@@ -237,6 +240,7 @@ export default function VendorProductsPage() {
     setImage('');
     setAdditionalImages([]);
     setStock('');
+    setWholesaleTiers([]);
     setShowAddModal(false);
     showToast('Product published successfully!');
   };
@@ -254,6 +258,7 @@ export default function VendorProductsPage() {
     setEditDescription(product.description);
     setEditStock((product.stock || 0).toString());
     setEditCategory(product.category);
+    setEditWholesaleTiers(product.wholesaleTiers || []);
   };
 
   const handleEditProduct = (e: React.FormEvent) => {
@@ -265,6 +270,7 @@ export default function VendorProductsPage() {
       description: editDescription,
       stock: parseInt(editStock) || 0,
       category: editCategory as any,
+      wholesaleTiers: editWholesaleTiers,
     });
     setEditingProduct(null);
     showToast('Product updated successfully!');
@@ -409,6 +415,71 @@ export default function VendorProductsPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
                 <textarea required value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} placeholder="Product description..." />
+              </div>
+
+              {/* Wholesale Pricing Tiers Row Builder */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
+                  <button
+                    type="button"
+                    onClick={() => setWholesaleTiers([...wholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
+                    style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+                    Add Bracket
+                  </button>
+                </div>
+                
+                {wholesaleTiers.length === 0 ? (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {wholesaleTiers.map((tier, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
+                          <input
+                            type="number"
+                            min="2"
+                            required
+                            value={tier.minQuantity}
+                            onChange={(e) => {
+                              const updated = [...wholesaleTiers];
+                              updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
+                              setWholesaleTiers(updated);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            required
+                            value={tier.discountPercent}
+                            onChange={(e) => {
+                              const updated = [...wholesaleTiers];
+                              updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
+                              setWholesaleTiers(updated);
+                            }}
+                            style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setWholesaleTiers(wholesaleTiers.filter((_, i) => i !== idx))}
+                          style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
@@ -568,7 +639,73 @@ export default function VendorProductsPage() {
                 <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
                 <textarea rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} />
               </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+
+              {/* Edit Wholesale Pricing Tiers Row Builder */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
+                  <button
+                    type="button"
+                    onClick={() => setEditWholesaleTiers([...editWholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
+                    style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+                    Add Bracket
+                  </button>
+                </div>
+                
+                {editWholesaleTiers.length === 0 ? (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {editWholesaleTiers.map((tier, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
+                          <input
+                            type="number"
+                            min="2"
+                            required
+                            value={tier.minQuantity}
+                            onChange={(e) => {
+                              const updated = [...editWholesaleTiers];
+                              updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
+                              setEditWholesaleTiers(updated);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            required
+                            value={tier.discountPercent}
+                            onChange={(e) => {
+                              const updated = [...editWholesaleTiers];
+                              updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
+                              setEditWholesaleTiers(updated);
+                            }}
+                            style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditWholesaleTiers(editWholesaleTiers.filter((_, i) => i !== idx))}
+                          style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button type="button" onClick={() => setEditingProduct(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
                 <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#00e5ff', color: 'var(--on-lime-400)', cursor: 'pointer', fontWeight: 600 }}>Save Changes</button>
               </div>

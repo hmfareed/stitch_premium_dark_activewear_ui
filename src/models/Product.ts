@@ -31,6 +31,8 @@ export interface IProduct extends Document {
   vendorEmail?: string;
   vendorStoreName?: string;
   stock?: number;
+  wholesaleTiers?: Array<{ minQuantity: number; discountPercent: number }>;
+  campaignId?: string;
   createdAt: Date;
 }
 
@@ -65,6 +67,11 @@ const ProductSchema: Schema<IProduct> = new Schema({
   vendorEmail: { type: String },
   vendorStoreName: { type: String },
   stock: { type: Number, default: 0 },
+  wholesaleTiers: [{
+    minQuantity: { type: Number, required: true },
+    discountPercent: { type: Number, required: true }
+  }],
+  campaignId: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
 });
 

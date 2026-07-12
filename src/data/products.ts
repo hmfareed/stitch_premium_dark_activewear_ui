@@ -31,6 +31,8 @@ export interface Product {
   vendorEmail?: string;
   vendorStoreName?: string;
   stock?: number;
+  wholesaleTiers?: Array<{ minQuantity: number; discountPercent: number }>;
+  campaignId?: string | null;
 }
 
 export const categories = [

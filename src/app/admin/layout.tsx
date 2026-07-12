@@ -34,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Admins & Staff', icon: 'shield_person', path: '/admin/admins' },
     { name: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
     { name: 'Products', icon: 'inventory_2', path: '/admin/products' },
+    { name: 'Campaigns', icon: 'campaign', path: '/admin/campaigns' },
     { name: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
     { name: 'Customers', icon: 'group', path: '/admin/customers' },
     { name: 'Messages', icon: 'chat', path: '/admin/messages' },

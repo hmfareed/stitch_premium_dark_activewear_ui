@@ -1,0 +1,23 @@
+# Responsive Refactoring, Onboarding Security, Wholesale & Campaigns Task List
+
+- `[x]` Define mobile-responsive CSS utility classes in `src/app/globals.css`
+- `[x]` Update Admin Layout container to use dynamic responsive paddings
+- `[x]` Update Vendor Layout container to use dynamic responsive paddings
+- `[x]` Refactor Admin Vendors Page (`src/app/admin/vendors/page.tsx`) tab structures
+- `[x]` Refactor Admin Finance Page (`src/app/admin/finance/page.tsx`) tables and tabs
+- `[x]` Refactor Admin Products Page (`src/app/admin/products/page.tsx`) table and filters
+- `[x]` Refactor Admin Customers Page (`src/app/admin/customers/page.tsx`) tables
+- `[x]` Refactor Admin Staff Page (`src/app/admin/admins/page.tsx`) tables
+- `[x]` Refactor Vendor Products Page (`src/app/vendor/products/page.tsx`) tables and modal overlays
+- `[x]` Refactor Vendor Settings Page (`src/app/vendor/settings/page.tsx`) vertical tab sidebars
+- `[x]` Refactor Vendor Finance Page (`src/app/vendor/finance/page.tsx`) to use top sliding tabs instead of cramped side-by-side grids
+- `[x]` Integrate `VendorApplication` creation during direct registration
+- `[x]` Restrict vendor panel login authorization to approved vendor profiles
+- `[x]` Synchronize backend application status changes with VendorProfile documents
+- `[x]` Propagate detailed login rejection reasons in AppContext
+- `[x]` Implement Admin Platform Campaigns with CRUD APIs & Dashboard Panels
+- `[x]` Implement Vendor Campaigns Opt-in Page
+- `[x]` Implement Vendor Product Volume-based Wholesale Pricing Tiers Row Builders
+- `[x]` Implement dynamic consumer-facing cart discount computations inside AppContext
+- `[x]` Design Shopper Experience Product Details with high-contrast promotion banners and quantity grids
+- `[x]` Run build to verify Next.js build and TypeScript type checking
