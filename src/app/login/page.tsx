@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useToast } from '@/context/AppContext';
+import BrandLogo from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -108,9 +109,9 @@ export default function LoginPage() {
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', minHeight: '80vh', padding: '0 24px', justifyContent: 'center' }}>
       {/* Logo */}
-      <div className="animate-scale-in" style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 32, fontWeight: 900, color: 'var(--lime-400)', letterSpacing: '-0.03em' }}>AfriCart</h1>
-        <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--on-surface-variant)', marginTop: 4 }}>
+      <div className="animate-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 32 }}>
+        <BrandLogo size={48} />
+        <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'var(--on-surface-variant)', marginTop: 12 }}>
           Sign in to your account
         </p>
       </div>

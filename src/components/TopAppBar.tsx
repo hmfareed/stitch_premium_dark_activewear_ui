@@ -9,6 +9,8 @@ import { categoryHierarchy, topLevelCategories, Product } from '@/data/products'
 import { Icon } from './Icon';
 import { NotificationPanel } from './NotificationPanel';
 
+import BrandLogo from './BrandLogo';
+
 const PRIMARY_NAV_COUNT = 7; // how many top-level cats to show before "More"
 
 export const TopAppBar: React.FC = () => {
@@ -157,11 +159,8 @@ export const TopAppBar: React.FC = () => {
           padding: '0 16px', height: 56, gap: 12,
         }}>
           {/* Logo */}
-          <Link href="/" style={{
-            fontFamily: 'var(--font-lexend)', fontWeight: 900, fontSize: 22,
-            color: 'var(--lime-400)', letterSpacing: '-0.03em', flexShrink: 0,
-          }}>
-            AfriCart
+          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+            <BrandLogo size={32} />
           </Link>
 
           {/* Icon group — Search · Notifications · AI */}
