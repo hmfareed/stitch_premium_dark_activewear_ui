@@ -47,6 +47,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     { name: 'Staff', icon: 'badge', path: '/vendor/staff' },
     { name: 'Finance', icon: 'account_balance_wallet', path: '/vendor/finance' },
     { name: 'Analytics', icon: 'analytics', path: '/vendor/analytics' },
+    { name: 'View Storefront', icon: 'storefront', path: `/store/${encodeURIComponent(user.email)}` },
     { name: 'Settings', icon: 'settings', path: '/vendor/settings' },
   ];
 
