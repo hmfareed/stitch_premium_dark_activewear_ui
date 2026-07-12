@@ -108,3 +108,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    await connectToDatabase();
+    await Product.deleteMany({});
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Delete All Products Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}

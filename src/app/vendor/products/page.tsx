@@ -122,6 +122,26 @@ export default function VendorProductsPage() {
   const [imageUploading, setImageUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
+  // Custom Camera & In-App Media Selector States
+  const [showImageSelector, setShowImageSelector] = useState(false);
+  const [selectorTarget, setSelectorTarget] = useState<'main' | 'gallery'>('main');
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const STOCK_ACTIVEWEAR_IMAGES = [
+    { name: 'Stitch Onyx Track Hoodie', url: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Stitch Carbon Compression Leggings', url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Vapor Seamless Support Crop', url: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Stitch Speed-Dry Running Tee', url: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Aeroshield Tech Windbreaker', url: 'https://images.unsplash.com/photo-1548883354-7622d03aca27?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Gravity Zero Cushion Trainers', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Apex Grip Tech Cap', url: 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Stitch Pro Utility Gym Bag', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Thermal Active Fleece Joggers', url: 'https://images.unsplash.com/photo-1515438026818-7286a533bac0?auto=format&fit=crop&q=80&w=800' },
+    { name: 'Hydro-Comfort Sweatband Set', url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&q=80&w=800' }
+  ];
+
   // Edit state
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
@@ -129,6 +149,102 @@ export default function VendorProductsPage() {
   const [editStock, setEditStock] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editWholesaleTiers, setEditWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
+
+  const startInAppCamera = async () => {
+    setCameraError(null);
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      setCameraStream(stream);
+      // Bind stream to video element
+      setTimeout(() => {
+        const videoEl = document.getElementById('in-app-video') as HTMLVideoElement;
+        if (videoEl) videoEl.srcObject = stream;
+      }, 300);
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      setCameraError('Unable to access camera. Please make sure permissions are granted or use the Stock Photo gallery instead.');
+    }
+  };
+
+  const stopInAppCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const captureInAppPhoto = async () => {
+    const videoEl = document.getElementById('in-app-video') as HTMLVideoElement;
+    if (!videoEl) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    const base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+    // Stop camera stream immediately
+    stopInAppCamera();
+    setShowImageSelector(false);
+
+    if (selectorTarget === 'main') {
+      setImageUploading(true);
+    } else {
+      setGalleryUploading(true);
+    }
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, folder: 'africart/products' }),
+      });
+      const data = await res.json();
+      const finalUrl = data.success ? data.url : base64;
+
+      if (selectorTarget === 'main') {
+        setImage(finalUrl);
+        showToast('Snapshot uploaded to CDN successfully!', 'success');
+      } else {
+        setAdditionalImages(prev => [...prev, finalUrl]);
+        showToast('Snapshot added to gallery!', 'success');
+      }
+    } catch {
+      if (selectorTarget === 'main') {
+        setImage(base64);
+        showToast('Saved snap locally!', 'info');
+      } else {
+        setAdditionalImages(prev => [...prev, base64]);
+        showToast('Saved snap to gallery locally!', 'info');
+      }
+    } finally {
+      setImageUploading(false);
+      setGalleryUploading(false);
+    }
+  };
+
+  const selectStockPhoto = (url: string) => {
+    if (selectorTarget === 'main') {
+      setImage(url);
+      showToast('Main product image set from stock gallery!', 'success');
+    } else {
+      if (additionalImages.length >= 4) {
+        showToast('Maximum 4 additional images allowed', 'error');
+        return;
+      }
+      setAdditionalImages(prev => [...prev, url]);
+      showToast('Image added to gallery from stock gallery!', 'success');
+    }
+    setShowImageSelector(false);
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -538,7 +654,42 @@ export default function VendorProductsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Image</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={imageUploading} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', opacity: imageUploading ? 0.5 : 1 }} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectorTarget('main');
+                    setShowImageSelector(true);
+                  }}
+                  disabled={imageUploading}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px dashed var(--outline)',
+                    backgroundColor: 'var(--surface-container)',
+                    color: 'var(--on-surface)',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--lime-400)';
+                    e.currentTarget.style.backgroundColor = 'var(--surface-container-high)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--outline)';
+                    e.currentTarget.style.backgroundColor = 'var(--surface-container)';
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)' }}>photo_camera</span>
+                  {image ? 'Change Photo (In-App Camera / Gallery)' : 'Choose Photo (In-App Camera / Gallery)'}
+                </button>
                 {imageUploading && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--lime-400)', fontSize: '0.8rem', fontWeight: 600 }}>
                     <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>progress_activity</span>
@@ -547,7 +698,7 @@ export default function VendorProductsPage() {
                 )}
                 {image && !imageUploading && (
                   <div style={{ position: 'relative' }}>
-                    <img src={image} alt="Preview" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--outline)' }} />
+                    <img src={image} alt="Preview" style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--outline)' }} />
                     {image.includes('cloudinary') && (
                       <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--lime-400)', color: '#000', fontSize: '7px', fontWeight: 900, padding: '1px 4px', borderRadius: '4px', fontFamily: 'var(--font-lexend)' }}>CDN</span>
                     )}
@@ -566,17 +717,46 @@ export default function VendorProductsPage() {
                   </div>
                 ))}
                 {additionalImages.length < 4 && (
-                  <label style={{ width: 52, height: 52, borderRadius: 8, border: '1px dashed var(--outline)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: galleryUploading ? 'wait' : 'pointer', opacity: galleryUploading ? 0.5 : 1 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectorTarget('gallery');
+                      setShowImageSelector(true);
+                    }}
+                    disabled={galleryUploading}
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 8,
+                      border: '1px dashed var(--outline)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      background: 'none',
+                      color: 'var(--on-surface-variant)',
+                      outline: 'none',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--lime-400)';
+                      e.currentTarget.style.color = 'var(--on-surface)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--outline)';
+                      e.currentTarget.style.color = 'var(--on-surface-variant)';
+                    }}
+                  >
                     {galleryUploading ? (
                       <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18, color: 'var(--lime-400)' }}>progress_activity</span>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--on-surface-variant)' }}>add_photo_alternate</span>
-                        <span style={{ fontSize: 7, color: 'var(--on-surface-variant)', fontWeight: 700 }}>ADD</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_photo_alternate</span>
+                        <span style={{ fontSize: 7, fontWeight: 700 }}>ADD</span>
                       </>
                     )}
-                    <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
-                  </label>
+                  </button>
                 )}
               </div>
             </div>
@@ -831,6 +1011,199 @@ export default function VendorProductsPage() {
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button onClick={() => setBulkFile([])} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', fontWeight: 700, cursor: 'pointer' }}>Clear</button>
                   <button onClick={confirmBulkUpload} style={{ flex: 2, padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--lime-400)', color: '#000', fontWeight: 800, cursor: 'pointer' }}>Confirm & Upload All</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom In-App Camera & Stock Photo Selector Overlay */}
+      {showImageSelector && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 10005, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => { stopInAppCamera(); setShowImageSelector(false); }}>
+          <div onClick={e => e.stopPropagation()} className="animate-scale-in" style={{ background: 'var(--surface)', borderRadius: '24px', padding: '24px', maxWidth: '540px', width: '100%', border: '1px solid var(--outline)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
+            
+            {showCamera ? (
+              /* Live In-App Camera Viewport */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <h3 className="font-lexend" style={{ fontSize: '1.2rem', color: 'var(--lime-400)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined">videocam</span>
+                    Live Photo Capture
+                  </h3>
+                  <button onClick={stopInAppCamera} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--on-surface)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                </div>
+
+                <div style={{ position: 'relative', width: '100%', height: '320px', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#000', border: '1.5px solid var(--outline)' }}>
+                  <video id="in-app-video" autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(0,229,255,0.4)', borderRadius: '16px', pointerEvents: 'none', margin: '20px', borderStyle: 'dashed' }} />
+                </div>
+
+                {cameraError ? (
+                  <p style={{ color: 'var(--error)', fontSize: '0.85rem', textAlign: 'center', padding: '0 8px' }}>{cameraError}</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={captureInAppPhoto}
+                    style={{
+                      background: 'var(--lime-400)',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: '50px',
+                      padding: '14px 28px',
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 0 20px rgba(195,244,0,0.4)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    <span className="material-symbols-outlined">photo_camera</span>
+                    CAPTURE SNAPSHOT
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Media Sources Choice and Stock Grid */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden', height: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '4px' }}>Add Product Photo</h3>
+                    <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.8rem' }}>Snap with camera, use stock gallery, or upload local file</p>
+                  </div>
+                  <button onClick={() => setShowImageSelector(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--on-surface)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                </div>
+
+                {/* Main Action Options */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={startInAppCamera}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 229, 255, 0.08)',
+                      border: '1px solid rgba(0, 229, 255, 0.3)',
+                      color: '#00e5ff',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-lexend)',
+                      fontSize: '0.88rem',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#00e5ff';
+                      e.currentTarget.style.color = '#000';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
+                      e.currentTarget.style.color = '#00e5ff';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>photo_camera</span>
+                    SNAP LIVE PHOTO
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fileInput = document.getElementById('local-file-selector') as HTMLInputElement;
+                      fileInput?.click();
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: 'rgba(195, 244, 0, 0.08)',
+                      border: '1px solid rgba(195, 244, 0, 0.3)',
+                      color: 'var(--lime-400)',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-lexend)',
+                      fontSize: '0.88rem',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--lime-400)';
+                      e.currentTarget.style.color = '#000';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(195, 244, 0, 0.08)';
+                      e.currentTarget.style.color = 'var(--lime-400)';
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>upload_file</span>
+                    UPLOAD LOCAL FILE
+                  </button>
+                  <input
+                    type="file"
+                    id="local-file-selector"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (selectorTarget === 'main') {
+                        handleImageUpload(e);
+                      } else {
+                        handleGalleryUpload(e);
+                      }
+                      setShowImageSelector(false);
+                    }}
+                  />
+                </div>
+
+                {/* Stock clothing items gallery */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--lime-400)' }}>grid_view</span>
+                    STITCH PREMIUM STOCK LIBRARY
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px', overflowY: 'auto', maxHeight: '240px', paddingRight: '4px' }}>
+                    {STOCK_ACTIVEWEAR_IMAGES.map((img) => (
+                      <div
+                        key={img.name}
+                        onClick={() => selectStockPhoto(img.url)}
+                        style={{
+                          position: 'relative',
+                          aspectRatio: '1',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          border: '1.5px solid var(--outline)',
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--lime-400)';
+                          e.currentTarget.style.transform = 'scale(1.03)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--outline)';
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        title={img.name}
+                      >
+                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.65)', padding: '2px 4px', fontSize: '7px', color: '#fff', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {img.name.replace('Stitch ', '')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

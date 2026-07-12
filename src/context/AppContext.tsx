@@ -711,6 +711,7 @@ interface StoreContextType {
   productsLoading: boolean;
   addProduct: (product: Omit<Product, 'id'>) => void;
   deleteProduct: (productId: string) => void;
+  deleteAllProducts: () => Promise<void>;
   updateProduct: (productId: string, updates: Partial<Product>) => void;
   refreshProducts: () => void;
   followers: { vendorEmail: string, userEmail: string, userName?: string }[];
@@ -870,6 +871,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
+  const deleteAllProducts = useCallback(async () => {
+    try {
+      await fetch('/api/products', { method: 'DELETE' });
+    } catch (error) {
+      console.error('Failed to delete all products from DB:', error);
+    }
+    setAllProducts([]);
+    localStorage.setItem('africart-products', JSON.stringify([]));
+  }, []);
+
   const updateProduct = useCallback(async (productId: string, updates: Partial<Product>) => {
     try {
       await fetch(`/api/products/${productId}`, {
@@ -928,7 +939,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings, campaigns, refreshCampaigns }}>
+    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, deleteAllProducts, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings, campaigns, refreshCampaigns }}>
       {children}
     </StoreContext.Provider>
   );

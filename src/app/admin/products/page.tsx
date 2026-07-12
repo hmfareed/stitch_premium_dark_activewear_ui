@@ -6,7 +6,7 @@ import { useStore, useAuth, useToast } from '@/context/AppContext';
 
 export default function AdminProductsPage() {
   const { allOrders } = useAdmin();
-  const { allProducts, deleteProduct } = useStore();
+  const { allProducts, deleteProduct, deleteAllProducts } = useStore();
   const { user } = useAuth();
   const { showToast } = useToast();
   const isSuperAdmin = user?.role === 'super_admin';
@@ -63,9 +63,51 @@ export default function AdminProductsPage() {
               </button>
             ))}
           </div>
-          <div style={{ position: 'relative', width: '260px' }}>
-            <span className="material-symbols-outlined" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)', fontSize: '20px' }}>search</span>
-            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search products..." style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '260px' }}>
+              <span className="material-symbols-outlined" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)', fontSize: '20px' }}>search</span>
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search products..." style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
+            </div>
+            {isSuperAdmin && allProducts.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm("⚠️ WARNING: This will permanently delete ALL products in the catalog! Are you absolutely sure you want to proceed?")) {
+                    if (confirm("🚨 DOUBLE CONFIRMATION: This action is irreversible. All customers' viewing lists, vendor inventory references, and listings will be completely wiped out. Proceed?")) {
+                      deleteAllProducts();
+                      showToast("All products successfully purged from the store!", "error");
+                    }
+                  }
+                }}
+                style={{
+                  background: 'rgba(255, 68, 68, 0.12)',
+                  color: '#ff4444',
+                  border: '1.5px solid rgba(255, 68, 68, 0.35)',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-lexend)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#ff4444';
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.boxShadow = '0 0 16px rgba(255,68,68,0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 68, 68, 0.12)';
+                  e.currentTarget.style.color = '#ff4444';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                PURGE CATALOG
+              </button>
+            )}
           </div>
         </div>
 
