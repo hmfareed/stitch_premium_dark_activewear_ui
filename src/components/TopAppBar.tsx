@@ -203,26 +203,20 @@ export const TopAppBar: React.FC = () => {
             {showInstallBtn && (
               <button
                 onClick={handleInstallClick}
-                className="animate-pulse-glow"
+                aria-label="Install App"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: 'var(--lime-400)',
-                  color: '#000',
+                  background: 'none',
                   border: 'none',
-                  borderRadius: '20px',
-                  padding: '6px 12px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
                   cursor: 'pointer',
-                  marginRight: '8px',
-                  fontFamily: 'var(--font-lexend)',
-                  transition: 'all 0.2s',
+                  padding: 8,
+                  color: 'var(--lime-400)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: 8,
+                  transition: 'opacity 0.2s',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
-                <span>Install App</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>download</span>
               </button>
             )}
             {/* Search */}
