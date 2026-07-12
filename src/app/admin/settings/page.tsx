@@ -161,8 +161,8 @@ export default function AdminSettingsPage() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div style={{ width: '240px', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '16px', border: '1px solid var(--outline)' }}>
+      <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap', width: '100%' }}>
+        <div className="responsive-tab-sidebar">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', border: 'none', backgroundColor: activeTab === tab.id ? 'var(--surface-container-high)' : 'transparent', color: activeTab === tab.id ? settings.accentColor : 'var(--on-surface)', fontWeight: activeTab === tab.id ? 600 : 400, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}>
               <span className="material-symbols-outlined">{tab.icon}</span>
@@ -171,7 +171,7 @@ export default function AdminSettingsPage() {
           ))}
         </div>
 
-        <div style={{ flex: 1, backgroundColor: 'var(--surface)', padding: '32px', borderRadius: '16px', border: '1px solid var(--outline)', minHeight: '500px', minWidth: '300px' }}>
+        <div style={{ flex: 1, backgroundColor: 'var(--surface)', padding: '24px 20px', borderRadius: '16px', border: '1px solid var(--outline)', minHeight: '500px', minWidth: '280px' }}>
 
           {/* ── BRANDING ── */}
           {activeTab === 'branding' && (

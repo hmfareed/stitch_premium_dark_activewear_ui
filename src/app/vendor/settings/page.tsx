@@ -78,9 +78,9 @@ export default function VendorSettingsPage() {
         <p style={{ color: 'var(--on-surface-variant)' }}>Configure your store preferences — changes save instantly</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap', width: '100%' }}>
         {/* Tabs */}
-        <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'var(--surface)', padding: '12px', borderRadius: '16px', border: '1px solid var(--outline)' }}>
+        <div className="responsive-tab-sidebar">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderRadius: '8px', border: 'none', backgroundColor: activeTab === t.id ? 'var(--surface-container-high)' : 'transparent', color: activeTab === t.id ? '#00e5ff' : 'var(--on-surface)', fontWeight: activeTab === t.id ? 600 : 400, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', fontSize: '0.95rem' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{t.icon}</span>{t.name}
@@ -89,7 +89,7 @@ export default function VendorSettingsPage() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, backgroundColor: 'var(--surface)', padding: '32px', borderRadius: '16px', border: '1px solid var(--outline)', minHeight: '400px', minWidth: '300px' }}>
+        <div style={{ flex: 1, backgroundColor: 'var(--surface)', padding: '24px 20px', borderRadius: '16px', border: '1px solid var(--outline)', minHeight: '400px', minWidth: '280px' }}>
           
           {/* ─── STORE SETTINGS ─── */}
           {activeTab === 'store' && (

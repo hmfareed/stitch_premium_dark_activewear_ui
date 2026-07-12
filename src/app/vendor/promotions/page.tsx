@@ -143,7 +143,7 @@ export default function VendorPromotionsPage() {
         </div>
       )}
       <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table className="responsive-table">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
               <th style={{ padding: '14px 24px', fontWeight: 500 }}>Code</th>
@@ -159,16 +159,16 @@ export default function VendorPromotionsPage() {
               <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>No promotions yet.</td></tr>
             ) : promos.map((p, idx) => (
               <tr key={p._id} style={{ borderBottom: idx !== promos.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                <td style={{ padding: '16px 24px', fontWeight: 600, fontFamily: 'monospace' }}>{p.code}</td>
-                <td style={{ padding: '16px 24px', fontWeight: 600, color: '#00e5ff' }}>
+                <td data-label="Code" style={{ padding: '16px 24px', fontWeight: 600, fontFamily: 'monospace' }}>{p.code}</td>
+                <td data-label="Discount" style={{ padding: '16px 24px', fontWeight: 600, color: '#00e5ff' }}>
                   {p.type === 'Percentage' ? `${p.discountValue}%` : p.type === 'Fixed' ? `GH₵${p.discountValue}` : 'Free Shipping'}
                 </td>
-                <td style={{ padding: '16px 24px' }}>{p.uses}/{p.limit}</td>
-                <td style={{ padding: '16px 24px' }}>
+                <td data-label="Uses" style={{ padding: '16px 24px' }}>{p.uses}/{p.limit}</td>
+                <td data-label="Status" style={{ padding: '16px 24px' }}>
                   <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, backgroundColor: `color-mix(in srgb, ${p.status === 'Active' ? 'var(--lime-400)' : 'var(--error)'} 20%, transparent)`, color: p.status === 'Active' ? 'var(--lime-400)' : 'var(--error)' }}>{p.status}</span>
                 </td>
-                <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{new Date(p.expiresAt).toLocaleDateString()}</td>
-                <td style={{ padding: '16px 24px' }}>
+                <td data-label="Expires" style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{new Date(p.expiresAt).toLocaleDateString()}</td>
+                <td data-label="Actions" style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button onClick={() => handleDelete(p._id)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span></button>
                   </div>

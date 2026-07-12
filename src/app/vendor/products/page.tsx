@@ -458,7 +458,7 @@ export default function VendorProductsPage() {
       {/* Products Table */}
       <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+          <table className="responsive-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Product</th>
@@ -477,15 +477,15 @@ export default function VendorProductsPage() {
                 </td></tr>
               ) : filteredProducts.map((p, idx) => (
                 <tr key={p.id} style={{ borderBottom: idx !== filteredProducts.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Product" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                       <img src={p.image} alt={p.name} style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }} />
                       <div><span style={{ fontWeight: 500 }}>{p.name}</span><br /><span style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>ID: {p.id}</span></div>
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px' }}><span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span></td>
-                  <td style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Category" style={{ padding: '16px 24px' }}><span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span></td>
+                  <td data-label="Price" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</td>
+                  <td data-label="Stock" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button 
                         onClick={() => handleStockUpdate(p.id, (p.stock || 0) - 1)} 
@@ -501,8 +501,8 @@ export default function VendorProductsPage() {
                       >+</button>
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px', color: 'var(--on-surface)' }}>{p.rating} / 5</td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Rating" style={{ padding: '16px 24px', color: 'var(--on-surface)' }}>{p.rating} / 5</td>
+                  <td data-label="Actions" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => openEditModal(p)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit">
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
@@ -601,7 +601,7 @@ export default function VendorProductsPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <p style={{ fontWeight: 600 }}>Preview: {bulkFile.length} items found</p>
                 <div style={{ maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid var(--outline)' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <table className="responsive-table">
                     <thead style={{ position: 'sticky', top: 0, background: 'var(--surface-container-high)', zIndex: 1 }}>
                       <tr>
                         <th style={{ padding: '12px', textAlign: 'left' }}>Name</th>
@@ -613,10 +613,10 @@ export default function VendorProductsPage() {
                     <tbody>
                       {bulkFile.map((p, i) => (
                         <tr key={i} style={{ borderTop: '1px solid var(--outline-variant)' }}>
-                          <td style={{ padding: '12px' }}>{p.name}</td>
-                          <td style={{ padding: '12px' }}>{p.category}</td>
-                          <td style={{ padding: '12px' }}>GH₵{p.price}</td>
-                          <td style={{ padding: '12px' }}>{p.stock}</td>
+                          <td data-label="Name" style={{ padding: '12px' }}>{p.name}</td>
+                          <td data-label="Category" style={{ padding: '12px' }}>{p.category}</td>
+                          <td data-label="Price" style={{ padding: '12px' }}>GH₵{p.price}</td>
+                          <td data-label="Stock" style={{ padding: '12px' }}>{p.stock}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -143,7 +143,7 @@ export default function AdminsPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="responsive-tabs-row" style={{ backgroundColor: 'transparent', padding: '4px 0' }}>
         <button onClick={() => setActiveTab('admins')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: activeTab === 'admins' ? 600 : 400, cursor: 'pointer', backgroundColor: activeTab === 'admins' ? 'var(--lime-400)' : 'var(--surface)', color: activeTab === 'admins' ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s' }}>
           Current Vendors & Staff ({allAdmins.length})
         </button>
@@ -163,8 +163,8 @@ export default function AdminsPage() {
               <p style={{ fontSize: '0.85rem' }}>Click &quot;Add New Vendor&quot; to grant access to someone.</p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+             <div style={{ overflowX: 'auto' }}>
+              <table className="responsive-table">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                     <th style={{ padding: '14px 24px', fontWeight: 500 }}>ID</th>
@@ -180,18 +180,18 @@ export default function AdminsPage() {
                 <tbody>
                   {allAdmins.map((admin, idx) => (
                     <tr key={admin.id} style={{ borderBottom: idx !== allAdmins.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                      <td style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>{admin.id}</td>
-                      <td style={{ padding: '16px 24px', fontWeight: 500 }}>{admin.name}</td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{admin.email}</td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="ID" style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>{admin.id}</td>
+                      <td data-label="Name" style={{ padding: '16px 24px', fontWeight: 500 }}>{admin.name}</td>
+                      <td data-label="Email" style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{admin.email}</td>
+                      <td data-label="Role" style={{ padding: '16px 24px' }}>
                         <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{admin.role}</span>
                       </td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{admin.storeName || '—'}</td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Store" style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{admin.storeName || '—'}</td>
+                      <td data-label="Status" style={{ padding: '16px 24px' }}>
                         <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, backgroundColor: `color-mix(in srgb, ${statusColors[admin.status]} 20%, transparent)`, color: statusColors[admin.status] }}>{admin.status}</span>
                       </td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{admin.createdAt}</td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Added" style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{admin.createdAt}</td>
+                      <td data-label="Actions" style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           {admin.role === 'Vendor' && (
                             <button 

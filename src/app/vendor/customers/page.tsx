@@ -113,7 +113,7 @@ export default function VendorCustomersPage() {
       {/* Customers Table */}
       <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+          <table className="responsive-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Customer</th>
@@ -132,7 +132,7 @@ export default function VendorCustomersPage() {
                 </td></tr>
               ) : customers.map((c, idx) => (
                 <tr key={c.email} style={{ borderBottom: idx !== customers.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Customer" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'color-mix(in srgb, #00e5ff 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: '#00e5ff', flexShrink: 0 }}>{c.name.charAt(0).toUpperCase()}</div>
                       <div style={{ minWidth: 0 }}>
@@ -141,7 +141,7 @@ export default function VendorCustomersPage() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Status" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       {c.isFollower && (
                         <span style={{ 
@@ -157,10 +157,10 @@ export default function VendorCustomersPage() {
                       )}
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px', fontWeight: 600 }}>{c.orders}</td>
-                  <td style={{ padding: '16px 24px', fontWeight: 600 }}>${c.spent.toFixed(2)}</td>
-                  <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.lastOrder || 'N/A'}</td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Orders" style={{ padding: '16px 24px', fontWeight: 600 }}>{c.orders}</td>
+                  <td data-label="Spent" style={{ padding: '16px 24px', fontWeight: 600 }}>${c.spent.toFixed(2)}</td>
+                  <td data-label="Last Activity" style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.lastOrder || 'N/A'}</td>
+                  <td data-label="Action" style={{ padding: '16px 24px' }}>
                     <button style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Message">
                       <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chat</span>
                     </button>

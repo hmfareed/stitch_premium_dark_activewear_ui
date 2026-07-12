@@ -475,3 +475,187 @@ input, button, textarea, select { font-family: inherit; }
   margin-left: 4px;
 }
 
+/* ==================================================== */
+/* PREMIUM MOBILE-FIRST DASHBOARD UTILITIES             */
+/* ==================================================== */
+
+/* Page content dynamic paddings */
+.panel-content-wrapper {
+  padding: 16px;
+  flex: 1;
+  background-color: var(--background);
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .panel-content-wrapper {
+    padding: 32px;
+  }
+}
+
+/* Header bar container */
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 576px) {
+  .panel-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Horizontal scrolling tabs list for status or sections */
+.responsive-tabs-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding: 4px;
+  background-color: var(--surface-container);
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.responsive-tabs-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.responsive-tabs-row::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 4px;
+}
+
+.responsive-tabs-row button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Left vertical side-tabs sidebar, collapses to top horizontal scrolling bar on mobile */
+.responsive-tab-sidebar {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: var(--surface);
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--outline);
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .responsive-tab-sidebar {
+    width: 100% !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    padding: 8px;
+    gap: 8px;
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .responsive-tab-sidebar button, 
+  .responsive-tab-sidebar a {
+    flex-shrink: 0 !important;
+    padding: 8px 16px !important;
+  }
+}
+
+/* Responsive Table: Converts rows to beautiful cards on mobile */
+.responsive-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .responsive-table thead {
+    display: none !important; /* Hide headings */
+  }
+
+  .responsive-table, 
+  .responsive-table tbody, 
+  .responsive-table tr, 
+  .responsive-table td {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .responsive-table tr {
+    padding: 16px;
+    background-color: var(--surface);
+    border-radius: 14px;
+    border: 1px solid var(--outline) !important;
+    margin-bottom: 12px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .responsive-table td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 8px 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--outline-variant) !important;
+    font-size: 0.88rem;
+    text-align: right !important;
+  }
+
+  .responsive-table td:last-child {
+    border-bottom: none !important;
+  }
+
+  /* Insert cell titles on mobile */
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--on-surface-variant);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    text-align: left;
+    margin-right: 16px;
+    font-family: var(--font-lexend);
+    letter-spacing: 0.04em;
+  }
+
+  /* Special priority styling for product/user names on mobile */
+  .responsive-table td[data-label="Product"],
+  .responsive-table td[data-label="Customer"],
+  .responsive-table td[data-label="Store"],
+  .responsive-table td[data-label="Vendor"] {
+    justify-content: flex-start !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid var(--outline) !important;
+    text-align: left !important;
+  }
+
+  .responsive-table td[data-label="Product"]::before,
+  .responsive-table td[data-label="Customer"]::before,
+  .responsive-table td[data-label="Store"]::before,
+  .responsive-table td[data-label="Vendor"]::before {
+    margin-bottom: 4px;
+  }
+
+  .responsive-table td[data-label="Actions"] {
+    justify-content: flex-end !important;
+    padding-top: 12px !important;
+    gap: 12px;
+  }
+}
+
+

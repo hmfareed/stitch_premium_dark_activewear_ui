@@ -283,7 +283,7 @@ export default function AdminVendorsPage() {
 
       {/* Tabs + search */}
       <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:4, background:'var(--surface-container)', borderRadius:12, padding:4 }}>
+        <div className="responsive-tabs-row" style={{ background:'var(--surface-container)', borderRadius:12, padding:4 }}>
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
               padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer',

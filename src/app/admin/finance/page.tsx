@@ -147,7 +147,7 @@ export default function AdminFinancePage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      <div className="responsive-tabs-row" style={{ backgroundColor: 'transparent', padding: '4px 0', marginBottom: 20 }}>
         {['overview', 'store_earnings', 'payout_requests', 'revenue_breakdown', 'top_customers'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: activeTab === tab ? 600 : 400, cursor: 'pointer', backgroundColor: activeTab === tab ? 'var(--lime-400)' : 'var(--surface)', color: activeTab === tab ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s' }}>
             {tab.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -200,7 +200,7 @@ export default function AdminFinancePage() {
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+                <table className="responsive-table">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                       <th style={{ padding: '14px 24px', fontWeight: 500 }}>Store</th>
@@ -215,7 +215,7 @@ export default function AdminFinancePage() {
                   <tbody>
                     {storeList.map((store, idx) => (
                       <tr key={store.vendorEmail} style={{ borderBottom: idx < storeList.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                        <td style={{ padding: '16px 24px' }}>
+                        <td data-label="Store" style={{ padding: '16px 24px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>
                               {store.storeName[0]?.toUpperCase() || 'S'}
@@ -226,12 +226,12 @@ export default function AdminFinancePage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{store.orderCount}</td>
-                        <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{store.productsSold}</td>
-                        <td style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.9rem' }}>GH₵{store.grossRevenue.toFixed(2)}</td>
-                        <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: '#00e5ff' }}>GH₵{store.commission.toFixed(2)}</td>
-                        <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: '#fbbf24' }}>GH₵{store.heldPayout.toFixed(2)}</td>
-                        <td style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--lime-400)', fontSize: '0.9rem' }}>GH₵{store.netPayout.toFixed(2)}</td>
+                        <td data-label="Orders" style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{store.orderCount}</td>
+                        <td data-label="Items" style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{store.productsSold}</td>
+                        <td data-label="Gross" style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.9rem' }}>GH₵{store.grossRevenue.toFixed(2)}</td>
+                        <td data-label="Commission" style={{ padding: '16px 24px', fontSize: '0.9rem', color: '#00e5ff' }}>GH₵{store.commission.toFixed(2)}</td>
+                        <td data-label="Held in Escrow" style={{ padding: '16px 24px', fontSize: '0.9rem', color: '#fbbf24' }}>GH₵{store.heldPayout.toFixed(2)}</td>
+                        <td data-label="Available Payout" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--lime-400)', fontSize: '0.9rem' }}>GH₵{store.netPayout.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -271,7 +271,7 @@ export default function AdminFinancePage() {
             <EmptyState icon="account_balance_wallet" text="No payout requests found." />
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+              <table className="responsive-table">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                     <th style={{ padding: '14px 24px', fontWeight: 500 }}>Date</th>
@@ -285,17 +285,17 @@ export default function AdminFinancePage() {
                 <tbody>
                   {allPayouts.map((payout, idx) => (
                     <tr key={payout._id} style={{ borderBottom: idx < allPayouts.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                      <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Date" style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
+                      <td data-label="Vendor" style={{ padding: '16px 24px' }}>
                         <div style={{ fontWeight: 500, fontSize: '0.95rem' }}>{payout.vendorName || 'Vendor'}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{payout.vendorEmail}</div>
                       </td>
-                      <td style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.95rem' }}>GH₵{payout.amount.toFixed(2)}</td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Amount" style={{ padding: '16px 24px', fontWeight: 600, fontSize: '0.95rem' }}>GH₵{payout.amount.toFixed(2)}</td>
+                      <td data-label="Method" style={{ padding: '16px 24px' }}>
                         <div style={{ fontSize: '0.9rem' }}>{payout.paymentMethod}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', userSelect: 'all' }}>{payout.accountDetails}</div>
                       </td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Status" style={{ padding: '16px 24px' }}>
                         <span style={{ 
                           padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
                           backgroundColor: payout.status === 'Paid' ? 'color-mix(in srgb, var(--lime-400) 15%, transparent)' : 
@@ -310,7 +310,7 @@ export default function AdminFinancePage() {
                           {payout.status}
                         </span>
                       </td>
-                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                      <td data-label="Actions" style={{ padding: '16px 24px', textAlign: 'right' }}>
                         {payout.status !== 'Paid' && payout.status !== 'Rejected' && (
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                             {payout.status === 'Pending' && (
@@ -371,7 +371,7 @@ export default function AdminFinancePage() {
           {topCustomers.length === 0 ? (
             <EmptyState icon="group" text="No customer spending data yet." />
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table className="responsive-table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                   <th style={{ padding: '14px 24px', fontWeight: 500 }}>Customer</th>
@@ -382,9 +382,9 @@ export default function AdminFinancePage() {
               <tbody>
                 {topCustomers.map((c, idx) => (
                   <tr key={c.name + idx} style={{ borderBottom: idx !== topCustomers.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                    <td style={{ padding: '16px 24px', fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ padding: '16px 24px' }}>{c.orders}</td>
-                    <td style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--lime-400)' }}>GH₵{c.total.toFixed(2)}</td>
+                    <td data-label="Customer" style={{ padding: '16px 24px', fontWeight: 500 }}>{c.name}</td>
+                    <td data-label="Orders" style={{ padding: '16px 24px' }}>{c.orders}</td>
+                    <td data-label="Total Spent" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--lime-400)' }}>GH₵{c.total.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

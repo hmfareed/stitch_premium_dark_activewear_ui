@@ -143,7 +143,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </header>
 
-        <div style={{ padding: '32px', flex: 1, backgroundColor: 'var(--background)' }}>
+        <div className="panel-content-wrapper">
           {children}
         </div>
       </main>

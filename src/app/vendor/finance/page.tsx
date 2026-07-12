@@ -206,7 +206,7 @@ export default function VendorFinancePage() {
           </div>
           
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table className="responsive-table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                   <th style={{ padding: '16px 24px', fontWeight: 500 }}>Date</th>
@@ -224,12 +224,12 @@ export default function VendorFinancePage() {
                   </tr>
                 ) : vendorPayoutRequests.map(payout => (
                   <tr key={payout._id} style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                    <td style={{ padding: '16px 24px' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
-                    <td style={{ padding: '16px 24px', fontWeight: 600 }}>GH₵{payout.amount.toFixed(2)}</td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td data-label="Date" style={{ padding: '16px 24px' }}>{new Date(payout.requestDate).toLocaleDateString()}</td>
+                    <td data-label="Amount" style={{ padding: '16px 24px', fontWeight: 600 }}>GH₵{payout.amount.toFixed(2)}</td>
+                    <td data-label="Method" style={{ padding: '16px 24px' }}>
                       <span style={{ fontSize: '0.9rem' }}>{payout.paymentMethod}</span>
                     </td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td data-label="Status" style={{ padding: '16px 24px' }}>
                       <span style={{ 
                         padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
                         backgroundColor: payout.status === 'Paid' ? 'color-mix(in srgb, var(--lime-400) 15%, transparent)' : 

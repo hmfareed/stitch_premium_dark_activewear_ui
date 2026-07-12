@@ -85,7 +85,7 @@ export default function AdminCustomersPage() {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+            <table className="responsive-table">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                   <th style={{ padding: '14px 24px', fontWeight: 500 }}>Customer</th>
@@ -100,7 +100,7 @@ export default function AdminCustomersPage() {
                   const isVendor = c.role === 'vendor' || c.role === 'super_admin';
                   return (
                     <tr key={c.email + idx} style={{ borderBottom: idx !== filtered.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td data-label="Customer" style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'color-mix(in srgb, var(--lime-400) 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: 'var(--lime-400)', flexShrink: 0 }}>
                             {c.profilePic ? (
@@ -112,9 +112,9 @@ export default function AdminCustomersPage() {
                           <span style={{ fontWeight: 500 }}>{c.name}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{c.email}</td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.phone || '—'}</td>
-                      <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                      <td data-label="Email" style={{ padding: '16px 24px', fontSize: '0.9rem' }}>{c.email}</td>
+                      <td data-label="Phone" style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{c.phone || '—'}</td>
+                      <td data-label="Actions" style={{ padding: '16px 24px', textAlign: 'right' }}>
                         {!isVendor ? (
                           <button onClick={() => handleMakeVendor(c)} style={{
                             background: 'var(--surface-container-high)', border: '1px solid var(--outline)', padding: '6px 12px',

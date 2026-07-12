@@ -53,7 +53,7 @@ export default function AdminProductsPage() {
       {/* Filters */}
       <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--outline)', display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="responsive-tabs-row" style={{ backgroundColor: 'transparent', padding: '4px 0', gap: '8px' }}>
             {categories.map(cat => (
               <button key={cat} onClick={() => setCategoryFilter(cat)} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: categoryFilter === cat ? 600 : 400, fontSize: '0.85rem', cursor: 'pointer', backgroundColor: categoryFilter === cat ? 'var(--lime-400)' : 'var(--surface-container)', color: categoryFilter === cat ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s' }}>
                 {cat}
@@ -67,7 +67,7 @@ export default function AdminProductsPage() {
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+          <table className="responsive-table">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
                 <th style={{ padding: '14px 24px', fontWeight: 500 }}>Product</th>
@@ -82,7 +82,7 @@ export default function AdminProductsPage() {
             <tbody>
               {filtered.map((p, idx) => (
                 <tr key={p.id} style={{ borderBottom: idx !== filtered.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Product" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                       <div style={{ width: '44px', height: '44px', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--surface-container-highest)', flexShrink: 0 }}>
                         <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -93,19 +93,19 @@ export default function AdminProductsPage() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Category" style={{ padding: '16px 24px' }}>
                     <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span>
                   </td>
-                  <td style={{ padding: '16px 24px', fontWeight: 600 }}>${p.price.toFixed(2)}</td>
-                  <td style={{ padding: '16px 24px', color: 'var(--on-surface-variant)', textDecoration: p.originalPrice ? 'line-through' : 'none' }}>{p.originalPrice ? `GH₵${p.originalPrice.toFixed(2)}` : '—'}</td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Price" style={{ padding: '16px 24px', fontWeight: 600 }}>${p.price.toFixed(2)}</td>
+                  <td data-label="Original" style={{ padding: '16px 24px', color: 'var(--on-surface-variant)', textDecoration: p.originalPrice ? 'line-through' : 'none' }}>{p.originalPrice ? `GH₵${p.originalPrice.toFixed(2)}` : '—'}</td>
+                  <td data-label="Rating" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#ffc107' }}>star</span>
                       <span style={{ fontWeight: 600 }}>{p.rating}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '16px 24px', fontWeight: 600, color: salesMap[p.id] ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>{salesMap[p.id] || 0}</td>
-                  <td style={{ padding: '16px 24px' }}>
+                  <td data-label="Units Sold" style={{ padding: '16px 24px', fontWeight: 600, color: salesMap[p.id] ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>{salesMap[p.id] || 0}</td>
+                  <td data-label="Tags" style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       {p.isNew && <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, backgroundColor: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff' }}>NEW</span>}
                       {p.isLimited && <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, backgroundColor: 'color-mix(in srgb, #ff4081 20%, transparent)', color: '#ff4081' }}>LIMITED</span>}
