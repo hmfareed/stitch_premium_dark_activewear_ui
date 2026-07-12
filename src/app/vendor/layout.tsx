@@ -47,7 +47,6 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     { name: 'Staff', icon: 'badge', path: '/vendor/staff' },
     { name: 'Finance', icon: 'account_balance_wallet', path: '/vendor/finance' },
     { name: 'Analytics', icon: 'analytics', path: '/vendor/analytics' },
-    { name: 'View Storefront', icon: 'storefront', path: `/store/${encodeURIComponent(user.email)}` },
     { name: 'Settings', icon: 'settings', path: '/vendor/settings' },
   ];
 
@@ -111,6 +110,13 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
             );
           })}
         </nav>
+
+        <div style={{ padding: '12px 24px', borderTop: '1px solid var(--outline)' }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', color: 'var(--on-surface-variant)', textDecoration: 'none', fontSize: '0.9rem' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>shopping_bag</span>
+            View Store Front
+          </Link>
+        </div>
 
         <div style={{ padding: '24px', borderTop: '1px solid var(--outline)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
