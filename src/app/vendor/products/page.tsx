@@ -1166,45 +1166,6 @@ export default function VendorProductsPage() {
                     }}
                   />
                 </div>
-
-                {/* Stock clothing items gallery */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--lime-400)' }}>grid_view</span>
-                    STITCH PREMIUM STOCK LIBRARY
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px', overflowY: 'auto', maxHeight: '240px', paddingRight: '4px' }}>
-                    {STOCK_ACTIVEWEAR_IMAGES.map((img) => (
-                      <div
-                        key={img.name}
-                        onClick={() => selectStockPhoto(img.url)}
-                        style={{
-                          position: 'relative',
-                          aspectRatio: '1',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                          border: '1.5px solid var(--outline)',
-                          transition: 'all 0.15s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--lime-400)';
-                          e.currentTarget.style.transform = 'scale(1.03)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--outline)';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                        title={img.name}
-                      >
-                        <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.65)', padding: '2px 4px', fontSize: '7px', color: '#fff', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {img.name.replace('Stitch ', '')}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
           </div>
