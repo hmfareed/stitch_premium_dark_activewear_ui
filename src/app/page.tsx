@@ -314,7 +314,7 @@ function TrustBar() {
   const items = [
     { icon: 'verified', label: 'Delivered or Refund', color: 'var(--lime-400)' },
     { icon: 'lock', label: 'Paystack Secured', color: '#22c55e' },
-    { icon: 'local_shipping', label: '24h Delivery', color: '#f59e0b' },
+    { icon: 'local_shipping', label: 'Tamale Same-Day Delivery', color: '#f59e0b' },
     { icon: 'support_agent', label: '24/7 Support', color: '#a855f7' },
   ];
   return (
@@ -429,14 +429,14 @@ export default function HomePage() {
           style={{ objectFit: 'cover', animation: 'fadeIn 0.6s ease-in-out both' }}
         />
         <div style={S.heroContent}>
-          <p style={S.heroLabel}>{currentHero ? 'FEATURED PRODUCT' : '✦ NEW ARRIVALS 2026'}</p>
+          <p style={S.heroLabel}>{currentHero ? 'FEATURED PRODUCT' : '✦ TAMALE\'S PREMIER ACTIVEWEAR HUB ✦'}</p>
           <h1 style={S.heroTitle}>
-            {currentHero ? currentHero.name : 'Summer\nCollection'}
+            {currentHero ? currentHero.name : 'STITCH ACTIVE\nTAMALE EDITION'}
           </h1>
           <p style={S.heroSub}>
             {currentHero
-              ? `GH₵${currentHero.price.toFixed(2)} · Shop this and more from our top sellers.`
-              : 'Up to 60% off premium brands. Limited time.'}
+              ? `GH₵${currentHero.price.toFixed(2)} · Local pick-up and instant dispatch in Tamale.`
+              : 'Same-day instant dispatch across Nyohini, Lamashegu, Kalpohin, and Sagnarigu.'}
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Link href={currentHero ? `/product/${currentHero.id}` : '/shop'} style={S.heroBtn}>

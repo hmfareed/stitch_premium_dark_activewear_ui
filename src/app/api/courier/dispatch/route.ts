@@ -17,7 +17,7 @@ function generateTrackingNumber(): string {
 }
 
 // Simulated courier partners
-const COURIER_PARTNERS = ['AfriCart Express', 'QuickDeliver GH', 'SwiftRide Logistics'];
+const COURIER_PARTNERS = ['Tamale Express Rider', 'QuickDeliver Tamale', 'Northern Express Logistics'];
 
 export async function POST(req: NextRequest) {
   try {

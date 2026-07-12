@@ -40,7 +40,7 @@ const iconPaths: Record<string, { outline: string, filled: string }> = {
 
 export const BottomNavBar: React.FC = () => {
   const pathname = usePathname();
-  const { totalItems } = useCart();
+  const { totalItems, openCartDrawer } = useCart();
   const { totalWishlist } = useWishlist();
   const { unreadCount, activeOrderCount: orderCount } = useNotifications();
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
@@ -83,6 +83,12 @@ export const BottomNavBar: React.FC = () => {
           <Link
             key={item.href}
             href={item.href}
+            onClick={(e) => {
+              if (item.href === '/cart') {
+                e.preventDefault();
+                openCartDrawer();
+              }
+            }}
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               padding: '6px 12px', borderRadius: 10,

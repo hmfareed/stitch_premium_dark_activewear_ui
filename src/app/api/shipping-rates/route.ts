@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { ShippingRate } from '@/models/ShippingRate';
 
-/** Default zone-based delivery rates for Ghana */
+/** Default zone-based delivery rates for Ghana (Centered on Tamale Hub) */
 const DEFAULT_RATES = [
+  // ── Tamale Metro (Core Hub) ──────────────────────────────────────────────
+  { region: 'Northern',       zone: 'tamale_metro', fee: 10, estimatedDays: 'Same day — instant 1-hour dispatch', coversCOD: true  },
   // ── Accra Metro ──────────────────────────────────────────────────────────
-  { region: 'Greater Accra',  zone: 'accra_metro',  fee: 15, estimatedDays: 'Same day – 1 business day', coversCOD: true  },
+  { region: 'Greater Accra',  zone: 'accra_metro',  fee: 25, estimatedDays: '1-3 business days',          coversCOD: true  },
   // ── Kumasi Metro ─────────────────────────────────────────────────────────
-  { region: 'Ashanti',        zone: 'kumasi_metro', fee: 20, estimatedDays: '1-2 business days',          coversCOD: true  },
-  // ── Tamale Metro ─────────────────────────────────────────────────────────
-  { region: 'Northern',       zone: 'tamale_metro', fee: 20, estimatedDays: '2-3 business days',          coversCOD: true  },
+  { region: 'Ashanti',        zone: 'kumasi_metro', fee: 25, estimatedDays: '1-3 business days',          coversCOD: true  },
   // ── Regional ─────────────────────────────────────────────────────────────
   { region: 'Central',        zone: 'regional',     fee: 30, estimatedDays: '2-4 business days',          coversCOD: false },
   { region: 'Western',        zone: 'regional',     fee: 35, estimatedDays: '3-5 business days',          coversCOD: false },

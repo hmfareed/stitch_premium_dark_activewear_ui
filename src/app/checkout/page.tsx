@@ -6,26 +6,55 @@ import { useCart, useAuth, useToast } from '@/context/AppContext';
 
 /* ── Ghana location suggestions ── */
 const GHANA_CITIES = [
-  'Accra', 'Kumasi', 'Tamale', 'Takoradi', 'Cape Coast', 'Obuasi', 'Teshie',
-  'Madina', 'Tema', 'Kasoa', 'Koforidua', 'Sunyani', 'Ho', 'Wa', 'Bolgatanga',
-  'Techiman', 'Nkawkaw', 'Berekum', 'Winneba', 'Dunkwa-on-Offin', 'Ashaiman',
-  'Asamankese', 'Konongo', 'Agona Swedru', 'Sefwi Wiawso', 'Aflao', 'Keta',
-  'Aburi', 'Nsawam', 'Ejura', 'Saltpond', 'Elmina', 'Axim', 'Bogoso',
-  'Prestea', 'Tarkwa', 'Bibiani', 'Goaso', 'Dormaa Ahenkro', 'Kintampo',
-  'Yeji', 'Salaga', 'Yendi', 'Savelugu', 'Navrongo', 'Zebilla', 'Bawku',
+  'Tamale', 'Accra', 'Kumasi', 'Savelugu', 'Yendi', 'Bolgatanga', 'Salaga',
+  'Wa', 'Navrongo', 'Bawku', 'Sunyani', 'Takoradi', 'Cape Coast', 'Obuasi',
+  'Teshie', 'Madina', 'Tema', 'Kasoa', 'Koforidua', 'Ho', 'Techiman',
 ];
 
 const GHANA_REGIONS = [
-  'Greater Accra', 'Ashanti', 'Northern', 'Western', 'Central', 'Eastern',
-  'Brong-Ahafo', 'Volta', 'Upper East', 'Upper West', 'Bono', 'Bono East',
-  'Ahafo', 'Western North', 'Oti', 'North East', 'Savannah',
+  'Northern', 'Upper East', 'Upper West', 'North East', 'Savannah',
+  'Greater Accra', 'Ashanti', 'Western', 'Central', 'Eastern',
+  'Bono', 'Bono East', 'Ahafo', 'Western North', 'Oti',
 ];
 
 const GHANA_ADDRESSES = [
-  'Ring Road Central', 'Independence Avenue', 'Oxford Street, Osu',
-  'Spintex Road', 'Tema Community 1', 'Madina Road', 'Legon Road',
-  'Sakumono Estate', 'East Legon', 'Cantonments Road', 'Airport Residential',
-  'Dzorwulu', 'Roman Ridge', 'Adabraka', 'Asylum Down',
+  // ── Core & Highly Popular Tamale Neighborhoods ──
+  'Lamashegu Market Road',
+  'Nyohini West Road',
+  'Vittin Estate Block C',
+  'Kalpohin Estate Road',
+  'Choggu Main Road',
+  'Jisonayili Residential Road',
+  'Kukuo Health Center Road',
+  'Sagnarigu Main Street',
+  'Kanvili Estate Area',
+  'Fuo Residential Area',
+  'Kpalsi Residential Road',
+  'Dungu UDS Campus Road',
+  'Banvim Residential Zone',
+  'Gurugu Main Road',
+  'Tishigu Street',
+  'Gumbihini West',
+  'Bolgatanga Road, Tamale',
+  'Salaga Road, Tamale',
+  
+  // ── Specific Unpopular & Niche Tamale Suburbs ──
+  'Shishegu Area, Tamale',
+  'Lamankara Street',
+  'Changli Main Street',
+  'Kasaligu Residential Area',
+  'Tuutingli Community Area',
+  'Yapalsi Lane',
+  'Katariga Village Road',
+  'Sanvili Road, Tamale',
+  'Zogbeli Lane',
+  'Dakpema Palaces Area',
+  'Sakasaka Residential Area',
+  'Moshie Zongo Area',
+  'Ward K Suburb',
+  'Suhuyini Street',
+  'Fooshegu Community Area',
+  'Tamale Industrial Area'
 ];
 
 /* ── Network detection by prefix ── */
@@ -108,8 +137,8 @@ export default function CheckoutPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [region, setRegion] = useState('');
+  const [city, setCity] = useState('Tamale');
+  const [region, setRegion] = useState('Northern');
   const [momoPhone, setMomoPhone] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
