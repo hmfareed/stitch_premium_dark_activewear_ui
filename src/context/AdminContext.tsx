@@ -336,18 +336,27 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshData();
   }, [refreshData]);
 
-  const removeAdmin = useCallback((adminId: string) => {
-    const vendors: AdminUser[] = JSON.parse(localStorage.getItem('africart-vendors') || '[]');
-    const adminToRemove = vendors.find(a => a.id === adminId);
-    if (adminToRemove) {
-      // Revert role in authentication store
-      const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
-      const updatedAccounts = accounts.map((a: any) => a.email === adminToRemove.email ? { ...a, role: 'customer' } : a);
-      localStorage.setItem('africart-accounts', JSON.stringify(updatedAccounts));
+  const removeAdmin = useCallback(async (adminId: string) => {
+    const adminToRemove = allAdmins.find(a => a.id === adminId);
+    if (!adminToRemove) return;
+
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(adminToRemove.email)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        const vendors: AdminUser[] = JSON.parse(localStorage.getItem('africart-vendors') || '[]');
+        localStorage.setItem('africart-vendors', JSON.stringify(vendors.filter(a => a.email !== adminToRemove.email)));
+        
+        const accounts = JSON.parse(localStorage.getItem('africart-accounts') || '[]');
+        localStorage.setItem('africart-accounts', JSON.stringify(accounts.filter((a: any) => a.email !== adminToRemove.email)));
+      }
+    } catch (error) {
+      console.error('Failed to remove admin from database:', error);
     }
-    localStorage.setItem('africart-vendors', JSON.stringify(vendors.filter(a => a.id !== adminId)));
     refreshData();
-  }, [refreshData]);
+  }, [allAdmins, refreshData]);
+
 
   const sendMessage = useCallback(async (msg: Omit<PlatformMessage, 'id' | 'timestamp' | 'read'>) => {
     try {

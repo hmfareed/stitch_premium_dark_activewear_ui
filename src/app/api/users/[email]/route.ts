@@ -77,3 +77,24 @@ export async function PUT(req: Request, props: { params: Promise<{ email: string
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request, props: { params: Promise<{ email: string }> }) {
+  try {
+    await connectToDatabase();
+    const { email } = await props.params;
+    const emailDecoded = decodeURIComponent(email);
+
+    // Find and delete the user
+    const deletedUser = await User.findOneAndDelete({ email: emailDecoded.toLowerCase() });
+
+    if (!deletedUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'User successfully deleted from database.' });
+  } catch (error: any) {
+    console.error('Delete User Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+

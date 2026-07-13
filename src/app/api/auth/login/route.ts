@@ -6,6 +6,7 @@ import { LoginEvent } from '@/models/LoginEvent';
 import { VendorProfile } from '@/models/VendorProfile';
 import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
 import { signToken } from '@/lib/jwt';
+import { getFraudRules } from '@/lib/fraud';
 
 // Simple in-memory rate limiter
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
@@ -71,6 +72,28 @@ export async function POST(req: Request) {
     const userAgent = req.headers.get('user-agent') || 'Unknown';
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || '127.0.0.1';
+
+    // IP Blacklist Firewall check
+    const fraudRules = getFraudRules();
+    if (fraudRules.blockedIPs && fraudRules.blockedIPs.includes(ip)) {
+      try {
+        await LoginEvent.create({
+          email: normalizedEmail,
+          userName: 'Suspicious IP Blocked',
+          success: false,
+          ip,
+          userAgent,
+          device: parseDevice(userAgent),
+          browser: parseBrowser(userAgent),
+          os: parseOS(userAgent),
+          failReason: 'IP Blocked by Firewall',
+        });
+      } catch {}
+      return NextResponse.json(
+        { error: 'Access denied. Your IP address has been flagged for suspicious activity.' },
+        { status: 403 }
+      );
+    }
 
     let user = await User.findOne({ email: normalizedEmail });
     

@@ -267,69 +267,7 @@ export default function AccountPage() {
           );
         })()}
 
-        {/* Email Verification Banner */}
-        {!user.isVerified && (
-          <div className="animate-fade-in-up" style={{
-            background: 'linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(195,244,0,0.08) 100%)',
-            border: '1px solid rgba(251,191,36,0.3)', borderRadius: 16, padding: 16,
-            display: 'flex', flexDirection: 'column', gap: 12,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#fbbf24' }}>warning</span>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)' }}>Verify your email</p>
-                <p style={{ fontSize: 11, color: 'var(--on-surface-variant)' }}>Secure your account and unlock all features</p>
-              </div>
-            </div>
-            {!showOtpInput ? (
-              <button
-                onClick={async () => {
-                  setVerifyLoading(true);
-                  try {
-                    const res = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) });
-                    const data = await res.json();
-                    if (data.success) { setShowOtpInput(true); showToast('Verification code sent to your email!'); }
-                    else showToast(data.error || 'Failed to send code', 'error');
-                  } catch { showToast('Network error', 'error'); }
-                  setVerifyLoading(false);
-                }}
-                disabled={verifyLoading}
-                style={{ padding: '10px 20px', borderRadius: 10, background: '#fbbf24', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: verifyLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                {verifyLoading ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>progress_activity</span> Sending...</> : <><span className="material-symbols-outlined" style={{ fontSize: 16 }}>mail</span> Send Verification Code</>}
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="6-digit code"
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--outline)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 16, fontFamily: 'monospace', letterSpacing: 4, textAlign: 'center', outline: 'none' }}
-                />
-                <button
-                  onClick={async () => {
-                    if (otpCode.length !== 6) { showToast('Enter the 6-digit code', 'error'); return; }
-                    setVerifyLoading(true);
-                    try {
-                      const res = await fetch('/api/auth/verify-email', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email, code: otpCode }) });
-                      const data = await res.json();
-                      if (data.success) { showToast('Email verified! 🎉'); window.location.reload(); }
-                      else showToast(data.error || 'Invalid code', 'error');
-                    } catch { showToast('Network error', 'error'); }
-                    setVerifyLoading(false);
-                  }}
-                  disabled={verifyLoading || otpCode.length !== 6}
-                  style={{ padding: '10px 16px', borderRadius: 10, background: 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                >
-                  {verifyLoading ? '...' : 'Verify'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+
 
         {/* Verified badge on profile */}
         {user.isVerified && (
