@@ -10,7 +10,7 @@ interface User {
   name: string;
   phone?: string;
   profilePic?: string;
-  role?: 'customer' | 'vendor' | 'super_admin';
+  role?: 'customer' | 'vendor' | 'super_admin' | 'rider';
   points?: number;
   isVerified?: boolean;
 }
@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, phone: string, password: string) => Promise<boolean>;
+  loginWithUser: (userData: User, token?: string) => void;
   vendorSignup: (data: {
     name: string; email: string; phone: string; password: string;
     businessName: string; businessCategory: string; momoNumber: string;
@@ -30,6 +31,7 @@ interface AuthContextType {
   updateProfilePic: (picData: string | undefined) => void;
   updateName: (newName: string) => Promise<boolean>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserVerification: (isVerified: boolean) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -352,13 +354,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-   const logout = () => {
+  const updateUserVerification = async (isVerified: boolean): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(user.email)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isVerified }),
+      });
+      if (res.ok) {
+        const updatedUser = { ...user, isVerified };
+        setUser(updatedUser);
+        localStorage.setItem('africart-user', JSON.stringify(updatedUser));
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to update verification status:', err);
+    }
+    const updatedUser = { ...user, isVerified };
+    setUser(updatedUser);
+    localStorage.setItem('africart-user', JSON.stringify(updatedUser));
+    return true;
+  };
+
+  const logout = () => {
     setUser(null);
     localStorage.removeItem('africart-user');
+    localStorage.removeItem('africart-token');
+    localStorage.removeItem('africart-vendor-store');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    document.cookie = 'africart-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  };
+
+  /**
+   * Set the authenticated user directly from an API response.
+   * Used by registration flows that already called the API themselves
+   * and should NOT trigger a second signup request.
+   */
+  const loginWithUser = (userData: User, token?: string) => {
+    setUser(userData);
+    localStorage.setItem('africart-user', JSON.stringify(userData));
+    if (token) {
+      localStorage.setItem('africart-token', token);
+      document.cookie = `africart-token=${token}; path=/; max-age=604800; SameSite=Lax`;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, vendorSignup, updateProfilePic, updateName, updateEmail, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, signup, loginWithUser, vendorSignup, updateProfilePic, updateName, updateEmail, updateUserVerification, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -706,6 +749,33 @@ export interface VendorSettings {
   notifWeeklyReports: boolean;
 }
 
+export interface VendorStore {
+  id: string;
+  name: string;
+  email: string;
+}
+
+/** @deprecated — static store list removed. Use vendorStore from useStore() instead. */
+export const VENDOR_STORES: VendorStore[] = [];
+
+/** Shape of the real Store document returned from /api/stores */
+export interface VendorStoreDoc {
+  _id: string;
+  name: string;
+  slug: string;
+  vendorEmail: string;
+  category: string;
+  businessType: string;
+  status: 'setup' | 'payment_pending' | 'under_review' | 'active' | 'suspended';
+  paystackSubaccountCode?: string;
+  paystackSubaccountStatus: 'none' | 'pending' | 'active' | 'failed';
+  verificationTier: string;
+  storeLogo?: string;
+  storeBanner?: string;
+  storeBio?: string;
+  goLiveAt?: string;
+}
+
 interface StoreContextType {
   allProducts: Product[];
   productsLoading: boolean;
@@ -722,6 +792,14 @@ interface StoreContextType {
   saveVendorSettings: (vendorEmail: string, settings: VendorSettings) => void;
   campaigns: any[];
   refreshCampaigns: () => void;
+  activeStoreId: string;
+  setActiveStoreId: (id: string) => void;
+  /** The logged-in vendor's real Store document from the database */
+  vendorStore: VendorStoreDoc | null;
+  vendorStoreLoading: boolean;
+  /** True if the store fetch failed with a network/server error (do NOT redirect to onboarding in this case) */
+  vendorStoreError: boolean;
+  refreshVendorStore: () => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -746,6 +824,84 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [productsLoading, setProductsLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [followers, setFollowers] = useState<{ vendorEmail: string, userEmail: string, userName?: string }[]>([]);
+  const [activeStoreId, setActiveStoreIdState] = useState<string>('');
+  const [vendorStore, setVendorStore] = useState<VendorStoreDoc | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('africart-vendor-store');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return null;
+  });
+  // Initialize as true to prevent race condition: layout must not see loading=false,store=null before fetch starts
+  const [vendorStoreLoading, setVendorStoreLoading] = useState(true);
+  const [vendorStoreError, setVendorStoreError] = useState(false);
+
+  const { user, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    const saved = localStorage.getItem('africart-active-store-id');
+    if (saved) setActiveStoreIdState(saved);
+  }, []);
+
+  const setActiveStoreId = useCallback((id: string) => {
+    setActiveStoreIdState(id);
+    localStorage.setItem('africart-active-store-id', id);
+  }, []);
+
+  /** Fetch the current vendor's real Store document from the DB */
+  const fetchVendorStore = useCallback(async () => {
+    // Wait for auth hydration to finish before deciding whether a vendor has a store.
+    // Without this, a hard refresh can briefly look like "no user + no store" and
+    // incorrectly kick an existing vendor back into onboarding.
+    if (authLoading) {
+      setVendorStoreLoading(true);
+      return;
+    }
+    if (!user?.email || (user.role !== 'vendor' && user.role !== 'super_admin')) {
+      setVendorStore(null);
+      setVendorStoreError(false);
+      setVendorStoreLoading(false);
+      if (typeof window !== 'undefined') localStorage.removeItem('africart-vendor-store');
+      return;
+    }
+    setVendorStoreLoading(true);
+    setVendorStoreError(false);
+    try {
+      const res = await fetch(`/api/stores?vendorEmail=${encodeURIComponent(user.email.trim().toLowerCase())}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.success && data.stores?.length > 0) {
+        // Use the most recent active store, or the most recent any-status store
+        const active = data.stores.find((s: VendorStoreDoc) => s.status === 'active');
+        const targetStore = active || data.stores[0];
+        setVendorStore(targetStore);
+        setVendorStoreError(false);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('africart-vendor-store', JSON.stringify(targetStore));
+        }
+      } else {
+        setVendorStore(null);
+        setVendorStoreError(false);
+        if (typeof window !== 'undefined') localStorage.removeItem('africart-vendor-store');
+      }
+    } catch (err) {
+      console.error('Failed to fetch vendor store:', err);
+      // Mark as error so layout does NOT redirect to onboarding on API failures
+      setVendorStoreError(true);
+    } finally {
+      setVendorStoreLoading(false);
+    }
+  }, [user, authLoading]);
+
+  const refreshVendorStore = useCallback(() => {
+    fetchVendorStore();
+  }, [fetchVendorStore]);
+
+  useEffect(() => {
+    fetchVendorStore();
+  }, [fetchVendorStore]);
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -939,7 +1095,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, deleteAllProducts, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings, campaigns, refreshCampaigns }}>
+    <StoreContext.Provider value={{ allProducts, productsLoading, addProduct, deleteProduct, deleteAllProducts, updateProduct, refreshProducts, followers, followVendor, unfollowVendor, isFollowing, getVendorSettings, saveVendorSettings, campaigns, refreshCampaigns, activeStoreId, setActiveStoreId, vendorStore, vendorStoreLoading, vendorStoreError, refreshVendorStore }}>
       {children}
     </StoreContext.Provider>
   );
@@ -1046,7 +1202,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Fetch unread counts from API (not just localStorage)
     try {
       const [msgRes, notifRes] = await Promise.all([
-        fetch(`/api/messages?email=${encodeURIComponent(user.email)}`),
+        fetch(`/api/messages?email=${encodeURIComponent(user.email)}&role=${encodeURIComponent(user.role || 'customer')}`),
         fetch(`/api/notifications?email=${encodeURIComponent(user.email)}`)
       ]);
 

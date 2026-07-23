@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useAuth, useStore } from '@/context/AppContext';
 import { useAdmin } from '@/context/AdminContext';
 import { useRouter } from 'next/navigation';
@@ -33,20 +34,30 @@ const VendorMetricCard = ({ title, value, trend, icon, color }: { title: string,
 
 export default function VendorDashboard() {
   const { user } = useAuth();
-  const { allProducts, followers, getVendorSettings } = useStore();
+  const { allProducts, followers, getVendorSettings, vendorStore } = useStore();
   const { allOrders, allAdmins } = useAdmin();
   const router = useRouter();
 
   if (!user) return null;
 
-  const vendorProducts = allProducts.filter(p => p.vendorEmail === user.email);
-  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === user.email));
-  const vendorFollowers = followers.filter(f => f.vendorEmail === user.email);
-  const vendorSettings = getVendorSettings(user.email);
+  const vendorEmail = vendorStore?.vendorEmail || user.email;
+  const storeName = vendorStore?.name || user.name;
+
+  // ── Go-live freshness check: within 48h of goLiveAt ──
+  const isNewlyLive = vendorStore?.status === 'active' && vendorStore?.goLiveAt &&
+    (Date.now() - new Date(vendorStore.goLiveAt).getTime()) < 48 * 60 * 60 * 1000;
+
+  // ── Payout warning ──
+  const paystackFailed = vendorStore?.paystackSubaccountStatus === 'failed';
+  const storeSuspended = vendorStore?.status === 'suspended';
+  const vendorProducts = allProducts.filter(p => p.vendorEmail === vendorEmail);
+  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === vendorEmail));
+  const vendorFollowers = followers.filter(f => f.vendorEmail === vendorEmail);
+  const vendorSettings = getVendorSettings(vendorEmail);
 
   const totalRevenue = vendorOrders.filter(o => o.status !== 'Cancelled').reduce((sum, order) => {
     const vendorItemsTotal = order.products
-      .filter(p => p.vendorEmail === user.email)
+      .filter(p => p.vendorEmail === vendorEmail)
       .reduce((s, p) => s + (p.price * p.quantity), 0);
     return sum + vendorItemsTotal;
   }, 0);
@@ -58,7 +69,6 @@ export default function VendorDashboard() {
     ? (vendorProducts.reduce((sum, p) => sum + p.rating, 0) / vendorProducts.length).toFixed(1)
     : '0.0';
 
-  const storeName = vendorSettings.storeName || allAdmins.find(a => a.email === user.email)?.storeName || user.name;
 
   // Revenue Data for Chart (Last 7 days)
   const last7Days = [...Array(7)].map((_, i) => {
@@ -73,7 +83,7 @@ export default function VendorDashboard() {
       return orderDate === dateStr && o.status !== 'Cancelled';
     }).reduce((sum, order) => {
       const vendorItemsTotal = order.products
-        .filter(p => p.vendorEmail === user.email)
+        .filter(p => p.vendorEmail === vendorEmail)
         .reduce((s, p) => s + (p.price * p.quantity), 0);
       return sum + vendorItemsTotal;
     }, 0);
@@ -101,11 +111,14 @@ export default function VendorDashboard() {
   };
 
   // Onboarding steps computation
+  const verificationLink = vendorStore?._id
+    ? `/vendor/onboarding/verification?storeId=${vendorStore._id}`
+    : '/vendor/onboarding/verification';
   const onboardingSteps = [
     { title: 'Add your first product', done: vendorProducts.length > 0, link: '/vendor/products', desc: 'Publish products to start receiving orders' },
     { title: 'Set delivery zones', done: !!(vendorSettings?.deliveryPlaces && vendorSettings.deliveryPlaces.length > 0), link: '/vendor/settings', desc: 'Add region locations you can deliver to' },
     { title: 'Configure store profile', done: !!(vendorSettings?.storeName), link: '/vendor/settings', desc: 'Set store name, logo, contact, description' },
-    { title: 'Verify account ID', done: !!(user.isVerified), link: '/vendor/settings', desc: 'Complete registration verification check' },
+    { title: 'Verify account ID', done: !!(user.isVerified), link: '/vendor/settings?tab=verification', desc: 'Complete registration identity & document check' },
   ];
   const completedStepsCount = onboardingSteps.filter(s => s.done).length;
   const onboardingProgress = Math.round((completedStepsCount / onboardingSteps.length) * 100);
@@ -123,6 +136,44 @@ export default function VendorDashboard() {
           Add Product
         </button>
       </div>
+
+      {/* ── Go-live congratulations banner ── */}
+      {isNewlyLive && (
+        <div className="animate-fade-in-up" style={{ padding: '20px 28px', borderRadius: 20, background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(195,244,0,0.06))', border: '1px solid rgba(0,229,255,0.3)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 40, color: 'var(--lime-400)', flexShrink: 0 }}>rocket_launch</span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: '1.1rem', marginBottom: 4 }}>🎉 Your store is live!</div>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>
+              <strong style={{ color: 'var(--on-surface)' }}>{storeName}</strong> is now visible to customers on AfriCart. Make a great first impression — customise your store design now.
+            </p>
+          </div>
+          <Link href="/vendor/settings" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12, background: 'linear-gradient(135deg, #00e5ff, var(--lime-400))', color: '#000', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'var(--font-lexend)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>palette</span>
+            Customise Store
+          </Link>
+        </div>
+      )}
+
+      {/* ── Payout / suspended warning banner ── */}
+      {(paystackFailed || storeSuspended) && (
+        <div className="animate-fade-in-up" style={{ padding: '20px 28px', borderRadius: 20, background: 'rgba(244,67,54,0.06)', border: '1px solid rgba(244,67,54,0.3)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 40, color: 'var(--error)', flexShrink: 0 }}>warning</span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: '1rem', color: 'var(--error)', marginBottom: 4 }}>
+              {storeSuspended ? '⚠️ Your store has been suspended' : '⚠️ Payout account issue detected'}
+            </div>
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--on-surface-variant)' }}>
+              {storeSuspended
+                ? 'Your store is not visible to customers. This is usually caused by a payout account problem. Fix it to get back online.'
+                : 'Your Paystack payout account may be invalid or deactivated. Orders can still come in but payouts will fail until this is resolved.'}
+            </p>
+          </div>
+          <Link href="/vendor/payouts" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12, background: 'var(--error)', color: '#fff', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'var(--font-lexend)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>account_balance_wallet</span>
+            Fix Payout
+          </Link>
+        </div>
+      )}
 
       {/* Onboarding Checklist progress bar */}
       {showOnboardingChecklist && (
@@ -317,29 +368,23 @@ export default function VendorDashboard() {
         <div style={{ flex: '1 1 400px', backgroundColor: 'var(--surface)', borderRadius: '16px', padding: '24px', border: '1px solid var(--outline)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h3 className="font-lexend" style={{ fontSize: '1.2rem' }}>Your Products</h3>
-            <button onClick={() => router.push('/vendor/products')} style={{ background: 'none', border: 'none', color: '#00e5ff', cursor: 'pointer', fontWeight: 500, fontSize: '0.9rem' }}>Inventory</button>
+            <button onClick={() => router.push('/vendor/products')} style={{ background: 'none', border: 'none', color: '#00e5ff', cursor: 'pointer', fontWeight: 500, fontSize: '0.9rem' }}>Manage</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {vendorProducts.length === 0 ? (
-              <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', textAlign: 'center', padding: '20px' }}>No products found. Start adding products!</p>
+              <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', textAlign: 'center', padding: '20px' }}>No products yet.</p>
             ) : (
-              vendorProducts.slice(0, 5).map((product, idx) => (
-                <div key={product.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: idx !== Math.min(vendorProducts.length, 5) - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
+              vendorProducts.slice(0, 5).map((product) => (
+                <div key={product.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px' }}>
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                    <img src={product.image} alt={product.name} style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }} />
+                    <img src={product.image} style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }} alt={product.name} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontWeight: 500 }}>{product.name}</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{product.category}</span>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }} className="line-clamp-1">{product.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Stock: {product.stock || 0}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    <span style={{ fontWeight: 600 }}>GH₵{product.price.toFixed(2)}</span>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      color: (product.stock || 0) === 0 ? 'var(--error)' : (product.stock || 0) <= 5 ? '#ff9800' : 'var(--on-surface-variant)' 
-                    }}>
-                      Stock: {product.stock || 0}
-                    </span>
+                  <div>
+                    <span style={{ fontWeight: 800, color: 'var(--lime-400)' }}>GH₵{product.price}</span>
                   </div>
                 </div>
               ))
@@ -347,34 +392,6 @@ export default function VendorDashboard() {
           </div>
         </div>
       </div>
-
-      {/* Success Guide Section */}
-      <section style={{ backgroundColor: 'var(--surface)', padding: '32px', borderRadius: '16px', border: '1px solid var(--outline)', background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.05) 0%, rgba(195, 244, 0, 0.05) 100%)', marginTop: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h3 className="font-lexend" style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '4px' }}>Grow Your Business</h3>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>Learn how to boost your sales and build customer trust on AfriCart.</p>
-          </div>
-          <button style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: '#00e5ff', fontWeight: 600, cursor: 'pointer' }}>View Success Guide</button>
-        </div>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-          {[
-            { icon: 'photo_camera', title: 'High Quality Photos', desc: 'Products with at least 3 clear photos sell 60% faster.' },
-            { icon: 'verified', title: 'Get Verified', desc: 'Verified sellers get higher visibility in search results.' },
-            { icon: 'reviews', title: 'Engage with Reviews', desc: 'Responding to customer reviews builds long-term loyalty.' },
-            { icon: 'local_shipping', title: 'Fast Fulfillment', desc: 'Shipping orders within 24h boosts your store rating.' },
-          ].map((tip, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: '16px', padding: '16px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <span className="material-symbols-outlined" style={{ color: idx % 2 === 0 ? '#00e5ff' : 'var(--lime-400)', fontSize: '24px' }}>{tip.icon}</span>
-              <div>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '4px' }}>{tip.title}</h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', lineHeight: 1.4 }}>{tip.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

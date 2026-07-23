@@ -125,7 +125,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           }}
         >
           <Image
-            src={product.image}
+            src={product.image || product.images?.[0] || 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800'}
             alt={product.name}
             fill
             sizes="(max-width: 768px) 90vw, 480px"

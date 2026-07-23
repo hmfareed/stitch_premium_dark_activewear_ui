@@ -14,13 +14,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, messages });
     }
 
+    const role = searchParams.get('role') || 'customer';
+    
+    const conditions: any[] = [
+      { from: email },
+      { to: email },
+      { to: 'broadcast_all' }
+    ];
+    
+    if (role === 'vendor' || role === 'super_admin') {
+      conditions.push({ to: 'broadcast_vendors' });
+      conditions.push({ to: 'broadcast_admins' });
+    }
+
     const messages = await Message.find({
-      $or: [
-        { from: email },
-        { to: email },
-        { to: 'broadcast_all' },
-        { to: 'broadcast_admins' } // Should filter this based on user role in real app
-      ]
+      $or: conditions
     }).sort({ timestamp: -1 });
 
     return NextResponse.json({ success: true, messages });

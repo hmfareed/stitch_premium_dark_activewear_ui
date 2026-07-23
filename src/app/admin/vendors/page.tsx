@@ -229,6 +229,11 @@ export default function AdminVendorsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
+  // Pending store go-live queue
+  const [pendingStores, setPendingStores] = useState<any[]>([]);
+  const [storesLoading, setStoresLoading] = useState(true);
+  const [storeAction, setStoreAction] = useState<Record<string, { loading: boolean; reason: string }>>({});
+
   const fetchApps = useCallback(async () => {
     setLoading(true);
     try {
@@ -239,7 +244,34 @@ export default function AdminVendorsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchApps(); }, [fetchApps]);
+  const fetchPendingStores = useCallback(async () => {
+    setStoresLoading(true);
+    try {
+      const res = await fetch('/api/stores?status=under_review');
+      const data = await res.json();
+      if (data.success) setPendingStores(data.stores || []);
+    } catch {}
+    setStoresLoading(false);
+  }, []);
+
+  useEffect(() => { fetchApps(); fetchPendingStores(); }, [fetchApps, fetchPendingStores]);
+
+  const handleStoreDecision = async (storeId: string, action: 'approve' | 'reject') => {
+    const reason = storeAction[storeId]?.reason || '';
+    if (action === 'reject' && !reason.trim()) { alert('Please provide a rejection reason.'); return; }
+    setStoreAction(prev => ({ ...prev, [storeId]: { ...prev[storeId], loading: true, reason: prev[storeId]?.reason || '' } }));
+    try {
+      const res = await fetch(`/api/stores/${storeId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, rejectionReason: reason }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      fetchPendingStores();
+    } catch (e: any) { alert(e.message); }
+    finally { setStoreAction(prev => ({ ...prev, [storeId]: { loading: false, reason: '' } })); }
+  };
 
   const filtered = applications.filter(a => {
     if (a.status !== activeTab) return false;
@@ -259,17 +291,85 @@ export default function AdminVendorsPage() {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24, flexWrap:'wrap', gap:12 }}>
         <div>
-          <h1 style={{ fontFamily:'var(--font-lexend)', fontSize:22, fontWeight:900, marginBottom:4 }}>Vendor Applications</h1>
-          <p style={{ color:'var(--on-surface-variant)', fontSize:13 }}>Review, approve, and manage vendor store applications</p>
+          <h1 style={{ fontFamily:'var(--font-lexend)', fontSize:22, fontWeight:900, marginBottom:4 }}>Vendor Management</h1>
+          <p style={{ color:'var(--on-surface-variant)', fontSize:13 }}>Approve store go-live requests and manage vendor applications</p>
         </div>
-        <button onClick={fetchApps} style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 16px', borderRadius:10, border:'1px solid var(--outline)', background:'var(--surface-container)', color:'var(--foreground)', cursor:'pointer', fontFamily:'var(--font-lexend)', fontWeight:700, fontSize:12 }}>
+        <button onClick={() => { fetchApps(); fetchPendingStores(); }} style={{ display:'flex', alignItems:'center', gap:6, padding:'10px 16px', borderRadius:10, border:'1px solid var(--outline)', background:'var(--surface-container)', color:'var(--foreground)', cursor:'pointer', fontFamily:'var(--font-lexend)', fontWeight:700, fontSize:12 }}>
           <span className="material-symbols-outlined" style={{ fontSize:16 }}>refresh</span>
           Refresh
         </button>
       </div>
+
+      {/* ── Pending Store Go-Live Queue ── */}
+      {(storesLoading || pendingStores.length > 0) && (
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+            <span className="material-symbols-outlined" style={{ color:'#00e5ff', fontSize:22 }}>rocket_launch</span>
+            <h2 style={{ fontFamily:'var(--font-lexend)', fontSize:16, fontWeight:900, margin:0 }}>Stores Pending Go-Live</h2>
+            <span style={{ padding:'2px 10px', borderRadius:20, background:'rgba(0,229,255,0.1)', color:'#00e5ff', fontSize:11, fontWeight:700 }}>{pendingStores.length}</span>
+          </div>
+          {storesLoading ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[...Array(2)].map((_,i) => <div key={i} className="shimmer" style={{ height:80, borderRadius:16 }} />)}
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {pendingStores.map(store => (
+                <div key={store._id} style={{ background:'var(--surface)', border:'1px solid rgba(0,229,255,0.2)', borderRadius:16, padding:'20px 24px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12, marginBottom:12 }}>
+                    <div>
+                      <div style={{ fontFamily:'var(--font-lexend)', fontWeight:800, fontSize:15 }}>{store.name}</div>
+                      <div style={{ fontSize:12, color:'var(--on-surface-variant)', marginTop:2 }}>
+                        {store.vendorEmail} · /store/{store.slug} · {store.category} · {store.businessType}
+                      </div>
+                      <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                        <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background: store.paystackSubaccountStatus==='active'?'rgba(195,244,0,0.1)':'rgba(255,152,0,0.1)', color: store.paystackSubaccountStatus==='active'?'var(--lime-400)':'#ff9800' }}>
+                          💳 Paystack: {store.paystackSubaccountStatus}
+                        </span>
+                        <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background: store.phoneVerified?'rgba(195,244,0,0.1)':'rgba(244,67,54,0.1)', color: store.phoneVerified?'var(--lime-400)':'var(--error)' }}>
+                          📱 Phone: {store.phoneVerified ? 'Verified' : 'Not Verified'}
+                        </span>
+                        <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700, background: store.contentReviewed?'rgba(195,244,0,0.1)':'rgba(255,152,0,0.1)', color: store.contentReviewed?'var(--lime-400)':'#ff9800' }}>
+                          🔍 Content: {store.contentReviewed ? 'Clean' : 'Flagged'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <button
+                        onClick={() => handleStoreDecision(store._id, 'approve')}
+                        disabled={storeAction[store._id]?.loading}
+                        style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'var(--lime-400)', color:'#000', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'var(--font-lexend)', opacity: storeAction[store._id]?.loading ? 0.6 : 1 }}
+                      >
+                        {storeAction[store._id]?.loading ? '…' : '✓ Go Live'}
+                      </button>
+                      <button
+                        onClick={() => handleStoreDecision(store._id, 'reject')}
+                        disabled={storeAction[store._id]?.loading}
+                        style={{ padding:'8px 18px', borderRadius:10, border:'1px solid var(--error)', background:'rgba(244,67,54,0.08)', color:'var(--error)', fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'var(--font-lexend)', opacity: storeAction[store._id]?.loading ? 0.6 : 1 }}
+                      >
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </div>
+                  {/* Rejection reason input */}
+                  <input
+                    type="text"
+                    placeholder="Rejection reason (required to reject)…"
+                    value={storeAction[store._id]?.reason || ''}
+                    onChange={e => setStoreAction(prev => ({ ...prev, [store._id]: { ...prev[store._id], loading: prev[store._id]?.loading || false, reason: e.target.value } }))}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'8px 14px', borderRadius:8, border:'1px solid var(--outline)', background:'var(--surface-container)', color:'var(--on-surface)', fontSize:12, outline:'none', fontFamily:'var(--font-inter)' }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <hr style={{ border:'none', borderTop:'1px solid var(--outline)', marginBottom:28 }} />
+      <h2 style={{ fontFamily:'var(--font-lexend)', fontSize:16, fontWeight:900, marginBottom:20 }}>Vendor Applications</h2>
 
       {/* Stats */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>

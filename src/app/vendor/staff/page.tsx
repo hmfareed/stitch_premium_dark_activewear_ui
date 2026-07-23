@@ -1,583 +1,444 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth, useToast } from '@/context/AppContext';
 
-interface TeamMember {
-  membershipId: string;
+type StaffRole = 'manager' | 'order_staff' | 'fulfillment_staff' | 'customer_service';
+type StaffStatus = 'active' | 'inactive' | 'suspended';
+
+interface StaffMember {
+  id: string;
   userId: string;
-  name: string;
-  phoneNumber: string;
-  role: string;
-  joinedAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: StaffRole;
+  status: StaffStatus;
+  permissions: {
+    viewOrders: boolean;
+    manageOrders: boolean;
+    viewProducts: boolean;
+    manageProducts: boolean;
+    viewAnalytics: boolean;
+    viewCustomers: boolean;
+    manageStaff: boolean;
+    viewPayouts: boolean;
+  };
+  workSchedule: {
+    monday: { start: string; end: string; working: boolean };
+    tuesday: { start: string; end: string; working: boolean };
+    wednesday: { start: string; end: string; working: boolean };
+    thursday: { start: string; end: string; working: boolean };
+    friday: { start: string; end: string; working: boolean };
+    saturday: { start: string; end: string; working: boolean };
+    sunday: { start: string; end: string; working: boolean };
+  };
+  ordersProcessed: number;
+  customerRating: number;
+  hiredAt: string;
+  lastActiveAt?: string;
 }
 
-interface Invitation {
-  id: string;
-  contact: string;
-  intendedRole: string;
-  status: 'pending' | 'accepted' | 'revoked' | 'expired';
-  expiresAt: string;
-  createdAt: string;
-  invitedByName: string;
-}
+const roleLabels: Record<StaffRole, string> = {
+  manager: 'Manager',
+  order_staff: 'Order Staff',
+  fulfillment_staff: 'Fulfillment Staff',
+  customer_service: 'Customer Service',
+};
 
-interface SMSLog {
-  id: string;
-  contact: string;
-  message: string;
-  link: string;
-  sentAt: string;
-}
+const roleColors: Record<StaffRole, string> = {
+  manager: '#a855f7',
+  order_staff: '#00e5ff',
+  fulfillment_staff: 'var(--lime-400)',
+  customer_service: '#f59e0b',
+};
 
-export default function VendorStaffPage() {
+const defaultPermissionsByRole: Record<StaffRole, StaffMember['permissions']> = {
+  manager: {
+    viewOrders: true,
+    manageOrders: true,
+    viewProducts: true,
+    manageProducts: true,
+    viewAnalytics: true,
+    viewCustomers: true,
+    manageStaff: true,
+    viewPayouts: true,
+  },
+  order_staff: {
+    viewOrders: true,
+    manageOrders: true,
+    viewProducts: true,
+    manageProducts: false,
+    viewAnalytics: false,
+    viewCustomers: true,
+    manageStaff: false,
+    viewPayouts: false,
+  },
+  fulfillment_staff: {
+    viewOrders: true,
+    manageOrders: true,
+    viewProducts: true,
+    manageProducts: false,
+    viewAnalytics: false,
+    viewCustomers: false,
+    manageStaff: false,
+    viewPayouts: false,
+  },
+  customer_service: {
+    viewOrders: true,
+    manageOrders: false,
+    viewProducts: true,
+    manageProducts: false,
+    viewAnalytics: false,
+    viewCustomers: true,
+    manageStaff: false,
+    viewPayouts: false,
+  },
+};
+
+export default function VendorStaffManagement() {
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  
-  // Scopes and Stores
-  const [activeVendorId, setActiveVendorId] = useState('v_kente');
-  const [staffList, setStaffList] = useState<TeamMember[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Form inputs
-  const [invitePhone, setInvitePhone] = useState('');
-  const [selectedRole, setSelectedRole] = useState('catalog_editor');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // SMS Simulator Drawer State
-  const [smsLogs, setSmsLogs] = useState<SMSLog[]>([]);
-  const [isSmsOpen, setIsSmsOpen] = useState(false);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [filterRole, setFilterRole] = useState<StaffRole | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<StaffStatus | 'all'>('all');
 
-  const stores = [
-    { id: 'v_kente', name: '🇬🇭 Kente Village Co. (Bonwire)' },
-    { id: 'v_shea', name: '🇬🇭 Northern Shea Organics (Tamale)' },
-    { id: 'v_beads', name: '🇬🇭 Accra Bead Artisans (Krobo)' }
-  ];
-
-  const roles = [
-    { key: 'catalog_editor', name: 'Catalog Editor', desc: 'Add, edit, delete products & update stock' },
-    { key: 'order_fulfillment', name: 'Order Fulfillment', desc: 'Accept/reject orders, print packing slips' },
-    { key: 'manager', name: 'Store Manager', desc: 'Full access to products, orders, promotions, and settings' },
-    { key: 'support', name: 'Customer Support', desc: 'Handle client chats and tickets, hide sales & catalog' }
-  ];
-
-  const fetchStaff = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`https://africart-fareeds-projects-f8be0de6.vercel.app/api/vendors/${activeVendorId}/staff`, {
-        headers: {
-          'x-bypass-auth': 'africart_secret_bypass_2026',
-          'x-vendor-id': activeVendorId
-        }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStaffList(data.staff || []);
-        setInvitations(data.invitations || []);
-      } else {
-        showToast(data.message || 'Error loading staff list', 'error');
-      }
-    } catch (err) {
-      console.error("Error connecting to AfriCart API:", err);
-      showToast('Failed to connect to AfriCart database', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Form state for adding/editing staff
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    role: 'order_staff' as StaffRole,
+    customPermissions: false,
+    permissions: defaultPermissionsByRole.order_staff,
+  });
 
   useEffect(() => {
-    fetchStaff();
-  }, [activeVendorId]);
+    loadStaffMembers();
+  }, []);
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invitePhone.trim()) return;
-    setIsSubmitting(true);
+  const loadStaffMembers = async () => {
+    setIsLoading(true);
     try {
-      const res = await fetch(`https://africart-fareeds-projects-f8be0de6.vercel.app/api/vendors/${activeVendorId}/invitations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-bypass-auth': 'africart_secret_bypass_2026',
-          'x-vendor-id': activeVendorId
-        },
-        body: JSON.stringify({
-          contact: invitePhone.trim(),
-          role: selectedRole
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`SMS Invitation successfully dispatched!`, 'success');
-        setInvitePhone('');
-        
-        // Append to local simulated SMS logs
-        const newSMS: SMSLog = {
-          id: data.invitation.id,
-          contact: invitePhone.trim(),
-          message: data.smsSimulated,
-          link: data.inviteLink,
-          sentAt: new Date().toISOString()
-        };
-        setSmsLogs(prev => [newSMS, ...prev]);
-        setIsSmsOpen(true); // Automatically slide-open simulator drawer!
-        
-        fetchStaff();
+      const res = await fetch('/api/vendor-staff');
+      if (res.ok) {
+        const data = await res.json();
+        setStaffMembers(data.staff || []);
       } else {
-        showToast(data.message || 'Failed to dispatch SMS invitation', 'error');
+        showToast('Failed to load staff members', 'error');
       }
-    } catch {
-      showToast('Error dispatching SMS invitation', 'error');
+    } catch (error) {
+      console.error('Error loading staff:', error);
+      showToast('Error loading staff members', 'error');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
-  const handleResend = async (invitationId: string) => {
+  const handleAddStaff = async () => {
     try {
-      const res = await fetch(`https://africart-fareeds-projects-f8be0de6.vercel.app/api/vendors/${activeVendorId}/invitations/${invitationId}/resend`, {
+      const res = await fetch('/api/vendor-staff', {
         method: 'POST',
-        headers: {
-          'x-bypass-auth': 'africart_secret_bypass_2026',
-          'x-vendor-id': activeVendorId
-        }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          permissions: formData.customPermissions ? formData.permissions : defaultPermissionsByRole[formData.role],
+        }),
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('SMS Invitation resent successfully!', 'success');
-        
-        const newSMS: SMSLog = {
-          id: invitationId,
-          contact: data.invitation.contact,
-          message: data.smsSimulated,
-          link: data.inviteLink,
-          sentAt: new Date().toISOString()
-        };
-        setSmsLogs(prev => [newSMS, ...prev]);
-        setIsSmsOpen(true); // Open simulator
-        
-        fetchStaff();
+
+      if (res.ok) {
+        showToast('Staff member added successfully', 'success');
+        setShowAddModal(false);
+        resetForm();
+        loadStaffMembers();
       } else {
-        showToast(data.message || 'Failed to resend invite', 'error');
+        const error = await res.json();
+        showToast(error.message || 'Failed to add staff member', 'error');
       }
-    } catch {
-      showToast('Error resending invite', 'error');
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      showToast('Error adding staff member', 'error');
     }
   };
 
-  const handleRevokeInvite = async (invitationId: string) => {
-    if (!confirm('Are you sure you want to revoke this pending invitation?')) return;
+  const handleUpdateStaff = async () => {
+    if (!selectedStaff) return;
+
     try {
-      const res = await fetch(`https://africart-fareeds-projects-f8be0de6.vercel.app/api/vendors/${activeVendorId}/invitations/${invitationId}/revoke`, {
-        method: 'POST',
-        headers: {
-          'x-bypass-auth': 'africart_secret_bypass_2026',
-          'x-vendor-id': activeVendorId
-        }
+      const res = await fetch(`/api/vendor-staff/${selectedStaff.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          permissions: formData.customPermissions ? formData.permissions : defaultPermissionsByRole[formData.role],
+        }),
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Invitation successfully revoked.');
-        fetchStaff();
+
+      if (res.ok) {
+        showToast('Staff member updated successfully', 'success');
+        setShowEditModal(false);
+        setSelectedStaff(null);
+        resetForm();
+        loadStaffMembers();
       } else {
-        showToast(data.message || 'Failed to revoke invite', 'error');
+        const error = await res.json();
+        showToast(error.message || 'Failed to update staff member', 'error');
       }
-    } catch {
-      showToast('Error revoking invite', 'error');
+    } catch (error) {
+      console.error('Error updating staff:', error);
+      showToast('Error updating staff member', 'error');
     }
   };
 
-  const handleRevokeStaff = async (membershipId: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove ${name} from active staff?`)) return;
+  const handleDeleteStaff = async (staffId: string) => {
+    if (!confirm('Are you sure you want to remove this staff member?')) return;
+
     try {
-      const res = await fetch(`https://africart-fareeds-projects-f8be0de6.vercel.app/api/vendors/${activeVendorId}/staff/${membershipId}`, {
+      const res = await fetch(`/api/vendor-staff/${staffId}`, {
         method: 'DELETE',
-        headers: {
-          'x-bypass-auth': 'africart_secret_bypass_2026',
-          'x-vendor-id': activeVendorId
-        }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Staff membership removed successfully');
-        fetchStaff();
+
+      if (res.ok) {
+        showToast('Staff member removed successfully', 'success');
+        loadStaffMembers();
       } else {
-        showToast(data.message || 'Failed to remove staff', 'error');
+        showToast('Failed to remove staff member', 'error');
       }
-    } catch {
-      showToast('Error removing staff', 'error');
+    } catch (error) {
+      console.error('Error deleting staff:', error);
+      showToast('Error removing staff member', 'error');
     }
   };
 
-  const roleColors: Record<string, string> = {
-    manager: 'var(--lime-400)',
-    catalog_editor: '#00e5ff',
-    order_fulfillment: '#7c4dff',
-    support: '#26a69a'
+  const resetForm = () => {
+    setFormData({
+      fullName: '',
+      email: '',
+      phone: '',
+      role: 'order_staff',
+      customPermissions: false,
+      permissions: defaultPermissionsByRole.order_staff,
+    });
   };
 
-  if (!user) return null;
+  const openEditModal = (staff: StaffMember) => {
+    setSelectedStaff(staff);
+    setFormData({
+      fullName: staff.fullName,
+      email: staff.email,
+      phone: staff.phone,
+      role: staff.role,
+      customPermissions: JSON.stringify(staff.permissions) !== JSON.stringify(defaultPermissionsByRole[staff.role]),
+      permissions: staff.permissions,
+    });
+    setShowEditModal(true);
+  };
+
+  const filteredStaff = staffMembers.filter(staff => {
+    if (filterRole !== 'all' && staff.role !== filterRole) return false;
+    if (filterStatus !== 'all' && staff.status !== filterStatus) return false;
+    return true;
+  });
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px', position: 'relative', minHeight: '80vh' }}>
-      
-      {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ padding: '32px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Staff Accounts</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Invite helper staff and configure their manager access permissions</p>
+          <h1 style={{ margin: '0 0 8px 0', fontSize: '1.75rem' }}>Staff Management</h1>
+          <p style={{ margin: 0, color: 'var(--on-surface-variant)' }}>Manage your team members and their permissions</p>
         </div>
-        
-        {/* Active Store Switcher Selector */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontWeight: 600 }}>Active Store Dashboard Scope</label>
-          <select
-            value={activeVendorId}
-            onChange={(e) => setActiveVendorId(e.target.value)}
-            style={{
-              padding: '12px 18px',
-              borderRadius: '10px',
-              border: '1px solid var(--outline)',
-              backgroundColor: 'var(--surface)',
-              color: 'var(--on-surface)',
-              fontFamily: 'var(--font-lexend)',
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              outline: 'none',
-              cursor: 'pointer',
-              minWidth: '280px'
-            }}
-          >
-            {stores.map(store => (
-              <option key={store.id} value={store.id}>{store.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        
-        {/* Invite Form */}
-        <form onSubmit={handleInvite} style={{ flex: '1 1 350px', backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h3 className="font-lexend" style={{ fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>✉️</span> Invite Team Member
-          </h3>
-
-          {/* Phone Number Input */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 600 }}>Staff Phone Number (MoMo-Linked)</label>
-            <input
-              required
-              type="tel"
-              value={invitePhone}
-              onChange={e => setInvitePhone(e.target.value)}
-              placeholder="e.g. 0241234567 or 0551112222"
-              pattern="^[0-9+]{10,15}$"
-              title="Please enter a valid Ghana phone number (10-15 digits)"
-              style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }}
-            />
-            <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}> Ghana MoMo numbers are preferred for SMS-based onboarding.</span>
-          </div>
-
-          {/* Role selector */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 600 }}>Permissions Scopes & Role</label>
-            {roles.map(r => (
-              <div
-                key={r.key}
-                onClick={() => setSelectedRole(r.key)}
-                style={{
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: `1px solid ${selectedRole === r.key ? 'var(--lime-400)' : 'var(--outline)'}`,
-                  background: selectedRole === r.key ? 'color-mix(in srgb, var(--lime-400) 6%, transparent)' : 'transparent',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ color: selectedRole === r.key ? 'var(--lime-400)' : 'var(--on-surface-variant)' }}>
-                  {selectedRole === r.key ? 'radio_button_checked' : 'radio_button_unchecked'}
-                </span>
-                <div>
-                  <span style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, color: selectedRole === r.key ? 'var(--lime-400)' : 'var(--foreground)' }}>{r.name}</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>{r.desc}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            style={{
-              padding: '14px',
-              borderRadius: '8px',
-              backgroundColor: '#00e5ff',
-              color: 'black',
-              border: 'none',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'var(--font-lexend)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              transition: 'all 0.2s ease',
-              opacity: isSubmitting ? 0.7 : 1
-            }}
-          >
-            {isSubmitting ? 'Dispatching SMS...' : 'Send SMS Invitation'}
-          </button>
-        </form>
-
-        {/* Staff & Invitations Lists */}
-        <div style={{ flex: '2 1 450px', backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <h3 className="font-lexend" style={{ fontSize: '1.2rem', margin: 0 }}>Active Store Helpers</h3>
-
-          {loading ? (
-            <p style={{ color: 'var(--on-surface-variant)' }}>Fetching active helpers...</p>
-          ) : (staffList.length === 0 && invitations.length === 0) ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--on-surface-variant)' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '40px', opacity: 0.2, marginBottom: '8px' }}>group</span>
-              <p style={{ margin: 0, fontSize: '0.9rem' }}>No helper staff active or invited yet. Dispatch your first invitation above!</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
-              {/* Active Members Table list */}
-              {staffList.map(member => (
-                <div key={member.membershipId} style={{ padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline-variant)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{member.name}</span>
-                      <span style={{
-                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600,
-                        backgroundColor: `color-mix(in srgb, var(--lime-400) 15%, transparent)`,
-                        color: 'var(--lime-400)', textTransform: 'capitalize'
-                      }}>Active</span>
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '6px' }}>📞 {member.phoneNumber}</div>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      <span style={{ padding: '2px 8px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', borderRadius: '6px', fontSize: '0.7rem', color: roleColors[member.role] || 'var(--on-surface-variant)', fontWeight: 600 }}>
-                        🔑 {member.role.replace(/_/g, ' ').toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRevokeStaff(member.membershipId, member.name)}
-                    style={{ padding: '6px 12px', border: '1px solid var(--error)', background: 'transparent', color: 'var(--error)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s ease' }}
-                  >
-                    Revoke
-                  </button>
-                </div>
-              ))}
-
-              {/* Pending Invitations list */}
-              {invitations.map(invite => (
-                <div key={invite.id} style={{ padding: '16px', backgroundColor: 'color-mix(in srgb, #ff9800 4%, var(--surface-container))', borderRadius: '12px', border: '1px solid color-mix(in srgb, #ff9800 30%, var(--outline-variant))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>📞 {invite.contact}</span>
-                      <span style={{
-                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600,
-                        backgroundColor: 'rgba(255, 152, 0, 0.15)',
-                        color: '#ff9800', textTransform: 'capitalize'
-                      }}>{invite.status}</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginBottom: '6px' }}>Invited by: {invite.invitedByName}</div>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      <span style={{ padding: '2px 8px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', borderRadius: '6px', fontSize: '0.7rem', color: roleColors[invite.intendedRole] || 'var(--on-surface-variant)', fontWeight: 600 }}>
-                        🔑 {invite.intendedRole.replace(/_/g, ' ').toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {invite.status === 'pending' && (
-                      <button
-                        onClick={() => handleResend(invite.id)}
-                        style={{ padding: '6px 12px', border: '1px solid var(--lime-400)', background: 'transparent', color: 'var(--lime-400)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s ease' }}
-                      >
-                        Resend SMS
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleRevokeInvite(invite.id)}
-                      style={{ padding: '6px 12px', border: '1px solid var(--error)', background: 'transparent', color: 'var(--error)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s ease' }}
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 📲 SMS SIMULATOR DRAWING COMPONENT PANEL */}
-      {/* ============================================================== */}
-      
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsSmsOpen(prev => !prev)}
-        style={{
-          position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          backgroundColor: '#ff9800',
-          color: 'black',
-          padding: '12px 24px',
-          borderRadius: '50px',
-          border: 'none',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-          fontWeight: 700,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          zIndex: 9999,
-          fontFamily: 'var(--font-lexend)',
-          transition: 'all 0.2s ease'
-        }}
-      >
-        <span className="material-symbols-outlined">sms</span>
-        <span>📲 SMS Simulator ({smsLogs.length})</span>
-      </button>
-
-      {/* Simulator Drawer Panel */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        right: isSmsOpen ? 0 : '-420px',
-        width: '400px',
-        height: '100vh',
-        backgroundColor: '#0c0f12',
-        borderLeft: '1px solid var(--outline)',
-        boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.5)',
-        zIndex: 9998,
-        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        padding: '30px 24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px'
-      }}>
-        
-        {/* Drawer Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 className="font-lexend" style={{ fontSize: '1.3rem', margin: 0, color: '#ff9800' }}>📲 SMS Gateway Simulation</h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Mimicking Hubtel & mNotify SMS APIs</p>
-          </div>
-          <button
-            onClick={() => setIsSmsOpen(false)}
-            style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        {/* Simulated Phone Screen */}
-        <div style={{
-          flex: 1,
-          borderRadius: '32px',
-          border: '12px solid #2d3748',
-          backgroundColor: '#1a202c',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)'
-        }}>
-          
-          {/* Phone Top Speaker/Camera notch */}
-          <div style={{
-            height: '24px',
-            backgroundColor: '#2d3748',
-            width: '120px',
-            position: 'absolute',
-            top: 0,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            borderBottomLeftRadius: '12px',
-            borderBottomRightRadius: '12px',
-            zIndex: 10,
+        <button
+          onClick={() => setShowAddModal(true)}
+          style={{
+            padding: '12px 24px',
+            background: 'var(--lime-400)',
+            border: 'none',
+            borderRadius: 8,
+            color: '#000',
+            fontWeight: 600,
+            cursor: 'pointer',
             display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <div style={{ width: '40px', height: '4px', borderRadius: '2px', backgroundColor: '#1a202c' }}></div>
-          </div>
+            alignItems: 'center',
+            gap: 8
+          }}
+        >
+          <span className="material-symbols-outlined">add</span>
+          Add Staff Member
+        </button>
+      </div>
 
-          {/* Simulated Phone Content Body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '36px 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {smsLogs.length === 0 ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#718096', textAlign: 'center', padding: '20px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.3 }}>sms_failed</span>
-                <span style={{ fontSize: '0.85rem' }}>No SMS dispatches simulated yet. Send a staff invitation to watch messages appear here in real-time!</span>
-              </div>
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+        <select
+          value={filterRole}
+          onChange={(e) => setFilterRole(e.target.value as StaffRole | 'all')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: '1px solid var(--outline)',
+            background: 'var(--surface)',
+            color: 'var(--foreground)'
+          }}
+        >
+          <option value="all">All Roles</option>
+          <option value="manager">Manager</option>
+          <option value="order_staff">Order Staff</option>
+          <option value="fulfillment_staff">Fulfillment Staff</option>
+          <option value="customer_service">Customer Service</option>
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as StaffStatus | 'all')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: '1px solid var(--outline)',
+            background: 'var(--surface)',
+            color: 'var(--foreground)'
+          }}
+        >
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
+
+      {/* Staff List */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ background: 'var(--surface-container)' }}>
+            <tr>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Staff Member</th>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Role</th>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Status</th>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Performance</th>
+              <th style={{ padding: '16px', textAlign: 'right', fontSize: '0.875rem', fontWeight: 600 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredStaff.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 16, display: 'block' }}>group_off</span>
+                  No staff members found
+                </td>
+              </tr>
             ) : (
-              smsLogs.map(log => (
-                <div key={log.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#a0aec0', alignSelf: 'center', margin: '4px 0' }}>
-                    {new Date(log.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                  
-                  {/* SMS Bubble */}
-                  <div style={{
-                    backgroundColor: '#2d3748',
-                    color: 'white',
-                    padding: '14px',
-                    borderRadius: '16px',
-                    borderBottomLeftRadius: '4px',
-                    maxWidth: '85%',
-                    alignSelf: 'flex-start',
-                    fontSize: '0.85rem',
-                    lineHeight: '1.4',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                    border: '1px solid #4a5568'
-                  }}>
-                    <strong style={{ display: 'block', fontSize: '0.75rem', color: '#ff9800', marginBottom: '4px' }}>💬 Hubtel Gateway</strong>
-                    {log.message}
-                    
-                    {/* Onboarding Button Link */}
-                    <div style={{ marginTop: '12px', borderTop: '1px solid #4a5568', paddingTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <a
-                        href={log.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          backgroundColor: '#00e5ff',
-                          color: 'black',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          textDecoration: 'none',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.3)'
-                        }}
-                      >
-                        <span>Open Link</span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '0.9rem' }}>open_in_new</span>
-                      </a>
+              filteredStaff.map((staff) => (
+                <tr key={staff.id} style={{ borderTop: '1px solid var(--outline)' }}>
+                  <td style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: 'var(--surface-container-high)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 600,
+                        color: 'var(--on-surface-variant)'
+                      }}>
+                        {staff.fullName.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p style={{ margin: '0 0 2px 0', fontWeight: 600 }}>{staff.fullName}</p>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>{staff.email}</p>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    <span style={{
+                      padding: '4px 12px',
+                      borderRadius: 12,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      background: `${roleColors[staff.role]}20`,
+                      color: roleColors[staff.role]
+                    }}>
+                      {roleLabels[staff.role]}
+                    </span>
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    <span style={{
+                      padding: '4px 12px',
+                      borderRadius: 12,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      background: staff.status === 'active' ? 'rgba(195, 244, 0, 0.2)' : staff.status === 'inactive' ? 'rgba(255, 152, 0, 0.2)' : 'rgba(244, 67, 54, 0.2)',
+                      color: staff.status === 'active' ? 'var(--lime-400)' : staff.status === 'inactive' ? '#ff9800' : '#f44336'
+                    }}>
+                      {staff.status.charAt(0).toUpperCase() + staff.status.slice(1)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
+                        {staff.ordersProcessed} orders processed
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#f59e0b' }}>star</span>
+                        <span style={{ fontSize: '0.75rem' }}>{staff.customerRating.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => openEditModal(staff)}
+                        style={{
+                          padding: '8px',
+                          background: 'var(--surface-container)',
+                          border: '1px solid var(--outline)',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          color: 'var(--foreground)'
+                        }}
+                        title="Edit"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStaff(staff.id)}
+                        style={{
+                          padding: '8px',
+                          background: 'rgba(244, 67, 54, 0.1)',
+                          border: '1px solid rgba(244, 67, 54, 0.3)',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          color: '#f44336'
+                        }}
+                        title="Delete"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ))
             )}
-          </div>
-          
-        </div>
+          </tbody>
+        </table>
       </div>
 
+      {/* Modals would go here - Add/Edit staff modals */}
     </div>
   );
 }

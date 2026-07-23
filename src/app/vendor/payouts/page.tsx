@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAuth } from '@/context/AppContext';
+import { useAuth, useStore } from '@/context/AppContext';
 import { useAdmin } from '@/context/AdminContext';
 
-export default function VendorFinancePage() {
+export default function VendorPayoutsPage() {
   const { user } = useAuth();
+  const { vendorStore } = useStore();
   const { allOrders, allPayouts, refreshData } = useAdmin();
   const [requestAmount, setRequestAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Mobile Money');
@@ -18,6 +19,8 @@ export default function VendorFinancePage() {
 
   if (!user) return null;
 
+  const vendorEmail = vendorStore?.vendorEmail || user?.email || '';
+
   const commissionRate = 0.03; // 3% platform commission
 
   // Calculate total gross earnings for this vendor across non-cancelled orders
@@ -27,7 +30,7 @@ export default function VendorFinancePage() {
 
   allOrders.filter(o => o.status !== 'Cancelled').forEach(order => {
     const vendorItemsTotal = (order.products || [])
-      .filter(p => p.vendorEmail === user.email)
+      .filter(p => p.vendorEmail === vendorEmail)
       .reduce((sum, p) => sum + (p.price * (p.quantity || 1)), 0);
 
     vendorTotalGross += vendorItemsTotal;
@@ -43,7 +46,7 @@ export default function VendorFinancePage() {
   const heldFunds = vendorLockedGross * (1 - commissionRate);
   const allTimeEarnings = vendorTotalGross * (1 - commissionRate);
 
-  const vendorPayoutRequests = allPayouts.filter(p => p.vendorEmail === user.email);
+  const vendorPayoutRequests = allPayouts.filter(p => p.vendorEmail === vendorEmail);
   const totalRequested = vendorPayoutRequests
     .filter(p => p.status !== 'Rejected')
     .reduce((sum, p) => sum + p.amount, 0);
@@ -56,6 +59,11 @@ export default function VendorFinancePage() {
     setError('');
     setSuccess('');
     
+    if (!user?.isVerified && user?.role !== 'super_admin') {
+      setError('Account verification required before requesting payout withdrawals. Please contact Admin to verify your store account.');
+      return;
+    }
+
     const amount = parseFloat(requestAmount);
     if (isNaN(amount) || amount <= 0) {
       setError('Please enter a valid amount.');
@@ -76,8 +84,8 @@ export default function VendorFinancePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vendorEmail: user.email,
-          vendorName: user.name,
+          vendorEmail: vendorEmail,
+          vendorName: vendorStore?.name,
           amount,
           paymentMethod,
           accountDetails,
@@ -105,8 +113,8 @@ export default function VendorFinancePage() {
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <div>
-        <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Finance & Payouts</h1>
-        <p style={{ color: 'var(--on-surface-variant)' }}>Manage your earnings, escrow balances, and request payouts.</p>
+        <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Payouts</h1>
+        <p style={{ color: 'var(--on-surface-variant)' }}>Manage your earnings, escrow balances, and request payouts scoped to {vendorStore?.name || 'your store'}.</p>
       </div>
 
       {/* Stats Cards */}
@@ -191,6 +199,13 @@ export default function VendorFinancePage() {
               Request Payout
             </h2>
 
+            {!user?.isVerified && user?.role !== 'super_admin' && (
+              <div style={{ padding: '14px 18px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 20, flexShrink: 0 }}>lock</span>
+                <span><strong>🔒 Verification Required:</strong> Payout withdrawals are restricted for unverified vendor accounts until approved by Admin.</span>
+              </div>
+            )}
+
             <form onSubmit={handleRequestPayout} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {error && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', fontSize: '0.9rem' }}>{error}</div>}
               {success && <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--lime-400) 15%, transparent)', color: 'var(--lime-400)', fontSize: '0.9rem' }}>{success}</div>}
@@ -206,6 +221,7 @@ export default function VendorFinancePage() {
                   style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
                   placeholder={`Max: ${currentBalance.toFixed(2)}`}
                   required
+                  disabled={!user?.isVerified && user?.role !== 'super_admin'}
                 />
               </div>
 
@@ -215,6 +231,7 @@ export default function VendorFinancePage() {
                   value={paymentMethod} 
                   onChange={e => setPaymentMethod(e.target.value)}
                   style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit' }}
+                  disabled={!user?.isVerified && user?.role !== 'super_admin'}
                 >
                   <option value="Mobile Money">Mobile Money (MTN, Telecel, AirtelTigo)</option>
                   <option value="Bank Transfer">Bank Transfer</option>
@@ -229,13 +246,14 @@ export default function VendorFinancePage() {
                   style={{ padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', width: '100%', fontFamily: 'inherit', minHeight: '80px', resize: 'vertical' }}
                   placeholder="e.g. 024XXXXXXX (MTN) - John Doe"
                   required
+                  disabled={!user?.isVerified && user?.role !== 'super_admin'}
                 />
               </div>
 
               <button 
                 type="submit" 
-                disabled={loading || currentBalance <= 0}
-                style={{ padding: '14px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: loading || currentBalance <= 0 ? 'not-allowed' : 'pointer', opacity: loading || currentBalance <= 0 ? 0.7 : 1, marginTop: '8px' }}
+                disabled={loading || currentBalance <= 0 || (!user?.isVerified && user?.role !== 'super_admin')}
+                style={{ padding: '14px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: '#000', border: 'none', fontWeight: 600, fontSize: '1rem', cursor: (loading || currentBalance <= 0 || (!user?.isVerified && user?.role !== 'super_admin')) ? 'not-allowed' : 'pointer', opacity: (loading || currentBalance <= 0 || (!user?.isVerified && user?.role !== 'super_admin')) ? 0.6 : 1, marginTop: '8px' }}
               >
                 {loading ? 'Submitting...' : 'Submit Request'}
               </button>

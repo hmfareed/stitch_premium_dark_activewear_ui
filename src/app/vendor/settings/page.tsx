@@ -1,5 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth, useStore, useToast, VendorSettings } from '@/context/AppContext';
 
 const GHANA_REGIONS = [
@@ -9,13 +10,30 @@ const GHANA_REGIONS = [
   'North East'
 ];
 
-export default function VendorSettingsPage() {
-  const { user } = useAuth();
+function VendorSettingsContent() {
+  const { user, updateUserVerification } = useAuth();
   const { getVendorSettings, saveVendorSettings } = useStore();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('store');
+  const searchParams = useSearchParams();
+
+  const initialTab = searchParams?.get('tab') || 'store';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [settings, setSettings] = useState<VendorSettings | null>(null);
   const [newPlace, setNewPlace] = useState('');
+
+  // ID verification form state
+  const [idType, setIdType] = useState('ghana_card');
+  const [idNumber, setIdNumber] = useState('');
+  const [docFront, setDocFront] = useState<File | null>(null);
+  const [docBack, setDocBack] = useState<File | null>(null);
+  const [isSubmittingId, setIsSubmittingId] = useState(false);
+
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user) {
@@ -28,6 +46,23 @@ export default function VendorSettingsPage() {
   const handleSave = () => {
     saveVendorSettings(user.email, settings);
     showToast('Settings saved successfully!');
+  };
+
+  const handleVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!idNumber.trim()) {
+      showToast('Please enter your document ID number', 'error');
+      return;
+    }
+    setIsSubmittingId(true);
+    try {
+      await updateUserVerification(true);
+      showToast('ID Verification submitted and approved successfully!', 'success');
+    } catch (err) {
+      showToast('Failed to update verification status', 'error');
+    } finally {
+      setIsSubmittingId(false);
+    }
   };
 
   const update = (key: keyof VendorSettings, value: any) => {
@@ -62,6 +97,7 @@ export default function VendorSettingsPage() {
     { id: 'store', name: 'Store Settings', icon: 'storefront' },
     { id: 'delivery', name: 'Delivery', icon: 'local_shipping' },
     { id: 'notifications', name: 'Notifications', icon: 'notifications' },
+    { id: 'verification', name: 'ID Verification', icon: 'badge' },
   ];
 
   const inputStyle: React.CSSProperties = {
@@ -165,15 +201,17 @@ export default function VendorSettingsPage() {
             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <h2 className="font-lexend" style={{ fontSize: '1.4rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>Delivery Settings</h2>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Delivery Fee (GH₵)</label>
-                <input 
-                  type="text" 
-                  value={settings.deliveryFee} 
-                  onChange={e => update('deliveryFee', e.target.value)}
-                  placeholder="e.g. 20.00"
-                  style={inputStyle} 
-                />
+              {/* Delivery fee is set platform-wide by superadmin — vendors cannot edit it */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', background: 'color-mix(in srgb, #a855f7 10%, transparent)', border: '1px solid color-mix(in srgb, #a855f7 35%, transparent)', borderRadius: 10 }}>
+                <span className="material-symbols-outlined" style={{ color: '#a855f7', fontSize: 20, marginTop: 2, flexShrink: 0 }}>lock</span>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--foreground)', margin: '0 0 4px' }}>
+                    Delivery Fee — Platform Controlled
+                  </p>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', margin: 0, lineHeight: 1.5 }}>
+                    The delivery fee is set by the platform administrator and applies uniformly across all vendors. Contact your superadmin to adjust it.
+                  </p>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -301,8 +339,208 @@ export default function VendorSettingsPage() {
               </div>
             </div>
           )}
+
+          {/* ─── ID VERIFICATION SETTINGS ─── */}
+          {activeTab === 'verification' && (
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ borderBottom: '1px solid var(--outline)', paddingBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h2 className="font-lexend" style={{ fontSize: '1.4rem' }}>Identity Verification</h2>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
+                    Verify your identity to build trust with customers and unlock premium seller perks.
+                  </p>
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px',
+                  backgroundColor: user.isVerified ? 'rgba(76, 175, 80, 0.15)' : 'rgba(255, 152, 0, 0.15)',
+                  border: `1px solid ${user.isVerified ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 152, 0, 0.3)'}`,
+                  color: user.isVerified ? '#4caf50' : '#ff9800', fontWeight: 600, fontSize: '0.85rem'
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {user.isVerified ? 'verified' : 'pending'}
+                  </span>
+                  {user.isVerified ? 'Verified Account' : 'Verification Required'}
+                </div>
+              </div>
+
+              {/* Status Card / Banner */}
+              {user.isVerified ? (
+                <div style={{
+                  padding: '20px', borderRadius: '12px',
+                  backgroundColor: 'rgba(76, 175, 80, 0.08)',
+                  border: '1px solid rgba(76, 175, 80, 0.2)',
+                  display: 'flex', gap: '16px', alignItems: 'flex-start'
+                }}>
+                  <span className="material-symbols-outlined" style={{ color: '#4caf50', fontSize: '32px', marginTop: '2px' }}>
+                    verified_user
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--on-surface)', marginBottom: '4px' }}>
+                      Your Account is Verified!
+                    </h3>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)', lineHeight: 1.5 }}>
+                      Thank you for completing identity verification. Your store has been awarded the <strong style={{ color: '#00e5ff' }}>Verified Seller Badge</strong>, unlimited product listing privileges, and priority payout processing.
+                    </p>
+                    <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                      <div style={{ background: 'var(--surface-container)', padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', display: 'block' }}>Verified Name</span>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user.name}</span>
+                      </div>
+                      <div style={{ background: 'var(--surface-container)', padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', display: 'block' }}>Verified Email</span>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user.email}</span>
+                      </div>
+                      <div style={{ background: 'var(--surface-container)', padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', display: 'block' }}>Listing Limit</span>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#4caf50' }}>Unlimited</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Benefits overview */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                    <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#00e5ff', fontSize: '24px', marginBottom: '6px' }}>workspace_premium</span>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '2px' }}>Verified Seller Badge</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Boost buyer confidence with a trust badge on all products.</div>
+                    </div>
+                    <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#00e5ff', fontSize: '24px', marginBottom: '6px' }}>inventory_2</span>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '2px' }}>Unlimited Listings</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Remove unverified listing caps and publish your full catalog.</div>
+                    </div>
+                    <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#00e5ff', fontSize: '24px', marginBottom: '6px' }}>bolt</span>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '2px' }}>Faster Payouts</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Enjoy expedited revenue withdrawals directly to your account.</div>
+                    </div>
+                  </div>
+
+                  {/* Document Submission Form */}
+                  <form onSubmit={handleVerifySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '8px' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, borderBottom: '1px solid var(--outline)', paddingBottom: '10px' }}>
+                      Submit Identification Document
+                    </h3>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontWeight: 500, fontSize: '0.9rem' }}>Document Type</label>
+                      <select
+                        value={idType}
+                        onChange={e => setIdType(e.target.value)}
+                        style={{ ...inputStyle, cursor: 'pointer' }}
+                      >
+                        <option value="ghana_card">Ghana Card (National ID)</option>
+                        <option value="passport">Passport</option>
+                        <option value="drivers_license">Driver's License</option>
+                        <option value="voters_id">Voter's ID</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontWeight: 500, fontSize: '0.9rem' }}>Document ID / Registration Number</label>
+                      <input
+                        type="text"
+                        value={idNumber}
+                        onChange={e => setIdNumber(e.target.value)}
+                        placeholder="e.g. GHA-123456789-0"
+                        required
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ fontWeight: 500, fontSize: '0.9rem' }}>Front of Document</label>
+                        <div style={{
+                          border: '2px dashed var(--outline)', borderRadius: '12px', padding: '24px 16px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: '8px', backgroundColor: 'var(--surface-container)', cursor: 'pointer', textAlign: 'center'
+                        }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#00e5ff' }}>cloud_upload</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                            {docFront ? docFront.name : 'Click or drop front photo of ID'}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>PNG, JPG or PDF up to 5MB</span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={e => setDocFront(e.target.files?.[0] || null)}
+                            style={{ display: 'none' }}
+                            id="doc-front-file"
+                          />
+                          <label htmlFor="doc-front-file" style={{ fontSize: '0.8rem', color: '#00e5ff', cursor: 'pointer', textDecoration: 'underline' }}>
+                            {docFront ? 'Change file' : 'Browse file'}
+                          </label>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ fontWeight: 500, fontSize: '0.9rem' }}>Back of Document / Selfie</label>
+                        <div style={{
+                          border: '2px dashed var(--outline)', borderRadius: '12px', padding: '24px 16px',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: '8px', backgroundColor: 'var(--surface-container)', cursor: 'pointer', textAlign: 'center'
+                        }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#00e5ff' }}>cloud_upload</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                            {docBack ? docBack.name : 'Click or drop back photo / selfie'}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>PNG, JPG or PDF up to 5MB</span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={e => setDocBack(e.target.files?.[0] || null)}
+                            style={{ display: 'none' }}
+                            id="doc-back-file"
+                          />
+                          <label htmlFor="doc-back-file" style={{ fontSize: '0.8rem', color: '#00e5ff', cursor: 'pointer', textDecoration: 'underline' }}>
+                            {docBack ? 'Change file' : 'Browse file'}
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmittingId}
+                      style={{
+                        padding: '14px 28px', borderRadius: '8px', backgroundColor: '#00e5ff', color: 'black',
+                        border: 'none', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', alignSelf: 'flex-start',
+                        marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+                        opacity: isSubmittingId ? 0.7 : 1
+                      }}
+                    >
+                      {isSubmittingId ? (
+                        <>
+                          <span className="material-symbols-outlined animate-spin" style={{ fontSize: '20px' }}>sync</span>
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>verified</span>
+                          Submit & Verify Account
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VendorSettingsPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ padding: '40px', color: 'var(--on-surface-variant)' }}>Loading settings...</div>
+    }>
+      <VendorSettingsContent />
+    </Suspense>
   );
 }

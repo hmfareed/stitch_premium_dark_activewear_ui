@@ -66,6 +66,31 @@ export const vendorRegisterSchema = Joi.object({
   }),
 });
 
+// ── Rider registration schema ───────────────────────────────────────────────
+export const riderRegisterSchema = Joi.object({
+  ...baseFields,
+  vehicleType: Joi.string().required().messages({
+    'any.required': 'Vehicle type is required',
+  }),
+  vehicleModel: Joi.string().allow('').optional(),
+  vehicleRegistration: Joi.string().allow('').optional(),
+  vehicleYear: Joi.number().integer().min(1900).max(new Date().getFullYear() + 1).optional()
+    .messages({
+      'number.base': 'Vehicle year must be a number',
+      'number.min': 'Vehicle year is too old',
+      'number.max': 'Vehicle year is in the future',
+    }),
+  preferredZones: Joi.array().items(Joi.string()).optional(),
+  momoNumber: Joi.string().trim().pattern(MOMO_NUMBER_REGEX).required().messages({
+    'string.pattern.base': 'MoMo number must be a valid Ghana number (e.g. 0241234567)',
+    'any.required': 'MoMo number is required for payouts',
+  }),
+  momoNetwork: Joi.string().valid('MTN', 'AirtelTigo', 'Vodafone').optional().default('MTN'),
+  documents: Joi.array().items(Joi.object()).optional(),
+});
+
+export const riderSignupSchema = riderRegisterSchema;
+
 // ── Business categories list (used by frontend dropdowns) ─────────────────────
 export const BUSINESS_CATEGORIES: { value: string; label: string }[] = [
   { value: 'fashion_apparel',  label: 'Fashion & Apparel' },
@@ -88,8 +113,9 @@ export const BUSINESS_CATEGORIES: { value: string; label: string }[] = [
 export function validateRequest(
   schema: Joi.ObjectSchema,
   data: unknown,
+  options: Joi.ValidationOptions = {},
 ): { fields: Record<string, string> } | null {
-  const { error } = schema.validate(data, { abortEarly: false });
+  const { error } = schema.validate(data, { abortEarly: false, ...options });
   if (!error) return null;
 
   const fields: Record<string, string> = {};

@@ -12,10 +12,13 @@ export default function VendorProductsPage() {
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const { allProducts, addProduct, deleteProduct, updateProduct } = useStore();
+  const { allProducts, addProduct, deleteProduct, updateProduct, vendorStore } = useStore();
   const { user } = useAuth();
   const { allAdmins } = useAdmin();
   const { showToast } = useToast();
+
+  const vendorEmail = vendorStore?.vendorEmail || user?.email || '';
+  const storeName = (vendorStore?.name || user?.name || '').replace(/🇬🇭\s*/, '');
 
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,7 +46,7 @@ export default function VendorProductsPage() {
 
   const confirmBulkUpload = async () => {
     const isUnverified = user && !user.isVerified;
-    const currentCount = allProducts.filter(p => p.vendorEmail === user?.email).length;
+    const currentCount = allProducts.filter(p => p.vendorEmail === vendorEmail).length;
     const totalFutureProducts = currentCount + bulkFile.length;
 
     if (isUnverified && totalFutureProducts > 5) {
@@ -60,7 +63,7 @@ export default function VendorProductsPage() {
         ...p,
         subCategory: 'Bulk Upload',
         rating: 0,
-        vendorEmail: user?.email || '',
+        vendorEmail: vendorEmail,
         vendorStoreName: storeName,
       };
       try {
@@ -148,6 +151,8 @@ export default function VendorProductsPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editStock, setEditStock] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editImage, setEditImage] = useState('');
+  const [editAdditionalImages, setEditAdditionalImages] = useState<string[]>([]);
   const [editWholesaleTiers, setEditWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
 
   const startInAppCamera = async () => {
@@ -308,8 +313,7 @@ export default function VendorProductsPage() {
 
   if (!user) return null;
 
-  const vendorProducts = allProducts.filter(p => p.vendorEmail === user.email);
-  const storeName = allAdmins.find(a => a.email === user.email)?.storeName || '';
+  const vendorProducts = allProducts.filter(p => p.vendorEmail === vendorEmail);
 
   // Search filter
   const filteredProducts = searchQuery.trim()
@@ -335,6 +339,12 @@ export default function VendorProductsPage() {
       return;
     }
     
+    // Auto-promote first uploaded photo as main cover pic if main photo wasn't set separately
+    const mainCoverImage = image || (additionalImages.length > 0 ? additionalImages[0] : 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800');
+    const galleryImages = image 
+      ? additionalImages.filter(img => img !== image)
+      : additionalImages.slice(1);
+
     addProduct({
       name,
       category,
@@ -342,9 +352,9 @@ export default function VendorProductsPage() {
       description,
       subCategory: 'Store Addition',
       rating: 0,
-      image: image || 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800',
-      images: additionalImages,
-      vendorEmail: user.email,
+      image: mainCoverImage,
+      images: galleryImages,
+      vendorEmail: vendorEmail,
       vendorStoreName: storeName,
       stock: parseInt(stock) || 0,
       wholesaleTiers,
@@ -374,18 +384,27 @@ export default function VendorProductsPage() {
     setEditDescription(product.description);
     setEditStock((product.stock || 0).toString());
     setEditCategory(product.category);
+    setEditImage(product.image || '');
+    setEditAdditionalImages(product.images || []);
     setEditWholesaleTiers(product.wholesaleTiers || []);
   };
 
   const handleEditProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+    const mainCoverImage = editImage || (editAdditionalImages.length > 0 ? editAdditionalImages[0] : editingProduct.image);
+    const galleryImages = editImage 
+      ? editAdditionalImages.filter(img => img !== editImage)
+      : editAdditionalImages.slice(1);
+
     updateProduct(editingProduct.id, {
       name: editName,
       price: parseFloat(editPrice),
       description: editDescription,
       stock: parseInt(editStock) || 0,
       category: editCategory as any,
+      image: mainCoverImage,
+      images: galleryImages,
       wholesaleTiers: editWholesaleTiers,
     });
     setEditingProduct(null);

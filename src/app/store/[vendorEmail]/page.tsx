@@ -337,7 +337,7 @@ export default function VendorStorePage() {
                   {/* Image */}
                   <div style={{ position: 'relative', aspectRatio: '1', background: 'var(--surface-container)', overflow: 'hidden' }}>
                     <Link href={`/product/${p.id}`} style={{ display: 'block', width: '100%', height: '100%' }}>
-                      <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s' }} />
+                      <img src={p.image || p.images?.[0] || 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800'} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s' }} />
                     </Link>
                     {discount > 0 && (
                       <span style={{ position: 'absolute', top: 8, left: 8, background: 'var(--error)', color: '#fff', fontSize: 8, fontWeight: 900, padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-lexend)' }}>-{discount}%</span>

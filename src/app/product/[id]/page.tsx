@@ -30,7 +30,7 @@ export default function ProductDetailPage() {
   const { allProducts, isFollowing, followVendor, unfollowVendor, campaigns } = useStore();
   const { allAdmins } = useAdmin();
   const { user } = useAuth();
-  const { addToCart } = useCart();
+  const { addToCart, cart, openCartDrawer } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { addToHistory, recentlyViewed } = useUserActivity();
   const { showToast } = useToast();
@@ -285,7 +285,11 @@ export default function ProductDetailPage() {
       {/* Product Image Gallery */}
       <section className="animate-fade-in" style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
         {(() => {
-          const allImages = [product.image, ...(product.images || [])].filter(Boolean);
+          const rawImages = [product.image, ...(product.images || [])].filter((img): img is string => Boolean(img && typeof img === 'string' && img.trim() !== ''));
+          const allImages = Array.from(new Set(rawImages));
+          if (allImages.length === 0) {
+            allImages.push('https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800');
+          }
           const hasMultiple = allImages.length > 1;
           return (
             <>
@@ -508,10 +512,15 @@ export default function ProductDetailPage() {
                 </div>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 700, color: 'var(--foreground)', marginBottom: 2 }}>{vendorStoreName}</h3>
-                  {vendor?.isVerified && (
+                  {vendor?.isVerified ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 12, color: 'var(--lime-400)', fontVariationSettings: "'FILL' 1" }}>verified</span>
-                      <span style={{ fontSize: 11, color: 'var(--on-surface-variant)', fontWeight: 600 }}>Verified Seller</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#22c55e', fontVariationSettings: "'FILL' 1" }}>verified</span>
+                      <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 700 }}>Verified Seller</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 13, color: '#f59e0b' }}>pending</span>
+                      <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>Unverified Seller</span>
                     </div>
                   )}
                 </div>
@@ -852,6 +861,28 @@ export default function ProductDetailPage() {
               <span className="material-symbols-outlined" style={{ fontSize: 20 }}>notifications_active</span>
               Notify Me When Available
             </button>
+          ) : cart.some(item => item.id === product.id) ? (
+            <div style={{ flex: 1, display: 'flex', gap: 8 }}>
+              <button onClick={handleAddToCart} style={{
+                flex: 1, height: 52, background: 'var(--surface-container-high)',
+                color: 'var(--foreground)', border: '1px solid var(--outline)', borderRadius: 10,
+                fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 11,
+                textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                Add More
+              </button>
+              <button onClick={() => router.push('/checkout')} style={{
+                flex: 1.5, height: 52, background: 'var(--lime-400)',
+                color: '#000', border: 'none', borderRadius: 10,
+                fontFamily: 'var(--font-lexend)', fontWeight: 900, fontSize: 12,
+                textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+              }}>
+                Checkout
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+              </button>
+            </div>
           ) : (
             <button onClick={handleAddToCart} disabled={isOutOfStock} style={{
               flex: 1, height: 52,

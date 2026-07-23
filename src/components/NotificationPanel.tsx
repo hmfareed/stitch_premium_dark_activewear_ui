@@ -41,7 +41,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
 
     try {
       const [msgRes, notifRes] = await Promise.all([
-        fetch(`/api/messages?email=${encodeURIComponent(user.email)}`),
+        fetch(`/api/messages?email=${encodeURIComponent(user.email)}&role=${encodeURIComponent(user.role || 'customer')}`),
         fetch(`/api/notifications?email=${encodeURIComponent(user.email)}`)
       ]);
 

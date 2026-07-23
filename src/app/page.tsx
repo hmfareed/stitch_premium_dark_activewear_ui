@@ -1,775 +1,1044 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useWishlist, useCart, useToast, useStore, useAuth, useUserActivity } from '@/context/AppContext';
-import { ProductLoadingSkeleton } from '@/components/ProductLoadingSkeleton';
-import QuickViewModal from '@/components/QuickViewModal';
-import type { Product } from '@/data/products';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth, useToast } from '@/context/AppContext';
 
-/* ─── Countdown hook ─────────────────────────────────────── */
-function useCountdown(targetDate: string | undefined) {
-  const [time, setTime] = useState({ h: 0, m: 0, s: 0 });
+/* ─── Ghana Phone Regex ──────────────────────────────────────────────────── */
+const GHANA_PHONE_RE = /^(\+233|0)[235][0-9]{8}$/;
+
+/* ─── Floating Constellation Canvas ──────────────────────────────────────────
+   "the dots connecting with lines should be short and many all over the landing page"
+   - 120 particles spread randomly across the full viewport.
+   - Max link distance = 85px to ensure short & dense connection lines everywhere.
+   - Central geometric polygon frame matching the reference layout design.
+──────────────────────────────────────────────────────────────────────────── */
+function FloatingConstellation() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
-    if (!targetDate) return;
-    const end = new Date(targetDate).getTime();
-    const tick = () => {
-      const dist = end - Date.now();
-      if (dist <= 0) { setTime({ h: 0, m: 0, s: 0 }); return; }
-      setTime({
-        h: Math.floor(dist / 3_600_000),
-        m: Math.floor((dist % 3_600_000) / 60_000),
-        s: Math.floor((dist % 60_000) / 1_000),
-      });
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
+
+    let w = (canvas.width = window.innerWidth);
+    let h = (canvas.height = window.innerHeight);
+
+    const resize = () => {
+      if (!canvas) return;
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
     };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [targetDate]);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(time.h)}:${pad(time.m)}:${pad(time.s)}`;
-}
+    window.addEventListener('resize', resize, { passive: true });
 
-/* ─── Simulated live viewer count ────────────────────────── */
-function useLiveViewers(base: number) {
-  const [count, setCount] = useState(base);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setCount(c => c + Math.floor(Math.random() * 5) - 2);
-    }, 4000);
-    return () => clearInterval(id);
+    // 45 particles for smooth 60-120fps rendering without main thread scroll lag
+    const COUNT = 45;
+    type Particle = {
+      x: number; y: number;
+      vx: number; vy: number;
+      r: number; alpha: number;
+    };
+
+    const particles: Particle[] = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: 1.2 + Math.random() * 1.5,
+      alpha: 0.35 + Math.random() * 0.5,
+    }));
+
+    const LINK_DIST = 90;
+    const LINK_DIST_SQ = LINK_DIST * LINK_DIST;
+    let frame = 0;
+    let raf: number;
+
+    const draw = () => {
+      frame++;
+      ctx.clearRect(0, 0, w, h);
+
+      // Move particles
+      for (let i = 0; i < COUNT; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+      }
+
+      // Draw connecting lines with squared distance check
+      for (let i = 0; i < COUNT; i++) {
+        const p1 = particles[i];
+        for (let j = i + 1; j < COUNT; j++) {
+          const p2 = particles[j];
+          const dx = p1.x - p2.x;
+          const dy = p1.y - p2.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < LINK_DIST_SQ) {
+            const dist = Math.sqrt(distSq);
+            const opacity = (1 - dist / LINK_DIST) * 0.22;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(195,244,0,${opacity})`;
+            ctx.lineWidth = 0.75;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw crisp dots without expensive shadowBlur context operations
+      for (let i = 0; i < COUNT; i++) {
+        const p = particles[i];
+        const pulse = p.alpha * (0.75 + 0.25 * Math.sin(frame * 0.03 + i * 1.1));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(195,244,0,${pulse})`;
+        ctx.fill();
+      }
+
+      raf = requestAnimationFrame(draw);
+    };
+
+    draw();
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
   }, []);
-  return Math.max(base - 10, count);
-}
-
-/* ─── Loyalty tier helper ───────────────────────────────── */
-function getLoyaltyTier(points: number) {
-  if (points >= 5000) return { name: 'Platinum', color: '#e5e4e2', icon: '💎', next: null, nextAt: 5000 };
-  if (points >= 2000) return { name: 'Gold', color: '#FFD700', icon: '🥇', next: 'Platinum', nextAt: 5000 };
-  if (points >= 500) return { name: 'Silver', color: '#C0C0C0', icon: '🥈', next: 'Gold', nextAt: 2000 };
-  return { name: 'Bronze', color: '#CD7F32', icon: '🥉', next: 'Silver', nextAt: 500 };
-}
-
-/* ─── Category definitions ────────────────────────────────── */
-const NAV_CATEGORIES = [
-  { name: 'Electronics', icon: 'devices',                   href: '/shop?category=Electronics',  color: '#3b82f6' },
-  { name: 'Fashion',     icon: 'checkroom',                 href: '/shop?category=Fashion',      color: '#ec4899' },
-  { name: 'Home',        icon: 'chair',                     href: '/shop?category=Home',         color: '#f59e0b' },
-  { name: 'Beauty',      icon: 'face_retouching_natural',   href: '/shop?category=Beauty',       color: '#a855f7' },
-  { name: 'Phones',      icon: 'smartphone',                href: '/shop?category=Phones',       color: '#10b981' },
-  { name: 'Groceries',   icon: 'local_grocery_store',       href: '/shop?category=Groceries',    color: '#f97316' },
-  { name: 'Sports',      icon: 'sports_basketball',         href: '/shop?category=Health',       color: '#ef4444' },
-  { name: 'Baby',        icon: 'child_care',                href: '/shop?category=Baby',         color: '#8b5cf6' },
-];
-
-/* ─── Styles ───────────────────────────────────────────────── */
-const S = {
-  page:        { display: 'flex', flexDirection: 'column' as const, background: 'var(--background)', minHeight: '100vh' },
-  heroWrap:    { position: 'relative' as const, width: '100%', height: '52vw', minHeight: 220, maxHeight: 380, overflow: 'hidden', borderRadius: '0 0 24px 24px' },
-  heroOverlay: { position: 'absolute' as const, inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)', zIndex: 10 },
-  heroImg:     { width: '100%', height: '100%', objectFit: 'cover' as const },
-  heroContent: { position: 'absolute' as const, bottom: 24, left: 20, right: 20, zIndex: 20 },
-  heroLabel:   { fontFamily: 'var(--font-lexend)', fontSize: 9, fontWeight: 700, color: 'var(--lime-400)', letterSpacing: '0.22em', textTransform: 'uppercase' as const, marginBottom: 6 },
-  heroTitle:   { fontFamily: 'var(--font-lexend)', fontSize: 26, fontWeight: 900, color: '#fff', lineHeight: 1.05, textTransform: 'uppercase' as const, marginBottom: 8 },
-  heroSub:     { fontFamily: 'var(--font-inter)', fontSize: 12, color: 'rgba(255,255,255,0.75)', marginBottom: 16, lineHeight: 1.5 },
-  heroBtn:     { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--lime-400)', color: 'var(--on-lime-400)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' as const, padding: '11px 22px', borderRadius: 8, transition: 'opacity 0.15s' },
-  dotRow:      { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
-  section:     { padding: '0 14px' },
-  sectionHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  sectionTitle:{ fontFamily: 'var(--font-lexend)', fontSize: 17, fontWeight: 800, color: 'var(--foreground)' },
-  seeAll:      { fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', display: 'flex', alignItems: 'center', gap: 2 },
-  catRow:      { display: 'flex', gap: 8, overflowX: 'auto' as const, paddingBottom: 4, scrollbarWidth: 'none' as const },
-  catItem:     { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8, flex: '0 0 70px', cursor: 'pointer', textDecoration: 'none' },
-  catCircle:   { width: 58, height: 58, borderRadius: '50%', background: 'var(--surface-container)', border: '1.5px solid var(--outline)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.2s, background 0.2s, transform 0.2s' },
-  catLabel:    { fontFamily: 'var(--font-inter)', fontSize: 10, fontWeight: 600, color: 'var(--on-surface-variant)', textAlign: 'center' as const, lineHeight: 1.25 },
-  flashBadge:  { background: '#ff2200', color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 900, fontSize: 11, padding: '4px 10px', borderRadius: 6, letterSpacing: '0.02em', display: 'inline-flex', alignItems: 'center', gap: 5 },
-  timerBox:    { display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,34,0,0.12)', border: '1px solid rgba(255,34,0,0.3)', borderRadius: 6, padding: '4px 10px' },
-  timerText:   { fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 900, color: '#ff4444', letterSpacing: '0.08em' },
-  cardRow:     { display: 'flex', gap: 12, overflowX: 'auto' as const, paddingBottom: 4, scrollbarWidth: 'none' as const },
-  card:        { flex: '0 0 160px', display: 'flex', flexDirection: 'column' as const, background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 14, overflow: 'hidden', position: 'relative' as const, transition: 'transform 0.2s, box-shadow 0.2s' },
-  cardImgWrap: { position: 'relative' as const, width: '100%', aspectRatio: '1', overflow: 'hidden', background: 'var(--surface-container)' },
-  cardImg:     { width: '100%', height: '100%', objectFit: 'cover' as const, transition: 'transform 0.4s ease' },
-  cardBody:    { padding: '10px 10px 0', display: 'flex', flexDirection: 'column' as const, gap: 3, flex: 1 },
-  cardVendor:  { fontFamily: 'var(--font-inter)', fontSize: 9, fontWeight: 600, color: 'var(--on-surface-variant)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
-  cardName:    { fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.35 },
-  cardRating:  { display: 'flex', alignItems: 'center', gap: 4 },
-  cardPrice:   { fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: 'var(--price-color)', marginTop: 2 },
-  cardOldPrice:{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'var(--on-surface-variant)', textDecoration: 'line-through', marginLeft: 4 },
-  addCartBtn:  { padding: '9px 0', background: 'var(--lime-400)', color: 'var(--on-lime-400)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 11, letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'opacity 0.15s, transform 0.15s', textTransform: 'uppercase' as const, flex: 1, whiteSpace: 'nowrap' as const },
-  addCartBtnDis:{ padding: '9px 0', background: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 11, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, textTransform: 'uppercase' as const, letterSpacing: '0.04em', whiteSpace: 'nowrap' as const },
-  viewBtn:     { width: 34, height: 34, borderRadius: 8, border: '1px solid var(--outline)', background: 'transparent', color: 'var(--foreground)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s' },
-  wishBtn:     { position: 'absolute' as const, top: 8, right: 8, zIndex: 5, background: 'rgba(0,0,0,0.55)', border: 'none', cursor: 'pointer', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' },
-  discountBadge:{ position: 'absolute' as const, top: 8, left: 8, background: 'var(--error)', color: '#fff', fontSize: 8, fontWeight: 900, padding: '2px 6px', borderRadius: 4, zIndex: 5, fontFamily: 'var(--font-lexend)' },
-  newBadge:    { position: 'absolute' as const, top: 8, left: 8, background: 'var(--lime-400)', color: 'var(--on-lime-400)', fontSize: 8, fontWeight: 900, padding: '2px 6px', borderRadius: 4, zIndex: 5, fontFamily: 'var(--font-lexend)' },
-  flashCardBadge: { position: 'absolute' as const, top: 8, left: 8, background: '#ff2200', color: '#fff', fontSize: 8, fontWeight: 900, padding: '2px 6px', borderRadius: 4, zIndex: 5, fontFamily: 'var(--font-lexend)' },
-};
-
-/* ─── Product Card ────────────────────────────────────────── */
-function ProductCard({ product, onAddToCart, onWishlist, isWishlisted, onQuickView, showFlashBadge }: {
-  product: Product;
-  onAddToCart: () => void;
-  onWishlist: () => void;
-  isWishlisted: boolean;
-  onQuickView: () => void;
-  showFlashBadge?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [added, setAdded] = useState(false);
-  const [baseViewers] = useState(() => 3 + Math.floor(Math.random() * 15));
-  const viewers = useLiveViewers(baseViewers);
-  const [fallbackRating] = useState(() => (3.5 + Math.random() * 1.4).toFixed(1));
-  const inStock = (product.stock ?? 0) > 0;
-  const discount = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-    : product.flashSalePrice
-      ? Math.round(((product.price - product.flashSalePrice) / product.price) * 100)
-      : 0;
-  const displayPrice = product.flashSalePrice ?? product.price;
-  const stockPercent = Math.min(100, Math.max(0, ((product.stock ?? 50) / 100) * 100));
-
-  const handleAdd = () => {
-    if (!inStock) return;
-    setAdded(true);
-    onAddToCart();
-    setTimeout(() => setAdded(false), 1200);
-  };
 
   return (
-    <div
-      style={{ ...S.card, transform: hovered ? 'translateY(-4px)' : 'none', boxShadow: hovered ? '0 12px 32px rgba(0,0,0,0.5)' : 'none' }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Wish button */}
-      <button style={S.wishBtn} onClick={(e) => { e.preventDefault(); onWishlist(); }} aria-label="Toggle wishlist">
-        <span className="material-symbols-outlined" style={{ fontSize: 16, color: isWishlisted ? '#ff4444' : '#fff', fontVariationSettings: isWishlisted ? "'FILL' 1" : "'FILL' 0" }}>favorite</span>
-      </button>
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 1,
+        willChange: 'transform',
+        contain: 'strict',
+      }}
+    />
+  );
+}
 
-      {/* Badges */}
-      {showFlashBadge && <span style={S.flashCardBadge}>⚡ FLASH</span>}
-      {!showFlashBadge && discount > 0 && <span style={S.discountBadge}>-{discount}%</span>}
-      {!showFlashBadge && !discount && product.isNew && <span style={S.newBadge}>NEW</span>}
-
-      <Link href={`/product/${product.id}`} style={{ display: 'block', textDecoration: 'none' }}>
-        <div style={S.cardImgWrap}>
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 160px, 200px"
-            style={{ objectFit: 'cover', transform: hovered ? 'scale(1.07)' : 'scale(1)', transition: 'transform 0.4s ease' }}
-          />
-          {/* Live viewers badge */}
-          {showFlashBadge && (
-            <div style={{
-              position: 'absolute', bottom: 6, left: 6, zIndex: 5,
-              background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-              borderRadius: 4, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#ff4444', animation: 'flashDotPulse 1s ease-in-out infinite' }} />
-              <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 9, color: '#fff', fontWeight: 700 }}>{viewers} viewing</span>
-            </div>
-          )}
-        </div>
-
-        <div style={S.cardBody}>
-          {product.vendorStoreName && <p style={S.cardVendor}>by {product.vendorStoreName}</p>}
-          <p className="line-clamp-2" style={S.cardName}>{product.name}</p>
-          <div style={S.cardRating}>
-            <span style={{ color: '#f59e0b', fontSize: 11 }}>★</span>
-            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 600, color: 'var(--on-surface-variant)' }}>
-              {product.rating ?? fallbackRating}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 0 }}>
-            <span style={S.cardPrice}>GH₵{displayPrice.toFixed(2)}</span>
-            {(product.originalPrice || product.price > displayPrice) && (
-              <span style={S.cardOldPrice}>GH₵{(product.originalPrice || product.price).toFixed(0)}</span>
-            )}
-          </div>
-          {/* Stock bar for flash items */}
-          {showFlashBadge && product.stock !== undefined && (
-            <div style={{ marginTop: 5 }}>
-              <div style={{ height: 3, background: 'var(--outline)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: 3,
-                  width: `${stockPercent}%`,
-                  background: stockPercent < 25 ? '#ff4444' : stockPercent < 60 ? '#f59e0b' : 'var(--lime-400)',
-                  transition: 'width 0.5s ease',
-                }} />
-              </div>
-              <p style={{ fontSize: 9, color: stockPercent < 25 ? '#ff4444' : 'var(--on-surface-variant)', fontWeight: 700, marginTop: 2 }}>
-                {stockPercent < 25 ? `Only ${product.stock} left!` : 'In Stock'}
-              </p>
-            </div>
-          )}
-        </div>
-      </Link>
-
-      {/* Action Row */}
-      <div style={{ display: 'flex', gap: 6, margin: '8px 10px 10px', alignItems: 'center' }}>
-        <button
-          style={inStock ? { ...S.addCartBtn, background: added ? '#22c55e' : 'var(--lime-400)' } : S.addCartBtnDis}
-          onClick={inStock ? handleAdd : undefined}
-          disabled={!inStock}
-          aria-label={inStock ? `Add ${product.name} to cart` : 'Out of stock'}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-            {added ? 'check_circle' : inStock ? 'add_shopping_cart' : 'remove_shopping_cart'}
-          </span>
-          {added ? 'Added!' : inStock ? 'Add to Cart' : 'Out of Stock'}
-        </button>
-
-        <button
-          style={S.viewBtn}
-          onClick={(e) => { e.preventDefault(); onQuickView(); }}
-          aria-label={`Quick view ${product.name}`}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>visibility</span>
-        </button>
-      </div>
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1, minWidth: 70 }}>
+      <span style={{
+        fontFamily: 'var(--font-lexend)',
+        fontSize: 'clamp(20px, 5vw, 30px)',
+        fontWeight: 900,
+        color: '#c3f400',
+        lineHeight: 1,
+        letterSpacing: '-0.02em',
+      }}>{value}</span>
+      <span style={{
+        fontFamily: 'var(--font-lexend)',
+        fontSize: 'clamp(8px, 2.2vw, 10px)',
+        fontWeight: 700,
+        color: 'rgba(195,244,0,0.7)',
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        whiteSpace: 'normal',
+        wordBreak: 'break-word',
+      }}>{label}</span>
     </div>
   );
 }
 
-/* ─── Loyalty Progress Banner ──────────────────────────────── */
-function LoyaltyBanner({ points }: { points: number }) {
-  const tier = getLoyaltyTier(points);
-  const prevTierAt = tier.name === 'Bronze' ? 0 : tier.name === 'Silver' ? 500 : tier.name === 'Gold' ? 2000 : 5000;
-  const progress = tier.next
-    ? Math.min(100, ((points - prevTierAt) / (tier.nextAt - prevTierAt)) * 100)
-    : 100;
-  const remaining = tier.next ? tier.nextAt - points : 0;
+function StatDivider() {
+  return <div style={{ width: 1, height: 38, background: 'rgba(195,244,0,0.18)', flexShrink: 0 }} />;
+}
+
+function SearchParamAuthListener() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    const mode = searchParams?.get('auth');
+    if (mode === 'login') {
+      router.replace('/login');
+    } else if (mode === 'vendor') {
+      router.replace('/register/vendor');
+    } else if (mode === 'rider') {
+      router.replace('/register/rider');
+    } else if (mode === 'register' || mode === 'customer') {
+      router.replace('/register/customer');
+    }
+  }, [searchParams, router]);
+  return null;
+}
+
+
+export default function LandingPage() {
+  const { user, isLoading, login, signup, loginWithUser } = useAuth();
+  const { showToast } = useToast();
+  const router = useRouter();
+
+  const [mounted, setMounted] = useState(false);
+  const [showAuthChoice, setShowAuthChoice] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Redirect logged-in users straight to the storefront
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/shop');
+    }
+  }, [user, isLoading, router]);
+
+  // While loading auth state or redirecting, show nothing (avoid flash)
+  if (isLoading || user) return null;
 
   return (
     <div style={{
-      margin: '0 14px', padding: '16px 18px',
-      background: 'linear-gradient(135deg, var(--surface) 0%, var(--surface-container) 100%)',
-      border: `1px solid ${tier.color}33`,
-      borderRadius: 14, position: 'relative', overflow: 'hidden',
+      position: 'relative',
+      minHeight: '100dvh',
+      width: '100%',
+      background: 'radial-gradient(ellipse at 20% 10%, #1a2200 0%, #0d1200 30%, #080c00 60%, #040600 100%)',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      {/* Glow orb */}
-      <div style={{ position: 'absolute', top: -30, right: -20, width: 100, height: 100, background: `${tier.color}22`, filter: 'blur(40px)', borderRadius: '50%', pointerEvents: 'none' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 18 }}>{tier.icon}</span>
-            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 900, color: tier.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{tier.name}</span>
-          </div>
-          <p style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'var(--on-surface-variant)' }}>
-            {tier.next ? `${remaining} pts to ${tier.next}` : '🎉 Maximum tier reached!'}
-          </p>
-        </div>
-        <Link href="/account" style={{
-          fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700,
-          color: 'var(--lime-400)', display: 'flex', alignItems: 'center', gap: 2,
-        }}>
-          {points} pts <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-        </Link>
-      </div>
-      {tier.next && (
-        <div style={{ height: 5, background: 'var(--outline)', borderRadius: 5, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${progress}%`, borderRadius: 5,
-            background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})`,
-            transition: 'width 1s ease',
-          }} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── "Payday Drop" Banner ─────────────────────────────────── */
-function PaydayBanner() {
-  const now = new Date();
-  const day = now.getDate();
-  // Show from 24th to end of month
-  if (day < 24) return null;
-  return (
-    <Link href="/shop?filter=flash" style={{ margin: '0 14px', display: 'block', textDecoration: 'none' }}>
-      <div style={{
-        padding: '14px 18px',
-        background: 'linear-gradient(135deg, #1a0a00 0%, #2d1400 50%, #1a0a00 100%)',
-        border: '1px solid #f59e0b44', borderRadius: 14,
-        display: 'flex', alignItems: 'center', gap: 14, position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(245,158,11,0.03) 10px, rgba(245,158,11,0.03) 20px)' }} />
-        <span style={{ fontSize: 28, flexShrink: 0 }}>💰</span>
-        <div>
-          <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 900, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Payday Drop 🎉</p>
-          <p style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
-            Salary landed? Treat yourself — exclusive end-of-month deals live now!
-          </p>
-        </div>
-        <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#f59e0b', flexShrink: 0 }}>arrow_forward</span>
-      </div>
-    </Link>
-  );
-}
-
-/* ─── Trust Bar ────────────────────────────────────────────── */
-function TrustBar() {
-  const items = [
-    { icon: 'verified', label: 'Delivered or Refund', color: 'var(--lime-400)' },
-    { icon: 'lock', label: 'Paystack Secured', color: '#22c55e' },
-    { icon: 'local_shipping', label: 'Tamale Same-Day Delivery', color: '#f59e0b' },
-    { icon: 'support_agent', label: '24/7 Support', color: '#a855f7' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none', borderTop: '1px solid var(--outline)', borderBottom: '1px solid var(--outline)', background: 'var(--surface)' }} className="no-scrollbar">
-      {items.map((item, i) => (
-        <div key={item.label} style={{
-          flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 6,
-          padding: '10px 16px', borderRight: i < items.length - 1 ? '1px solid var(--outline)' : 'none',
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14, color: item.color }}>
-            {item.icon}
-          </span>
-          <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 9, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-            {item.label}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ─── Main Page ────────────────────────────────────────────── */
-export default function HomePage() {
-  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { addToCart } = useCart();
-  const { showToast } = useToast();
-  const { allProducts, productsLoading } = useStore();
-  const { user } = useAuth();
-  const { recentlyViewed } = useUserActivity();
-
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [recommendations, setRecommendations] = useState<Product[]>([]);
-  const [newArrivals, setNewArrivals] = useState<Product[]>([]);
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-
-  const heroProducts = allProducts.filter(p => p.image).slice(0, 5);
-  const currentHero = heroProducts.length > 0 ? heroProducts[heroIndex] : null;
-
-  const flashProducts = allProducts.filter(p => p.isFlashSale);
-  const flashEnd = flashProducts[0]?.flashSaleEnd;
-  const countdown = useCountdown(flashEnd);
-
-  // Auto-cycle hero
-  useEffect(() => {
-    if (heroProducts.length <= 1) return;
-    const id = setInterval(() => setHeroIndex(i => (i + 1) % heroProducts.length), 4000);
-    return () => clearInterval(id);
-  }, [heroProducts.length]);
-
-  // Recommendations
-  useEffect(() => {
-    try {
-      const history: { id: string; category: string }[] = JSON.parse(localStorage.getItem('africart-recently-viewed') || '[]');
-      if (history.length > 0 && allProducts.length > 0) {
-        const cats = new Set(history.map((p) => p.category));
-        const recs = allProducts.filter(p => cats.has(p.category) && !history.find((h) => h.id === p.id)).slice(0, 8);
-        setRecommendations(recs.length >= 4 ? recs : allProducts.slice(0, 8));
-      } else {
-        setRecommendations(allProducts.slice(0, 8));
-      }
-      // New arrivals: isNew items first, then the rest
-      const sorted = [...allProducts].sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
-      setNewArrivals(sorted.slice(0, 8));
-    } catch {
-      setRecommendations(allProducts.slice(0, 8));
-    }
-  }, [allProducts]);
-
-  if (productsLoading) return <ProductLoadingSkeleton />;
-
-  const heroImage = currentHero?.image ?? 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&q=80&w=1200';
-
-  const categoryGroups = Array.from(new Set(allProducts.map(p => p.category))).map(cat => ({
-    cat,
-    products: allProducts.filter(p => p.category === cat).slice(0, 8),
-  })).filter(g => g.products.length > 0);
-
-  const addHandler = (product: Product) => {
-    addToCart(product);
-    showToast(`${product.name} added to cart!`);
-  };
-  const wishHandler = (product: Product) => {
-    if (isInWishlist(product.id)) {
-      removeFromWishlist(product.id);
-      showToast('Removed from wishlist', 'info');
-    } else {
-      addToWishlist(product);
-      showToast('Added to wishlist! ❤️');
-    }
-  };
-
-  return (
-    <div style={S.page}>
-
-      {/* ══════════════════════════════════════
-          TRUST BAR  (above hero)
-      ══════════════════════════════════════ */}
-      <TrustBar />
-
-      {/* ══════════════════════════════════════
-          HERO BANNER
-      ══════════════════════════════════════ */}
-      <section className="animate-fade-in" style={S.heroWrap}>
-        <div style={S.heroOverlay} />
-        <Image
-          key={heroImage}
-          src={heroImage}
-          alt="Hero Banner"
-          fill
-          priority
-          sizes="100vw"
-          style={{ objectFit: 'cover', animation: 'fadeIn 0.6s ease-in-out both' }}
-        />
-        <div style={S.heroContent}>
-          <p style={S.heroLabel}>{currentHero ? 'FEATURED PRODUCT' : '✦ TAMALE\'S PREMIER ACTIVEWEAR HUB ✦'}</p>
-          <h1 style={S.heroTitle}>
-            {currentHero ? currentHero.name : 'STITCH ACTIVE\nTAMALE EDITION'}
-          </h1>
-          <p style={S.heroSub}>
-            {currentHero
-              ? `GH₵${currentHero.price.toFixed(2)} · Local pick-up and instant dispatch in Tamale.`
-              : 'Same-day instant dispatch across Nyohini, Lamashegu, Kalpohin, and Sagnarigu.'}
-          </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Link href={currentHero ? `/product/${currentHero.id}` : '/shop'} style={S.heroBtn}>
-              {currentHero ? 'View Product' : 'Shop Now'}
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
-            </Link>
-            {flashProducts.length > 0 && (
-              <Link href="/shop?filter=flash" style={{ ...S.heroBtn, background: '#ff2200', color: '#fff' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>bolt</span>
-                Flash Deals
-              </Link>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Hero dot indicators */}
-      {heroProducts.length > 1 && (
-        <div style={{ ...S.dotRow, margin: '12px 0 4px' }}>
-          {heroProducts.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setHeroIndex(i)}
-              style={{ width: i === heroIndex ? 22 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === heroIndex ? 'var(--lime-400)' : 'var(--outline)', padding: 0, transition: 'width 0.3s, background 0.3s' }}
-              aria-label={`Hero slide ${i + 1}`}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          LOYALTY BANNER (for logged-in users)
-      ══════════════════════════════════════ */}
-      {user && (user.points !== undefined) && (
-        <section style={{ marginTop: 20 }}>
-          <LoyaltyBanner points={user.points} />
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════
-          PAYDAY DROP BANNER
-      ══════════════════════════════════════ */}
-      <section style={{ marginTop: user ? 12 : 20 }}>
-        <PaydayBanner />
-      </section>
-
-      {/* ══════════════════════════════════════
-          CATEGORY ICONS ROW
-      ══════════════════════════════════════ */}
-      <section style={{ ...S.section, marginTop: 24, marginBottom: 4 }}>
-        <div style={S.catRow} className="no-scrollbar">
-          {NAV_CATEGORIES.map((cat, i) => (
-            <Link key={cat.name} href={cat.href} style={S.catItem} className={`animate-fade-in-up stagger-${Math.min(i + 1, 6)}`}>
-              <div style={{ ...S.catCircle, borderColor: `${cat.color}44` }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 24, color: cat.color }}>{cat.icon}</span>
-              </div>
-              <span style={S.catLabel}>{cat.name}</span>
-            </Link>
-          ))}
-          <Link href="/shop" style={S.catItem}>
-            <div style={{ ...S.catCircle, background: 'var(--surface-container-high)' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, color: 'var(--on-surface-variant)' }}>more_horiz</span>
-            </div>
-            <span style={S.catLabel}>More</span>
-          </Link>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          FLASH SALE SECTION
-      ══════════════════════════════════════ */}
-      {flashProducts.length > 0 && (
-        <section style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-          <div style={S.sectionHead}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={S.flashBadge}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', animation: 'flashDotPulse 1s ease-in-out infinite' }} />
-                Flash Sale
-              </span>
-              <div style={S.timerBox}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#ff4444' }}>timer</span>
-                <span style={S.timerText}>{countdown}</span>
-              </div>
-            </div>
-            <Link href="/shop?filter=flash" style={S.seeAll}>
-              See All <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-            </Link>
-          </div>
-          <div style={S.cardRow} className="no-scrollbar">
-            {flashProducts.map(product => (
-              <ProductCard
-                key={product.id} product={product} showFlashBadge
-                onAddToCart={() => addHandler(product)}
-                onWishlist={() => wishHandler(product)}
-                isWishlisted={isInWishlist(product.id)}
-                onQuickView={() => setQuickViewProduct(product)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════
-          NEW ARRIVALS
-      ══════════════════════════════════════ */}
-      {newArrivals.length > 0 && (
-        <section style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-          <div style={S.sectionHead}>
-            <h2 style={S.sectionTitle}>✨ New Arrivals</h2>
-            <Link href="/shop?sort=newest" style={S.seeAll}>
-              See All <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-            </Link>
-          </div>
-          <div style={S.cardRow} className="no-scrollbar">
-            {newArrivals.map(product => (
-              <ProductCard
-                key={product.id} product={product}
-                onAddToCart={() => addHandler(product)}
-                onWishlist={() => wishHandler(product)}
-                isWishlisted={isInWishlist(product.id)}
-                onQuickView={() => setQuickViewProduct(product)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════
-          PICKED FOR YOU
-      ══════════════════════════════════════ */}
-      {recommendations.length > 0 && (
-        <section style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-          <div style={S.sectionHead}>
-            <h2 style={S.sectionTitle}>🎯 Picked For You</h2>
-            <Link href="/shop" style={S.seeAll}>
-              See All <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-            </Link>
-          </div>
-          <div style={S.cardRow} className="no-scrollbar">
-            {recommendations.map(product => (
-              <ProductCard
-                key={product.id} product={product}
-                onAddToCart={() => addHandler(product)}
-                onWishlist={() => wishHandler(product)}
-                isWishlisted={isInWishlist(product.id)}
-                onQuickView={() => setQuickViewProduct(product)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════
-          RECENTLY VIEWED ROW
-      ══════════════════════════════════════ */}
-      {recentlyViewed.length > 0 && (
-        <section style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-          <div style={S.sectionHead}>
-            <h2 style={S.sectionTitle}>🕒 Recently Viewed</h2>
-          </div>
-          <div style={S.cardRow} className="no-scrollbar">
-            {recentlyViewed.map(product => (
-              <ProductCard
-                key={product.id} product={product}
-                onAddToCart={() => addHandler(product)}
-                onWishlist={() => wishHandler(product)}
-                isWishlisted={isInWishlist(product.id)}
-                onQuickView={() => setQuickViewProduct(product)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════
-          CATEGORY BENTO GRID
-      ══════════════════════════════════════ */}
-      <section style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-        <div style={S.sectionHead}>
-          <h2 style={S.sectionTitle}>Shop by Category</h2>
-          <Link href="/shop" style={S.seeAll}>
-            View All <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-          </Link>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '150px 150px', gap: 10 }}>
-          {[
-            { name: 'Electronics', img: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=800', span: true },
-            { name: 'Fashion',     img: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=80&w=800' },
-            { name: 'Home',        img: 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&q=80&w=800' },
-          ].map((cat, i) => (
-            <Link
-              key={cat.name}
-              href={`/shop?category=${cat.name}`}
-              className={`animate-fade-in-up stagger-${i + 1}`}
-              style={{
-                gridRow: cat.span ? 'span 2' : undefined,
-                position: 'relative', overflow: 'hidden', borderRadius: 16,
-                border: '1px solid var(--outline)', background: 'var(--surface)',
-                display: 'block', textDecoration: 'none',
-              }}
-            >
-              <img style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5, transition: 'transform 0.5s, opacity 0.3s' }} alt={cat.name} src={cat.img} />
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent 60%)' }} />
-              <div style={{ position: 'absolute', bottom: 14, left: 14, zIndex: 10 }}>
-                <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: '#fff' }}>{cat.name}</span>
-                <p style={{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                  {allProducts.filter(p => p.category === cat.name).length} products
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          PER-CATEGORY HORIZONTAL ROWS
-      ══════════════════════════════════════ */}
-      {categoryGroups.map(({ cat, products }) => (
-        <section key={cat} style={{ ...S.section, marginTop: 28, marginBottom: 4 }}>
-          <div style={S.sectionHead}>
-            <h2 style={S.sectionTitle}>{cat}</h2>
-            <Link href={`/shop?category=${cat}`} style={S.seeAll}>
-              See All <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-            </Link>
-          </div>
-          <div style={S.cardRow} className="no-scrollbar">
-            {products.map(product => (
-              <ProductCard
-                key={product.id} product={product}
-                onAddToCart={() => addHandler(product)}
-                onWishlist={() => wishHandler(product)}
-                isWishlisted={isInWishlist(product.id)}
-                onQuickView={() => setQuickViewProduct(product)}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-
-      {/* ══════════════════════════════════════
-          TRUST STATS (animated)
-      ══════════════════════════════════════ */}
-      <section className="animate-fade-in-up" style={{ margin: '32px 14px 20px', padding: '28px 20px', border: '1px solid var(--outline)', background: 'var(--surface)', borderRadius: 18, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, background: 'rgba(0,229,255,0.06)', filter: 'blur(50px)', borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', bottom: -30, left: -30, width: 100, height: 100, background: 'rgba(255,34,0,0.06)', filter: 'blur(40px)', borderRadius: '50%' }} />
-        <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: 'var(--foreground)', textAlign: 'center', marginBottom: 20, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why AfriCart?</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, textAlign: 'center', position: 'relative', zIndex: 1 }}>
-          {[
-            { val: '1M+', label: 'Delivered', icon: 'local_shipping' },
-            { val: '4.8★', label: 'Avg Rating', icon: 'star' },
-            { val: '24h', label: 'Fast Ship', icon: 'bolt' },
-          ].map(stat => (
-            <div key={stat.label}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--lime-400)', marginBottom: 6, display: 'block' }}>{stat.icon}</span>
-              <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 900, color: 'var(--lime-400)' }}>{stat.val}</p>
-              <p style={{ fontFamily: 'var(--font-inter)', fontSize: 9, fontWeight: 600, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>{stat.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          JOIN / SIGN UP CTA
-      ══════════════════════════════════════ */}
-      {!user && (
-        <section style={{ margin: '0 14px 40px' }}>
-          <div style={{
-            padding: '24px 20px', borderRadius: 18,
-            background: 'linear-gradient(135deg, #0d1a00 0%, #162600 50%, #0d1a00 100%)',
-            border: '1px solid rgba(195,244,0,0.2)',
-            textAlign: 'center', position: 'relative', overflow: 'hidden',
-          }}>
-            <div style={{ position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)', width: 200, height: 200, background: 'rgba(195,244,0,0.07)', filter: 'blur(60px)', borderRadius: '50%' }} />
-            <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 8 }}>Join AfriCart Today</p>
-            <p style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'rgba(255,255,255,0.65)', marginBottom: 20, lineHeight: 1.6 }}>
-              Create an account to earn loyalty points, get early flash sale access, and track your orders.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <Link href="/login?tab=signup" style={{ ...S.heroBtn, fontSize: 12 }}>
-                Sign Up Free
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
-              </Link>
-              <Link href="/login" style={{ ...S.heroBtn, background: 'transparent', border: '1px solid rgba(195,244,0,0.4)', color: 'var(--lime-400)', fontSize: 12 }}>
-                Sign In
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
+      <Suspense fallback={null}>
+        <SearchParamAuthListener />
+      </Suspense>
       <style>{`
-        @keyframes flashDotPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.3; transform: scale(0.6); }
+        @keyframes landingFadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes landingGlow {
+          0%, 100% { filter: drop-shadow(0 0 30px rgba(195,244,0,0.3)); }
+          50%       { filter: drop-shadow(0 0 50px rgba(195,244,0,0.5)); }
+        }
+        @keyframes modalBackdropFade {
+          from { opacity: 0; backdrop-filter: blur(0px); }
+          to   { opacity: 1; backdrop-filter: blur(12px); }
+        }
+        @keyframes modalSmoothPop {
+          from { opacity: 0; transform: scale(0.92) translateY(16px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes btnPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(195,244,0,0.4), 0 0 30px rgba(195,244,0,0.25); }
+          50%       { box-shadow: 0 0 0 14px rgba(195,244,0,0), 0 0 48px rgba(195,244,0,0.35); }
+        }
+        @keyframes starTwinkle {
+          0%, 100% { opacity: var(--base-op); }
+          50% { opacity: calc(var(--base-op) * 0.25); }
+        }
+        .lp-star {
+          position: fixed;
+          border-radius: 50%;
+          background: rgba(195,244,0,0.85);
+          pointer-events: none;
+          animation: starTwinkle var(--twinkle-dur) ease-in-out infinite;
+        }
+        .explore-btn {
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .explore-btn:hover {
+          transform: scale(1.04) !important;
+          box-shadow: 0 12px 52px rgba(195,244,0,0.45) !important;
+        }
+        .lp-nav-link {
+          font-family: var(--font-lexend);
+          font-size: 12px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.52);
+          text-decoration: none;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          transition: color 0.2s;
+        }
+        .lp-nav-link:hover { color: rgba(255,255,255,0.9); }
+        .lp-login-btn {
+          font-family: var(--font-lexend);
+          font-size: 12px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.72);
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 8px 16px;
+          border-radius: 100px;
+          border: 1px solid rgba(255,255,255,0.14);
+          transition: all 0.2s;
+          background: transparent;
+          cursor: pointer;
+        }
+        .lp-login-btn:hover {
+          border-color: rgba(195,244,0,0.5);
+          color: #c3f400;
+          background: rgba(195,244,0,0.06);
+        }
+        .lp-register-btn {
+          font-family: var(--font-lexend);
+          font-size: 12px;
+          font-weight: 800;
+          color: #000;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 8px 18px;
+          border-radius: 100px;
+          background: linear-gradient(135deg, #c3f400 0%, #a8e600 40%, #39d353 100%);
+          transition: all 0.2s;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 2px 14px rgba(195,244,0,0.35);
+        }
+        .lp-register-btn:hover {
+          background: linear-gradient(135deg, #d4ff00 0%, #b8f000 40%, #4ae064 100%);
+          box-shadow: 0 4px 24px rgba(195,244,0,0.55);
+          transform: translateY(-1px);
+        }
+        .vendor-link:hover { color: #c3f400 !important; }
+        .footer-link:hover { color: rgba(195,244,0,0.75) !important; }
+        .lp-cart-btn:hover { opacity: 0.65; }
+
+        .auth-input {
+          width: 100%;
+          padding: 12px 14px;
+          background: #121800;
+          border: 1px solid rgba(195,244,0,0.25);
+          border-radius: 10px;
+          color: #fff;
+          font-size: 14px;
+          font-family: var(--font-inter);
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        .auth-input:focus {
+          border-color: #c3f400;
+        }
+
+        @media (max-width: 640px) {
+          .lp-header {
+            padding: 16px 12px 0 !important;
+          }
+          .lp-nav {
+            gap: 10px !important;
+            flex-wrap: nowrap !important;
+          }
+          .lp-nav-link {
+            font-size: 10px !important;
+            letter-spacing: 0.04em !important;
+          }
+          .lp-login-btn, .lp-register-btn {
+            font-size: 10px !important;
+            padding: 6px 12px !important;
+            letter-spacing: 0.04em !important;
+            white-space: nowrap !important;
+          }
         }
       `}</style>
 
-      {/* ══════════════════════════════════════
-          BUYER PROTECTION TRUST STRIP
-      ══════════════════════════════════════ */}
-      <section style={{ margin: '0 14px 32px' }}>
-        <div style={{
-          padding: '16px 20px', borderRadius: 16,
-          background: 'var(--surface)', border: '1px solid var(--outline)',
-          display: 'flex', flexDirection: 'column', gap: 12,
+      {/* Background stars – tiny twinkling dots spread all over */}
+      {mounted && Array.from({ length: 60 }).map((_, i) => (
+        <div
+          key={i}
+          className="lp-star"
+          style={{
+            left: `${(i * 41 + 7) % 99}%`,
+            top: `${(i * 67 + 11) % 97}%`,
+            width: i % 7 === 0 ? 2.5 : i % 3 === 0 ? 2 : 1.2,
+            height: i % 7 === 0 ? 2.5 : i % 3 === 0 ? 2 : 1.2,
+            ['--base-op' as string]: `${0.07 + (i % 8) * 0.04}`,
+            ['--twinkle-dur' as string]: `${2.5 + (i % 5) * 1.1}s`,
+            animationDelay: `${(i * 0.37) % 3}s`,
+          } as React.CSSProperties}
+        />
+      ))}
+
+      {/* Full-screen dense floating constellation (short & many connecting lines everywhere) */}
+      <FloatingConstellation />
+
+      {/* ── HERO FOLD (FULL VIEWPORT HEIGHT 100dvh) ─────────────────────────── */}
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        zIndex: 10,
+        boxSizing: 'border-box',
+      }}>
+        {/* ── NAVIGATION ── */}
+        <header className="lp-header" style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '24px 28px 0',
+          width: '100%',
+          boxSizing: 'border-box',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--lime-400)', fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 900, color: 'var(--foreground)' }}>AfriCart Buyer Protection</span>
-            </div>
-            <Link href="/buyer-protection" style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: 'var(--lime-400)', textDecoration: 'none', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Learn More →
-            </Link>
+          <nav className="lp-nav" style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 3.5vw, 24px)', flexWrap: 'nowrap', justifyContent: 'center' }}>
+            <a
+              href="#about"
+              className="lp-nav-link"
+              style={{ transition: 'color 0.2s' }}
+            >
+              About
+            </a>
+            <a
+              href="#services"
+              className="lp-nav-link"
+              style={{ transition: 'color 0.2s' }}
+            >
+              Services
+            </a>
+
+            {/* Auth buttons */}
+            <button
+              id="lp-login-btn"
+              onClick={() => router.push('/login')}
+              aria-label="Log in"
+              className="lp-login-btn"
+            >
+              Log In
+            </button>
+
+            <button
+              id="lp-register-btn"
+              onClick={() => setShowAuthChoice(true)}
+              aria-label="Create an account"
+              className="lp-register-btn"
+            >
+              Register
+            </button>
+          </nav>
+        </header>
+
+        {/* ── HERO MAIN CONTENT ── */}
+        <main style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 28px 30px',
+          textAlign: 'center',
+        }}>
+          <h1 style={{
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 'clamp(58px, 18vw, 100px)',
+            fontWeight: 900,
+            color: '#fff',
+            lineHeight: 1,
+            margin: '0 0 16px',
+            letterSpacing: '-0.03em',
+            animation: 'landingFadeUp 0.8s ease-out both, landingGlow 4s ease-in-out 0.8s infinite',
+          }}>
+            <span style={{ color: '#c3f400' }}>Afri</span>Cart
+          </h1>
+
+          <p style={{
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 'clamp(11px, 3vw, 14px)',
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.62)',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            lineHeight: 1.6,
+            maxWidth: 340,
+            margin: '0 0 40px',
+            animation: 'landingFadeUp 0.8s 0.15s ease-out both',
+          }}>
+            The Future of{' '}
+            <span style={{ color: '#c3f400' }}>Ghanaian<br />Commerce</span>
+          </p>
+
+          {/* Stats */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'clamp(8px, 3vw, 24px)',
+            marginBottom: 38,
+            animation: 'landingFadeUp 0.8s 0.28s ease-out both',
+            width: '100%',
+            maxWidth: 440,
+            padding: '0 8px',
+            boxSizing: 'border-box',
+          }}>
+            <Stat value="10k+" label="Verified Vendors" />
+            <StatDivider />
+            <Stat value="MoMo" label="Instant Payments" />
+            <StatDivider />
+            <Stat value="24hr" label="Nationwide Delivery" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            {[
-              { icon: 'autorenew', label: '7-Day Returns' },
-              { icon: 'lock', label: 'Secure Payments' },
-              { icon: 'support_agent', label: '24/7 Support' },
-            ].map(item => (
-              <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', background: 'var(--surface-container)', borderRadius: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--lime-400)' }}>{item.icon}</span>
-                <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 9, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center' }}>{item.label}</span>
+
+          {/* Primary CTA */}
+          <Link
+            href="/shop"
+            prefetch={true}
+            id="lp-explore-btn"
+            className="explore-btn"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#c3f400', color: '#000',
+              fontFamily: 'var(--font-lexend)', fontWeight: 900,
+              fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase',
+              textDecoration: 'none', padding: '18px 36px',
+              borderRadius: 100, marginBottom: 20, width: '100%', maxWidth: 340,
+              boxShadow: '0 0 30px rgba(195,244,0,0.25)',
+              animation: 'landingFadeUp 0.8s 0.4s ease-out both, btnPulse 2.5s 1.2s ease-in-out infinite',
+            }}
+          >
+            Explore Marketplace
+          </Link>
+
+        </main>
+
+        {/* ── SCROLL DOWN INDICATOR ── */}
+        <a
+          href="#about"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            paddingBottom: 20,
+            color: 'rgba(195,244,0,0.7)',
+            textDecoration: 'none',
+            animation: 'landingFadeUp 0.8s 0.65s ease-out both',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.4)',
+          }}>
+            Scroll to Explore
+          </span>
+          <span className="material-symbols-outlined" style={{
+            fontSize: 22,
+            color: '#c3f400',
+            animation: 'landingFadeUp 1.5s infinite ease-in-out alternate',
+          }}>
+            keyboard_arrow_down
+          </span>
+        </a>
+      </div>
+
+      {/* ── ABOUT SECTION ─────────────────────────────────────────────────────── */}
+      <section id="about" style={{ position: 'relative', zIndex: 10, padding: '70px 28px 50px', maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{
+          display: 'inline-block',
+          padding: '6px 16px',
+          borderRadius: 100,
+          background: 'rgba(195,244,0,0.08)',
+          border: '1px solid rgba(195,244,0,0.25)',
+          color: '#c3f400',
+          fontFamily: 'var(--font-lexend)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          marginBottom: 16,
+        }}>
+          About AfriCart
+        </div>
+        <h2 style={{
+          fontFamily: 'var(--font-lexend)',
+          fontSize: 'clamp(28px, 5vw, 42px)',
+          fontWeight: 900,
+          color: '#fff',
+          lineHeight: 1.2,
+          marginBottom: 16,
+        }}>
+          Empowering Ghanaian Commerce & Local Creators
+        </h2>
+        <p style={{
+          fontFamily: 'var(--font-inter)',
+          fontSize: 'clamp(14px, 2vw, 16px)',
+          color: 'rgba(255,255,255,0.7)',
+          lineHeight: 1.7,
+          maxWidth: 720,
+          margin: '0 auto 48px',
+        }}>
+          AfriCart is Ghana&apos;s premier multi-vendor marketplace designed to connect local creators, fashion designers, electronics suppliers, and local merchants with millions of shoppers nationwide. Experience seamless mobile payments, fast delivery, and total buyer protection.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, textAlign: 'left' }}>
+          {[
+            {
+              icon: 'public',
+              title: '100% Ghanaian Driven',
+              desc: 'Built specifically for Ghanaian trade dynamics, connecting businesses from Accra, Kumasi, Tamale, Takoradi, and all 16 regions.'
+            },
+            {
+              icon: 'verified_user',
+              title: 'Escrow & Buyer Protection',
+              desc: 'Your money is safe. Payments are protected in escrow until your order is delivered and verified to match your expectations.'
+            },
+            {
+              icon: 'account_balance_wallet',
+              title: 'Instant Mobile Money',
+              desc: 'Pay effortlessly using MTN Mobile Money, Telecel Cash, AT Money, or debit cards with zero complicated setups.'
+            }
+          ].map((card, idx) => (
+            <div key={idx} style={{
+              background: 'rgba(255,255,255,0.025)',
+              border: '1px solid rgba(195,244,0,0.18)',
+              borderRadius: 18,
+              padding: 28,
+              transition: 'transform 0.2s, border-color 0.2s',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+            }}>
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: 'rgba(195,244,0,0.1)',
+                border: '1px solid rgba(195,244,0,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 18,
+                color: '#c3f400'
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 26 }}>{card.icon}</span>
               </div>
-            ))}
-          </div>
+              <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: 8 }}>{card.title}</h3>
+              <p style={{ fontFamily: 'var(--font-inter)', fontSize: '0.88rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, margin: 0 }}>{card.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Quick View Modal Container */}
-      <QuickViewModal product={quickViewProduct} onClose={() => setQuickViewProduct(null)} />
+      {/* ── OUR SERVICES SECTION ─────────────────────────────────────────────── */}
+      <section id="services" style={{ position: 'relative', zIndex: 10, padding: '60px 28px 50px', maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-block',
+            padding: '6px 16px',
+            borderRadius: 100,
+            background: 'rgba(195,244,0,0.08)',
+            border: '1px solid rgba(195,244,0,0.25)',
+            color: '#c3f400',
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            marginBottom: 14,
+          }}>
+            Services
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 'clamp(26px, 4vw, 36px)', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>
+            Built for Modern Commerce
+          </h2>
+          <p style={{ fontFamily: 'var(--font-inter)', fontSize: '0.95rem', color: 'rgba(255,255,255,0.62)', maxWidth: 560, margin: '0 auto' }}>
+            Everything vendors and shoppers need for a smooth, trusted e-commerce experience.
+          </p>
+        </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+          {[
+            { icon: 'storefront', title: 'Vendor Storefronts', desc: 'Customizable storefronts for Ghanaian creators, brands, and local retailers.' },
+            { icon: 'payments', title: 'Instant MoMo Payments', desc: 'Secure local payments via MTN MoMo, Telecel Cash, AT Money, and cards.' },
+            { icon: 'local_shipping', title: 'Express Delivery', desc: 'Doorstep dispatch and automated tracking across all regions in Ghana.' },
+            { icon: 'gavel', title: 'Dispute Resolution', desc: 'Automated seller payouts & buyer dispute guarantees for complete safety.' }
+          ].map((item, idx) => (
+            <div key={idx} style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(195,244,0,0.15)',
+              borderRadius: 16,
+              padding: 24,
+              textAlign: 'left'
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#c3f400', marginBottom: 12, display: 'block' }}>{item.icon}</span>
+              <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: 8 }}>{item.title}</h3>
+              <p style={{ fontFamily: 'var(--font-inter)', fontSize: '0.85rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6, margin: 0 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── POPULAR STORE CATEGORIES ─────────────────────────────────────────── */}
+      <section id="categories" style={{ position: 'relative', zIndex: 10, padding: '60px 28px 50px', maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-block',
+            padding: '6px 16px',
+            borderRadius: 100,
+            background: 'rgba(195,244,0,0.08)',
+            border: '1px solid rgba(195,244,0,0.25)',
+            color: '#c3f400',
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            marginBottom: 14,
+          }}>
+            Explore Marketplace
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 'clamp(26px, 4vw, 36px)', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>
+            Top Store Categories
+          </h2>
+          <p style={{ fontFamily: 'var(--font-inter)', fontSize: '0.95rem', color: 'rgba(255,255,255,0.62)', maxWidth: 560, margin: '0 auto' }}>
+            Discover hundreds of authentic products curated from local Ghanaian vendors.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+          {[
+            { icon: 'styler', name: 'Fashion & Wear', count: '3.4k+ items', tag: 'Trending' },
+            { icon: 'devices', name: 'Electronics & Tech', count: '1.8k+ items', tag: 'Verified' },
+            { icon: 'palette', name: 'Art & Crafts', count: '920+ items', tag: 'Handmade' },
+            { icon: 'spa', name: 'Beauty & Skincare', count: '1.2k+ items', tag: 'Organic' },
+            { icon: 'restaurant', name: 'Local Food & Spices', count: '650+ items', tag: 'Fresh' }
+          ].map((cat, idx) => (
+            <Link
+              key={idx}
+              href="/shop"
+              style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 16,
+                padding: '20px 16px',
+                textAlign: 'center',
+                textDecoration: 'none',
+                transition: 'all 0.2s',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = '#c3f400';
+                e.currentTarget.style.transform = 'translateY(-3px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.transform = 'none';
+              }}
+            >
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'rgba(195,244,0,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#c3f400',
+                marginBottom: 12,
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 24 }}>{cat.icon}</span>
+              </div>
+              <h4 style={{ fontFamily: 'var(--font-lexend)', fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>{cat.name}</h4>
+              <span style={{ fontFamily: 'var(--font-inter)', fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)' }}>{cat.count}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ── VENDOR CALLOUT BANNER ────────────────────────────────────────────── */}
+      <section style={{ position: 'relative', zIndex: 10, padding: '40px 28px 60px', maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(195,244,0,0.12) 0%, rgba(13,18,0,0.9) 60%, rgba(20,28,0,0.95) 100%)',
+          border: '1px solid rgba(195,244,0,0.35)',
+          borderRadius: 24,
+          padding: '40px 32px',
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(195,244,0,0.1)',
+        }}>
+          <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 'clamp(22px, 4vw, 32px)', fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>
+            Are You a Business Owner or Creator in Ghana?
+          </h3>
+          <p style={{ fontFamily: 'var(--font-inter)', fontSize: '1rem', color: 'rgba(255,255,255,0.75)', maxWidth: 600, margin: '0 auto 28px', lineHeight: 1.6 }}>
+            Set up your store in under 5 minutes. Take advantage of automated Mobile Money payouts, nationwide rider delivery, and custom storefront URLs.
+          </p>
+          <Link
+            href="/register/vendor"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#c3f400',
+              color: '#000',
+              fontFamily: 'var(--font-lexend)',
+              fontWeight: 900,
+              fontSize: 13,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              textDecoration: 'none',
+              padding: '16px 32px',
+              borderRadius: 100,
+              boxShadow: '0 6px 30px rgba(195,244,0,0.35)',
+              transition: 'transform 0.2s',
+            }}
+          >
+            <span>Become a Vendor Today</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* ── FREQUENTLY ASKED QUESTIONS ───────────────────────────────────────── */}
+      <section id="faq" style={{ position: 'relative', zIndex: 10, padding: '40px 28px 70px', maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-block',
+            padding: '6px 16px',
+            borderRadius: 100,
+            background: 'rgba(195,244,0,0.08)',
+            border: '1px solid rgba(195,244,0,0.25)',
+            color: '#c3f400',
+            fontFamily: 'var(--font-lexend)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            marginBottom: 14,
+          }}>
+            Questions & Answers
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 'clamp(24px, 4vw, 34px)', fontWeight: 900, color: '#fff', margin: 0 }}>
+            Frequently Asked Questions
+          </h2>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[
+            {
+              q: 'How do payments work on AfriCart?',
+              a: 'AfriCart supports all major Ghanaian Mobile Money providers (MTN MoMo, Telecel Cash, AT Money) and debit/credit cards. Funds are held safely in escrow until your order is delivered.'
+            },
+            {
+              q: 'How fast is nationwide delivery?',
+              a: 'Deliveries within major hubs (Accra, Kumasi, Tamale) take 12 to 24 hours. Inter-regional deliveries arrive within 24 to 48 hours with live rider tracking.'
+            },
+            {
+              q: 'How do I start selling as a vendor?',
+              a: 'Click "Become a Vendor", fill in your store details, upload your Ghana Card verification, and you can immediately start listing products and accepting MoMo payments.'
+            },
+            {
+              q: 'What if I receive a damaged or incorrect item?',
+              a: 'Our Buyer Protection policy covers all orders. You can initiate a dispute or return request within 48 hours of delivery for a full refund or exchange.'
+            }
+          ].map((faq, idx) => (
+            <div key={idx} style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(195,244,0,0.15)',
+              borderRadius: 14,
+              padding: '20px 24px',
+            }}>
+              <h4 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.05rem', fontWeight: 700, color: '#c3f400', margin: '0 0 8px' }}>
+                {faq.q}
+              </h4>
+              <p style={{ fontFamily: 'var(--font-inter)', fontSize: '0.88rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, margin: 0 }}>
+                {faq.a}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FOOTER ───────────────────────────────────────────────────────────── */}
+      <footer style={{
+        position: 'relative', zIndex: 10,
+        padding: '30px 28px 36px',
+        borderTop: '1px solid rgba(195,244,0,0.12)',
+        display: 'flex', flexWrap: 'wrap',
+        justifyContent: 'space-between', alignItems: 'center',
+        gap: 16,
+        animation: 'landingFadeUp 0.8s 0.6s ease-out both',
+        maxWidth: 1100,
+        margin: '0 auto',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: '#fff' }}>
+            <span style={{ color: '#c3f400' }}>Afri</span>Cart
+          </span>
+          <p style={{
+            fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 600,
+            color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase',
+            margin: 0,
+          }}>
+            © 2026 AfriCart Ghana. All Rights Reserved.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Privacy Policy', href: '/buyer-protection' },
+            { label: 'Terms of Service', href: '/buyer-protection' },
+            { label: 'Support & Help', href: '/account/support' },
+            { label: 'Vendor Portal', href: '/vendor' },
+          ].map(({ label, href }) => (
+            <Link
+              key={label}
+              href={href}
+              className="footer-link"
+              style={{
+                fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700,
+                color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em',
+                textTransform: 'uppercase', textDecoration: 'none', transition: 'color 0.2s',
+              }}
+            >{label}</Link>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#c3f400' }}>location_on</span>
+          <span style={{
+            fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700,
+            color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}>ACCRA • KUMASI • TAMALE</span>
+        </div>
+      </footer>
+
+      {/* ── REGISTRATION CHOICE MODAL (Customer, Vendor, Rider) ── */}
+      {showAuthChoice && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 110,
+            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+            animation: 'modalBackdropFade 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          }}
+          onClick={() => setShowAuthChoice(false)}
+        >
+          <div
+            style={{
+              width: '100%', maxWidth: 430,
+              background: '#0d1200', border: '1px solid rgba(195,244,0,0.35)',
+              borderRadius: 22, padding: '28px 24px', textAlign: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.8), 0 0 40px rgba(195,244,0,0.18)',
+              position: 'relative',
+              animation: 'modalSmoothPop 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowAuthChoice(false)}
+              style={{
+                position: 'absolute', top: 16, right: 16,
+                background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              background: 'rgba(195,244,0,0.15)', border: '1px solid rgba(195,244,0,0.3)',
+              margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#c3f400'
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 28 }}>person_add</span>
+            </div>
+
+            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>
+              Create an Account
+            </h2>
+            <p style={{ fontFamily: 'var(--font-inter)', fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: '0 0 24px' }}>
+              Choose your account type to get started on AfriCart
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
+              {/* Option 1: Customer Account */}
+              <button
+                onClick={() => { setShowAuthChoice(false); router.push('/register/customer'); }}
+                style={{
+                  width: '100%', padding: '16px', borderRadius: 14,
+                  background: 'rgba(195,244,0,0.08)', border: '1px solid rgba(195,244,0,0.35)',
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: '#c3f400', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22 }}>shopping_bag</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: '#c3f400' }}>
+                    Customer Account
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                    Shop products, track orders & earn rewards
+                  </div>
+                </div>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>chevron_right</span>
+              </button>
+
+              {/* Option 2: Vendor Store Account */}
+              <button
+                onClick={() => { setShowAuthChoice(false); router.push('/register/vendor'); }}
+                style={{
+                  width: '100%', padding: '16px', borderRadius: 14,
+                  background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.3)',
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: '#00e5ff', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22 }}>storefront</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: '#00e5ff' }}>
+                    Vendor Store Account
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                    Sell products nationwide & receive instant MoMo payouts
+                  </div>
+                </div>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>chevron_right</span>
+              </button>
+
+              {/* Option 3: Delivery Rider Account */}
+              <button
+                onClick={() => { setShowAuthChoice(false); router.push('/register/rider'); }}
+                style={{
+                  width: '100%', padding: '16px', borderRadius: 14,
+                  background: 'rgba(255,170,0,0.08)', border: '1px solid rgba(255,170,0,0.3)',
+                  color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: '#ffaa00', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 22 }}>two_wheeler</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: '#ffaa00' }}>
+                    Delivery Rider Partner
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                    Earn money delivering orders with bike, car or walking
+                  </div>
+                </div>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>chevron_right</span>
+              </button>
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
+              <button
+                onClick={() => { setShowAuthChoice(false); router.push('/login'); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-inter)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}
+              >
+                Already have an account? <span style={{ color: '#c3f400', fontWeight: 700 }}>Sign In →</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

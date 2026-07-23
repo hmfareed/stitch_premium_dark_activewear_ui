@@ -34,7 +34,34 @@ export async function POST(req: NextRequest) {
     // Parse verified payload
     const payload = JSON.parse(rawBody);
 
-    // We only care about charge.success
+    // ── Handle subaccount lifecycle events ────────────────────────────────────
+    if (payload.event === 'subaccount.updated' || payload.event === 'subscription.disable') {
+      const subData = payload.data;
+      const subaccountCode = subData?.subaccount_code || subData?.subaccount?.subaccount_code;
+      if (subaccountCode) {
+        try {
+          const { Store } = await import('@/models/Store');
+          await connectToDatabase();
+          const store = await Store.findOne({ paystackSubaccountCode: subaccountCode });
+          if (store) {
+            // If subaccount is disabled/invalid, flag the store
+            if (payload.event === 'subscription.disable' || subData?.is_verified === false) {
+              store.paystackSubaccountStatus = 'failed';
+              if (store.status === 'active') {
+                store.status = 'suspended';
+              }
+              await store.save();
+              console.log(`Store ${store._id} suspended due to Paystack subaccount issue`);
+            }
+          }
+        } catch (subErr) {
+          console.error('Failed to update store from Paystack subaccount event:', subErr);
+        }
+      }
+      return NextResponse.json({ success: true, message: `Subaccount event ${payload.event} handled` });
+    }
+
+    // We only care about charge.success beyond this point
     if (payload.event !== 'charge.success') {
       return NextResponse.json({ success: true, message: `Event ${payload.event} ignored` });
     }

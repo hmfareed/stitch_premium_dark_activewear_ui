@@ -13,20 +13,34 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') || pathname?.startsWith('/vendor');
   const isChat = pathname === '/chat';
-  const noNav = isAdmin || isChat;
+  const isLanding = pathname === '/';
+  const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
+  const noNav = isAdmin || isChat || isLanding || isAuthPage;
+
+  // Render footer exclusively on the homepage (/shop)
+  const isHomepage = pathname === '/shop';
 
   return (
     <ClientProviders>
       {!noNav && <FlashSaleBanner />}
-      {!noNav && <TopAppBar />}
-      {!noNav && <CartDrawer />}
+      {!noNav && (
+        <React.Suspense fallback={null}>
+          <TopAppBar />
+        </React.Suspense>
+      )}
+      {/* CartDrawer always rendered so landing page cart button works */}
+      <CartDrawer />
       <main style={{ paddingTop: noNav ? 0 : 100, paddingBottom: noNav ? 0 : 80, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {children}
         </div>
-        {!noNav && pathname === '/' && <Footer />}
+        {isHomepage && <Footer />}
       </main>
-      {!noNav && <BottomNavBar />}
+      {!noNav && (
+        <React.Suspense fallback={null}>
+          <BottomNavBar />
+        </React.Suspense>
+      )}
     </ClientProviders>
   );
 };

@@ -96,6 +96,8 @@ export default function AdminOrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           status: resolution === 'Refund' ? 'Cancelled' : 'Delivered',
+          // Admin-authorized dispute resolution — bypasses customer confirmation guard
+          customerConfirmed: resolution === 'Release' ? true : undefined,
           'paymentInfo.escrowStatus': resolution === 'Release' ? 'Released' : 'Refunded' 
         })
       });

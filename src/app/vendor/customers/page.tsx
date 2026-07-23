@@ -7,15 +7,17 @@ import { useAdmin } from '@/context/AdminContext';
 export default function VendorCustomersPage() {
   const { user } = useAuth();
   const { allOrders } = useAdmin();
-  const { followers } = useStore();
+  const { followers, vendorStore } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!user) return null;
 
+  const vendorEmail = vendorStore?.vendorEmail || user?.email || '';
+
   // Find all orders containing this vendor's products
-  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === user.email)).map(o => {
+  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === vendorEmail)).map(o => {
     const vendorItemsTotal = o.products
-      .filter(p => p.vendorEmail === user.email)
+      .filter(p => p.vendorEmail === vendorEmail)
       .reduce((sum, p) => sum + (p.price * p.quantity), 0);
     return { ...o, vendorItemsTotal };
   });
@@ -34,7 +36,7 @@ export default function VendorCustomersPage() {
   });
 
   // Add followers who haven't bought anything yet — they auto-appear here
-  const myFollowers = followers.filter(f => f.vendorEmail === user.email);
+  const myFollowers = followers.filter(f => f.vendorEmail === vendorEmail);
   myFollowers.forEach(f => {
     if (!customerMap.has(f.userEmail)) {
       customerMap.set(f.userEmail, { 

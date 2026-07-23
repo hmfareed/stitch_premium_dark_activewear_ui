@@ -101,24 +101,42 @@ export default function OrdersPage() {
   };
 
   const handleConfirmDelivery = async (order: any) => {
-    if (confirm('Confirm you have received all items in this order? This will release payment to the vendor.')) {
+    if (confirm('✅ Confirm you have physically received all items in this order?\n\nThis will:\n• Mark the order as Delivered + Picked Up\n• Release payment to the vendor\n• Cannot be undone')) {
+      // Optimistic local update — immediately move the card to Picked Up
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === order.id
+            ? { ...o, status: 'Picked Up', originalStatus: 'Picked Up' }
+            : o
+        )
+      );
+      setSelectedOrder(null);
+
       try {
         const res = await fetch(`/api/orders/${order.dbId || order.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             status: 'Delivered',
-            'paymentInfo.escrowStatus': 'Released' 
+            customerConfirmed: true,          // ← unlocks the API guard
+            'paymentInfo.escrowStatus': 'Released',
+            timelineNote: 'Customer confirmed receipt of all items in this order.',
           })
         });
-        
+
         if (res.ok) {
-          showToast('Delivery confirmed! Payment released.');
-          setSelectedOrder(null);
+          showToast('🎉 Delivery confirmed! Payment released to vendor.', 'success');
+          // Reload to get the fully synced timeline (Delivered + Picked Up)
+          setTimeout(() => loadOrders(true), 1500);
+        } else {
+          const data = await res.json();
+          showToast(data.error || 'Failed to confirm delivery', 'error');
+          // Revert optimistic update on failure
           loadOrders(true);
         }
       } catch (err) {
-        showToast('Failed to confirm delivery', 'error');
+        showToast('Network error — could not confirm delivery', 'error');
+        loadOrders(true);
       }
     }
   };
@@ -553,25 +571,55 @@ export default function OrdersPage() {
             <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '16px', borderRadius: 12, background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>CLOSE</button>
-                {selectedOrder.originalStatus === 'Shipped' && (
-                  <button 
-                    onClick={() => handleConfirmDelivery(selectedOrder)} 
-                    style={{ 
-                      flex: 1, padding: '16px', borderRadius: 12, background: 'var(--lime-400)', color: '#000', 
-                      border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                    }}
-                  >
-                    <span className="material-symbols-outlined">verified</span>
-                    CONFIRM DELIVERY
-                  </button>
-                )}
               </div>
+
+              {/* ── CUSTOMER DELIVERY CONFIRMATION CTA ─────────────────── */}
+              {selectedOrder.originalStatus === 'Shipped' && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', gap: 12,
+                  padding: '18px', borderRadius: 16,
+                  background: 'linear-gradient(135deg, rgba(195,244,0,0.06), rgba(0,229,255,0.04))',
+                  border: '1px solid rgba(195,244,0,0.25)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--lime-400)', flexShrink: 0, marginTop: 2 }}>verified_user</span>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--foreground)', marginBottom: 2, fontFamily: 'var(--font-lexend)' }}>Did you receive your order?</p>
+                      <p style={{ fontSize: 11, color: 'var(--on-surface-variant)', lineHeight: 1.5 }}>
+                        Only confirm once you have physically received and inspected all items. This releases payment to the vendor.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    id="confirm-delivery-btn"
+                    onClick={() => handleConfirmDelivery(selectedOrder)}
+                    style={{
+                      width: '100%', padding: '16px', borderRadius: 12,
+                      background: 'var(--lime-400)',
+                      color: '#000', border: 'none',
+                      fontFamily: 'var(--font-lexend)', fontWeight: 900, fontSize: 15,
+                      cursor: 'pointer', letterSpacing: '0.02em',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                      boxShadow: '0 0 20px rgba(195,244,0,0.35), 0 4px 14px rgba(195,244,0,0.2)',
+                      transition: 'box-shadow 0.2s, transform 0.1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 32px rgba(195,244,0,0.55), 0 6px 20px rgba(195,244,0,0.3)')}
+                    onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 20px rgba(195,244,0,0.35), 0 4px 14px rgba(195,244,0,0.2)')}
+                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.98)')}
+                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 22 }}>thumb_up</span>
+                    I RECEIVED MY ORDER
+                  </button>
+                </div>
+              )}
+              {/* ───────────────────────────────────────────────────────── */}
+
               {(selectedOrder.originalStatus === 'Pending' || selectedOrder.originalStatus === 'Processing' || selectedOrder.originalStatus === 'Shipped') && (
-                <button 
-                  onClick={() => handleDisputeOrder(selectedOrder)} 
-                  style={{ 
-                    width: '100%', padding: '14px', borderRadius: 12, background: 'transparent', color: 'var(--error)', 
+                <button
+                  onClick={() => handleDisputeOrder(selectedOrder)}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 12, background: 'transparent', color: 'var(--error)',
                     border: '1px dashed var(--error)', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 12, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                   }}

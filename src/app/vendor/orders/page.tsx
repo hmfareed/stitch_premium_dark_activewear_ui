@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AppContext';
+import { useAuth, useStore } from '@/context/AppContext';
 import { useAdmin, PlatformOrder } from '@/context/AdminContext';
 import { OrderChat } from '@/components/OrderChat';
 import './orders.css';
@@ -37,7 +37,10 @@ export default function VendorOrdersPage() {
   const [animProgress, setAnimProgress] = useState(0);
 
   const { user } = useAuth();
+  const { vendorStore } = useStore();
   const { allOrders, updateOrderStatus } = useAdmin();
+
+  const vendorEmail = vendorStore?.vendorEmail || user?.email || '';
 
   const couriers = [
     { name: 'Yango Delivery', logo: 'directions_motorcycle', eta: '15-30 mins', cost: 'GH₵ 25.00', rating: 4.8 },
@@ -77,12 +80,12 @@ export default function VendorOrdersPage() {
   if (!user) return null;
 
   // Filter orders to only those containing this vendor's products
-  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === user.email)).map(o => {
+  const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === vendorEmail)).map(o => {
     const vendorItemsTotal = o.products
-      .filter(p => p.vendorEmail === user.email)
+      .filter(p => p.vendorEmail === vendorEmail)
       .reduce((sum, p) => sum + (p.price * p.quantity), 0);
     const vendorItemsCount = o.products
-      .filter(p => p.vendorEmail === user.email)
+      .filter(p => p.vendorEmail === vendorEmail)
       .reduce((sum, p) => sum + p.quantity, 0);
     return { ...o, vendorItemsTotal, vendorItemsCount };
   });
@@ -199,7 +202,7 @@ export default function VendorOrdersPage() {
                       <td data-label="Items">
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'inherit' }}>
                           {order.products.map((p, i) => (
-                            <div key={i} style={{ width: '32px', height: '32px', borderRadius: '6px', overflow: 'hidden', backgroundColor: 'var(--surface-container-highest)', border: p.vendorEmail === user.email ? '2px solid var(--lime-400)' : 'none' }}>
+                            <div key={i} style={{ width: '32px', height: '32px', borderRadius: '6px', overflow: 'hidden', backgroundColor: 'var(--surface-container-highest)', border: p.vendorEmail === vendorEmail ? '2px solid var(--lime-400)' : 'none' }}>
                               {p.image && <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             </div>
                           )).slice(0, 4)}
@@ -214,28 +217,57 @@ export default function VendorOrdersPage() {
                           <button onClick={() => setSelectedOrder(order)} style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="View Details">
                             <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>visibility</span>
                           </button>
-                          <select 
-                            value={order.status} 
-                            onChange={e => setStatusUpdateModal({
-                              orderId: order.id || (order as any).orderId || (order as any)._id,
-                              newStatus: e.target.value,
-                              currentStatus: order.status,
-                              note: ''
-                            })}
-                            disabled={order.status === 'Cancelled'}
-                            style={{ 
-                              padding: '8px 12px', borderRadius: '10px', backgroundColor: 'var(--surface-container)', 
-                              border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', 
-                              fontSize: '0.85rem', cursor: (order.status === 'Cancelled') ? 'not-allowed' : 'pointer',
-                              opacity: (order.status === 'Cancelled') ? 0.6 : 1
-                            }}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
+
+                          {/* Customer-confirmed statuses: vendor cannot change these */}
+                          {(order.status === 'Delivered' || order.status === 'Picked Up') ? (
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
+                              borderRadius: '10px', backgroundColor: 'color-mix(in srgb, var(--lime-400) 12%, transparent)',
+                              border: '1px solid color-mix(in srgb, var(--lime-400) 30%, transparent)',
+                              fontSize: '0.78rem', fontWeight: 700, color: 'var(--lime-400)', whiteSpace: 'nowrap'
+                            }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>verified</span>
+                              Customer Confirmed
+                            </div>
+                          ) : (
+                            <>
+                              {/* Awaiting confirmation notice shown when Shipped */}
+                              {order.status === 'Shipped' && (
+                                <div style={{
+                                  display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px',
+                                  borderRadius: '8px', backgroundColor: 'color-mix(in srgb, #ff9800 10%, transparent)',
+                                  border: '1px solid color-mix(in srgb, #ff9800 30%, transparent)',
+                                  fontSize: '0.72rem', fontWeight: 700, color: '#ff9800', whiteSpace: 'nowrap'
+                                }} title="Waiting for the customer to confirm receipt">
+                                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>schedule</span>
+                                  Awaiting Customer
+                                </div>
+                              )}
+                              <select
+                                value={order.status}
+                                onChange={e => setStatusUpdateModal({
+                                  orderId: order.id || (order as any).orderId || (order as any)._id,
+                                  newStatus: e.target.value,
+                                  currentStatus: order.status,
+                                  note: ''
+                                })}
+                                disabled={order.status === 'Cancelled' || order.status === 'Shipped'}
+                                style={{
+                                  padding: '8px 12px', borderRadius: '10px', backgroundColor: 'var(--surface-container)',
+                                  border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none',
+                                  fontSize: '0.85rem',
+                                  cursor: (order.status === 'Cancelled' || order.status === 'Shipped') ? 'not-allowed' : 'pointer',
+                                  opacity: (order.status === 'Cancelled' || order.status === 'Shipped') ? 0.5 : 1
+                                }}
+                              >
+                                <option value="Pending">Pending</option>
+                                <option value="Processing">Processing</option>
+                                <option value="Shipped">Shipped</option>
+                                {/* Delivered & Picked Up intentionally omitted — customer-only */}
+                                <option value="Cancelled">Cancelled</option>
+                              </select>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -361,6 +393,34 @@ export default function VendorOrdersPage() {
                       <span className="detail-label">Region</span>
                       <span className="detail-value">{selectedOrder.shippingAddress?.region || 'N/A'}</span>
                     </div>
+
+                    {/* Real GPS Location & Map Navigation Link */}
+                    {((selectedOrder.shippingAddress as any)?.mapsUrl || (selectedOrder.shippingAddress as any)?.lat || (selectedOrder.shippingAddress as any)?.gpsLocation) && (
+                      <div style={{ marginTop: '12px', padding: '10px 12px', background: 'rgba(195,244,0,0.1)', borderRadius: '10px', border: '1px solid var(--lime-400)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--lime-400)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>my_location</span>
+                            GPS LOCATION ATTACHED
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'var(--on-surface-variant)' }}>
+                            {(selectedOrder.shippingAddress as any)?.gpsLocation || `${(selectedOrder.shippingAddress as any)?.lat}, ${(selectedOrder.shippingAddress as any)?.lng}`}
+                          </span>
+                        </div>
+                        <a
+                          href={(selectedOrder.shippingAddress as any)?.mapsUrl || `https://www.google.com/maps?q=${(selectedOrder.shippingAddress as any)?.lat},${(selectedOrder.shippingAddress as any)?.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: '6px 10px', background: 'var(--lime-400)', color: '#000', borderRadius: '8px',
+                            fontFamily: 'var(--font-lexend)', fontSize: '10px', fontWeight: 800, textDecoration: 'none',
+                            display: 'inline-flex', alignItems: 'center', gap: 4
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>map</span>
+                          Navigation
+                        </a>
+                      </div>
+                    )}
                     {(selectedOrder.status === 'Pending' || selectedOrder.status === 'Processing' || selectedOrder.status === 'Ongoing') && (
                       <button
                         onClick={() => {
@@ -433,14 +493,14 @@ export default function VendorOrdersPage() {
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {selectedOrder.products.map((p, i) => (
-                    <div key={i} className="order-product-item" style={{ border: p.vendorEmail === user.email ? '1px solid var(--lime-400)' : '1px solid var(--outline)' }}>
+                    <div key={i} className="order-product-item" style={{ border: p.vendorEmail === vendorEmail ? '1px solid var(--lime-400)' : '1px solid var(--outline)' }}>
                       <img src={p.image} alt={p.name} style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 700, fontSize: '0.9rem', display: 'block', color: 'var(--on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Qty: {p.quantity}</span>
                           {p.selectedSize && <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Size: {p.selectedSize}</span>}
-                          {p.vendorEmail === user.email && <span style={{ fontSize: '0.75rem', color: 'var(--lime-400)', fontWeight: 600 }}>(Your Item)</span>}
+                          {p.vendorEmail === vendorEmail && <span style={{ fontSize: '0.75rem', color: 'var(--lime-400)', fontWeight: 600 }}>(Your Item)</span>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -479,32 +539,56 @@ export default function VendorOrdersPage() {
             <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: 20 }}>
               You are changing the status of order <strong style={{ color: 'var(--foreground)' }}>#{statusUpdateModal.orderId}</strong> from <span style={{ color: 'var(--secondary)' }}>{statusUpdateModal.currentStatus}</span> to <span style={{ color: 'var(--lime-400)', fontWeight: 700 }}>{statusUpdateModal.newStatus}</span>.
             </p>
-            
+
+            {/* Safety notice: remind vendor Delivered is customer-only */}
+            {(statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') && (
+              <div style={{ display: 'flex', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.25)', marginBottom: 16 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--error)', flexShrink: 0 }}>lock</span>
+                <p style={{ fontSize: '0.8rem', color: 'var(--error)', lineHeight: 1.5, margin: 0 }}>
+                  <strong>Action not permitted.</strong> Only the customer can confirm delivery. This status is automatically set when the customer clicks &quot;I Received My Order&quot;.
+                </p>
+              </div>
+            )}
+
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', marginBottom: 8 }}>Custom Timeline Note (Optional)</label>
-              <textarea 
+              <textarea
                 placeholder="e.g. Items packed and handed over to courier."
                 value={statusUpdateModal.note}
                 onChange={e => setStatusUpdateModal({ ...statusUpdateModal, note: e.target.value })}
-                style={{ width: '100%', padding: '12px', background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', minHeight: 80, resize: 'vertical', fontFamily: 'var(--font-inter)' }}
+                disabled={statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up'}
+                style={{ width: '100%', padding: '12px', background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', minHeight: 80, resize: 'vertical', fontFamily: 'var(--font-inter)', opacity: (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') ? 0.5 : 1 }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
-              <button 
-                type="button" 
-                onClick={() => setStatusUpdateModal(null)} 
+              <button
+                type="button"
+                onClick={() => setStatusUpdateModal(null)}
                 style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
               >
                 CANCEL
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
+                disabled={statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up'}
                 onClick={() => {
+                  // Double-guard: never allow vendor to set Delivered / Picked Up via modal
+                  if (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') {
+                    setStatusUpdateModal(null);
+                    return;
+                  }
                   updateOrderStatus(statusUpdateModal.orderId, statusUpdateModal.newStatus, statusUpdateModal.note);
                   setStatusUpdateModal(null);
-                }} 
-                style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+                }}
+                style={{
+                  flex: 1, padding: '14px', borderRadius: 12,
+                  background: (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') ? 'var(--surface-container-highest)' : 'var(--lime-400)',
+                  color: (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') ? 'var(--on-surface-variant)' : '#000',
+                  border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13,
+                  cursor: (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') ? 'not-allowed' : 'pointer',
+                  opacity: (statusUpdateModal.newStatus === 'Delivered' || statusUpdateModal.newStatus === 'Picked Up') ? 0.5 : 1
+                }}
               >
                 CONFIRM
               </button>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth, useStore, useNotifications } from '@/context/AppContext';
+import { useAuth, useStore, useNotifications, useWishlist } from '@/context/AppContext';
 import { categoryHierarchy, topLevelCategories, Product } from '@/data/products';
 import { Icon } from './Icon';
 import { NotificationPanel } from './NotificationPanel';
@@ -17,6 +17,7 @@ export const TopAppBar: React.FC = () => {
   const { user } = useAuth();
   const { allProducts } = useStore();
   const { unreadCount } = useNotifications();
+  const { totalWishlist } = useWishlist();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -219,14 +220,24 @@ export const TopAppBar: React.FC = () => {
                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>download</span>
               </button>
             )}
-            {/* Search */}
+            {/* Wishlist */}
             <button
-              id="header-search-btn"
-              aria-label="Search products"
-              onClick={() => { setSearchOpen(!searchOpen); if (!searchOpen) setTimeout(() => inputRef.current?.focus(), 100); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--on-surface-variant)', display: 'flex', alignItems: 'center', borderRadius: 8 }}
+              id="header-wishlist-btn"
+              aria-label={`Wishlist, ${totalWishlist} items`}
+              onClick={() => router.push('/wishlist')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: pathname === '/wishlist' ? 'var(--lime-400)' : 'var(--on-surface-variant)', display: 'flex', alignItems: 'center', borderRadius: 8, position: 'relative' }}
             >
-              <Icon name="search" size={22} />
+              <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: pathname === '/wishlist' ? "'FILL' 1" : "'FILL' 0" }}>{pathname === '/wishlist' ? 'favorite' : 'favorite_border'}</span>
+              {totalWishlist > 0 && (
+                <span className="animate-bounce-in" style={{
+                  position: 'absolute', top: 2, right: 2,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: '#ef4444', color: '#fff',
+                  fontSize: 9, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-lexend)',
+                }}>{totalWishlist}</span>
+              )}
             </button>
 
             {/* Notifications */}
@@ -369,8 +380,8 @@ export const TopAppBar: React.FC = () => {
           </div>
         )}
 
-        {/* ── Category nav row (only on / and /shop) ── */}
-        {(pathname === '/' || pathname === '/shop') && !searchOpen && (
+        {/* ── Category nav row (only on /shop) ── */}
+        {pathname === '/shop' && !searchOpen && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 4,
             padding: '0 16px 10px', overflowX: 'auto',

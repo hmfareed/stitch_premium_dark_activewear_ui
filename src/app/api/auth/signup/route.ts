@@ -16,8 +16,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    // Determine role from request (default to customer)
+    const requestedRole = (body as any).role;
+    const isRiderSignup = requestedRole === 'rider';
+
     // ── Validate ──────────────────────────────────────────────────────────────
-    const validationError = validateRequest(customerRegisterSchema, body);
+    // Rider signup only collects basic account info (name/email/phone/password).
+    // Full rider profile (vehicle type, MoMo, documents) is collected separately
+    // during the rider application step — so we use customerRegisterSchema here.
+    const validationError = validateRequest(customerRegisterSchema, body, { allowUnknown: true });
     if (validationError) {
       return NextResponse.json(
         { error: 'Validation failed', fields: validationError.fields },
@@ -26,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     const { name, email, phone, password } = body as {
-      name: string; email: string; phone: string; password: string;
+      name: string; email: string; phone: string; password: string; role?: string;
     };
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -53,25 +60,28 @@ export async function POST(req: Request) {
     }
 
     // ── Determine role ────────────────────────────────────────────────────────
-    // The super admin email gets elevated automatically; everyone else is customer.
-    const role = isSuperAdminEmail(normalizedEmail) ? 'super_admin' : 'customer';
+    let role: 'customer' | 'vendor' | 'super_admin' | 'rider' = 'customer';
+    if (isRiderSignup) {
+      role = 'rider';
+    } else {
+      role = isSuperAdminEmail(normalizedEmail) ? 'super_admin' : 'customer';
+    }
 
     // ── Create user ───────────────────────────────────────────────────────────
-    // Password hashing is handled by the User pre-save hook — do NOT hash here.
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       phone: phone.trim(),
       password,
       role,
-      isActive: true,
+      isActive: role !== 'rider', // riders are inactive until admin approval
     });
 
     // ── Sign JWT ──────────────────────────────────────────────────────────────
     const token = signToken({
       userId: (user._id as unknown as string).toString(),
       email: user.email,
-      role: user.role as 'customer' | 'vendor' | 'super_admin',
+      role: user.role as 'customer' | 'vendor' | 'super_admin' | 'rider',
     });
 
     return NextResponse.json(

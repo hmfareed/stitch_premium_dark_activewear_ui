@@ -25,26 +25,67 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       );
     }
 
+    // ── ANTI-FRAUD GUARD ──────────────────────────────────────────────────────
+    // "Delivered" and "Picked Up" can ONLY be set by the customer via the
+    // customerConfirmed flag. Vendors (and any direct API caller) are blocked.
+    if (
+      (updates.status === 'Delivered' || updates.status === 'Picked Up') &&
+      updates.customerConfirmed !== true
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Delivery can only be confirmed by the customer. The vendor cannot mark an order as Delivered.',
+        },
+        { status: 403 }
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // If status is being updated, push to timeline
     if (updates.status && updates.status !== existing.status) {
       const descriptions: Record<string, string> = {
         'Processing': 'Vendor is preparing your items for shipment.',
         'Shipped': 'Your package has been handed over to the courier.',
-        'Delivered': 'Order has been delivered to the customer.',
+        'Delivered': 'Customer confirmed receipt — order successfully delivered.',
         'Cancelled': 'Order was cancelled by the user or admin.',
-        'Picked Up': 'Customer has picked up the order from the store.'
+        'Picked Up': 'Handoff complete. Customer has collected their order.',
       };
-      
-      await Order.findOneAndUpdate(query, {
-        $push: {
-          timeline: {
-            status: updates.status,
-            description: updates.timelineNote || descriptions[updates.status] || `Order status updated to ${updates.status}`,
-            timestamp: new Date()
-          }
-        }
-      });
 
+      // ── Customer Confirmation: push BOTH Delivered + Picked Up atomically ──
+      if (updates.status === 'Delivered' && updates.customerConfirmed === true) {
+        const now = new Date();
+        await Order.findOneAndUpdate(query, {
+          $push: {
+            timeline: {
+              $each: [
+                {
+                  status: 'Delivered',
+                  description: updates.timelineNote || descriptions['Delivered'],
+                  timestamp: now,
+                },
+                {
+                  status: 'Picked Up',
+                  description: descriptions['Picked Up'],
+                  timestamp: new Date(now.getTime() + 1000), // 1s after for ordering
+                },
+              ],
+            },
+          },
+        });
+      } else {
+        // Standard vendor status update (Processing, Shipped, Cancelled)
+        await Order.findOneAndUpdate(query, {
+          $push: {
+            timeline: {
+              status: updates.status,
+              description: updates.timelineNote || descriptions[updates.status] || `Order status updated to ${updates.status}`,
+              timestamp: new Date(),
+            },
+          },
+        });
+      }
 
       // --- STATUS CHANGE EMAIL ---
       try {
@@ -54,8 +95,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           'Cancelled': 'Order Cancelled ❌',
         };
         const bodyMap: Record<string, string> = {
-          'Shipped': `Great news! Your order <b>${existing.orderId}</b> has been shipped. It will arrive shortly.`,
-          'Delivered': `Your order <b>${existing.orderId}</b> has been marked as delivered. Enjoy your purchase!`,
+          'Shipped': `Great news! Your order <b>${existing.orderId}</b> has been shipped and is on its way to you. You'll need to confirm receipt once it arrives.`,
+          'Delivered': `Your order <b>${existing.orderId}</b> has been confirmed as delivered. Thank you for shopping with us! Payment has been released to the vendor.`,
           'Cancelled': `Your order <b>${existing.orderId}</b> has been cancelled. If this was a mistake, please contact support.`,
         };
 
@@ -73,7 +114,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    const order = await Order.findOneAndUpdate(query, updates, { new: true });
+    // Build the final update payload — strip the internal customerConfirmed flag
+    // and handle Delivered → also persist Picked Up as the final status
+    const { customerConfirmed, timelineNote, ...dbUpdates } = updates;
+
+    if (updates.status === 'Delivered' && customerConfirmed === true) {
+      // Final persisted status is "Picked Up" (the last milestone after Delivered)
+      dbUpdates.status = 'Picked Up';
+      if (dbUpdates['paymentInfo.escrowStatus'] === undefined) {
+        dbUpdates['paymentInfo.escrowStatus'] = 'Released';
+      }
+    }
+
+    const order = await Order.findOneAndUpdate(query, dbUpdates, { new: true });
     return NextResponse.json({ success: true, order });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -47,7 +47,7 @@ export default function AccountPage() {
 
   const handleSignOut = () => {
     logout();
-    router.push('/');
+    window.location.href = '/';
   };
 
   const handleThemeChange = (newTheme: ThemeMode) => {
@@ -169,103 +169,10 @@ export default function AccountPage() {
             ) : user.role === 'vendor' ? (
               <span style={{ background: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>VENDOR</span>
             ) : (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <span style={{ background: 'rgba(195,244,0,0.1)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>CUSTOMER</span>
-                <div style={{ background: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>stars</span>
-                  {user.points || 0} POINTS
-                </div>
-              </div>
+              <span style={{ background: 'rgba(195,244,0,0.1)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>CUSTOMER</span>
             )}
           </div>
         </div>
-
-        {/* ─── Loyalty Tier Card ─────────────────────────── */}
-        {user.role === 'customer' && (() => {
-          const points = user.points || 0;
-          const tiers = [
-            { name: 'Bronze', icon: '🥉', color: '#CD7F32', min: 0,    max: 499,  perks: ['5% birthday discount', 'Early sale access'] },
-            { name: 'Silver', icon: '🥈', color: '#C0C0C0', min: 500,  max: 1999, perks: ['Free shipping ≥ GH₵50', '2× points on Fridays'] },
-            { name: 'Gold',   icon: '🥇', color: '#FFD700', min: 2000, max: 4999, perks: ['Flash sale early access', 'Free returns'] },
-            { name: 'Platinum', icon: '💎', color: '#e5e4e2', min: 5000, max: 9999, perks: ['5% cashback', 'Personal shopper'] },
-          ];
-          const tier = tiers.find(t => points <= t.max) || tiers[tiers.length - 1];
-          const nextTier = tiers[tiers.indexOf(tier) + 1];
-          const progress = nextTier
-            ? Math.min(100, ((points - tier.min) / (nextTier.min - tier.min)) * 100)
-            : 100;
-          const remaining = nextTier ? nextTier.min - points : 0;
-
-          return (
-            <div className="animate-fade-in-up" style={{
-              background: `linear-gradient(135deg, var(--surface) 0%, var(--surface-container) 100%)`,
-              border: `1px solid ${tier.color}44`, borderRadius: 20, padding: 20,
-              position: 'relative', overflow: 'hidden',
-            }}>
-              {/* Glow */}
-              <div style={{ position: 'absolute', top: -40, right: -20, width: 160, height: 160, background: `${tier.color}18`, filter: 'blur(50px)', borderRadius: '50%', pointerEvents: 'none' }} />
-
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 28 }}>{tier.icon}</span>
-                  <div>
-                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loyalty Tier</p>
-                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 900, color: tier.color, letterSpacing: '-0.01em' }}>{tier.name}</p>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 900, color: 'var(--lime-400)' }}>{points.toLocaleString()}</p>
-                  <p style={{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'var(--on-surface-variant)', fontWeight: 600 }}>POINTS</p>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              {nextTier && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 10, color: 'var(--on-surface-variant)' }}>{tier.name}</span>
-                    <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: tier.color }}>
-                      {remaining} pts to {nextTier.name} {nextTier.icon}
-                    </span>
-                  </div>
-                  <div style={{ height: 6, background: 'var(--outline)', borderRadius: 6, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', width: `${progress}%`, borderRadius: 6,
-                      background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})`,
-                      transition: 'width 1.2s cubic-bezier(0.4,0,0.2,1)',
-                      boxShadow: `0 0 8px ${tier.color}66`,
-                    }} />
-                  </div>
-                </div>
-              )}
-              {!nextTier && (
-                <div style={{ textAlign: 'center', padding: '8px 0 12px', color: tier.color, fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700 }}>
-                  🎉 Maximum tier achieved — you&apos;re the best!
-                </div>
-              )}
-
-              {/* Perks */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>Your Perks</p>
-                {tier.perks.map(perk => (
-                  <div key={perk} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: tier.color }}>check_circle</span>
-                    <span style={{ fontFamily: 'var(--font-inter)', fontSize: 12, color: 'var(--foreground)' }}>{perk}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Earn more CTA */}
-              <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--lime-400)' }}>info</span>
-                <span style={{ fontFamily: 'var(--font-inter)', fontSize: 11, color: 'var(--on-surface-variant)' }}>
-                  Earn 1 point per GH₵1 spent. +50 pts for leaving a review!
-                </span>
-              </div>
-            </div>
-          );
-        })()}
 
 
 
@@ -394,21 +301,6 @@ export default function AccountPage() {
           <span style={{ fontSize: 13, color: 'var(--on-surface-variant)', textTransform: 'capitalize' }}>{theme}</span>
         </div>
 
-
-        {/* Become a Vendor for regular users */}
-        {user.role === 'customer' && (
-          <div className="animate-fade-in-up stagger-4">
-            <button onClick={() => router.push('/apply')} style={{
-              background: 'linear-gradient(135deg, var(--lime-400) 0%, #00e5ff 100%)', border: 'none', borderRadius: 16, padding: '16px 12px',
-              color: 'var(--on-lime-400)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 15, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(195, 244, 0, 0.2)',
-              transition: 'transform 0.2s', width: '100%'
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>storefront</span>
-              Become a Vendor — Sell on AfriCart
-            </button>
-          </div>
-        )}
 
         {/* Sign Out */}
         <button onClick={handleSignOut} className="animate-fade-in-up stagger-4" style={{

@@ -21,6 +21,7 @@ export interface Product {
   subCategory: string;
   rating: number;
   reviews?: Review[];
+  reviewsCount?: number;
   isNew?: boolean;
   isLimited?: boolean;
   isFlashSale?: boolean;
