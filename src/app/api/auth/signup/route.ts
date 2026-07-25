@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
+import { Rider } from '@/models/Rider';
 import { signToken } from '@/lib/jwt';
 import { customerRegisterSchema, validateRequest } from '@/lib/validation';
 import { isSuperAdminEmail } from '@/lib/super-admin';
@@ -21,9 +22,6 @@ export async function POST(req: Request) {
     const isRiderSignup = requestedRole === 'rider';
 
     // ── Validate ──────────────────────────────────────────────────────────────
-    // Rider signup only collects basic account info (name/email/phone/password).
-    // Full rider profile (vehicle type, MoMo, documents) is collected separately
-    // during the rider application step — so we use customerRegisterSchema here.
     const validationError = validateRequest(customerRegisterSchema, body, { allowUnknown: true });
     if (validationError) {
       return NextResponse.json(
@@ -77,7 +75,48 @@ export async function POST(req: Request) {
       isActive: role !== 'rider', // riders are inactive until admin approval
     });
 
-    // ── Sign JWT ──────────────────────────────────────────────────────────────
+    // ── Create linked Rider profile if rider signup ──────────────────────────
+    if (role === 'rider') {
+      const bodyObj = (body as any) || {};
+      const existingRider = await Rider.findOne({ email: normalizedEmail });
+      if (!existingRider) {
+        await Rider.create({
+          userId: user._id,
+          email: normalizedEmail,
+          phone: phone.trim(),
+          fullName: name.trim(),
+          status: 'pending',
+          onlineStatus: 'offline',
+          vehicleType: bodyObj.vehicleType || 'motorcycle',
+          vehicleModel: bodyObj.vehicleModel || '',
+          vehicleRegistration: bodyObj.licensePlate || bodyObj.vehicleRegistration || '',
+          emergencyContactName: bodyObj.emergencyName || bodyObj.emergencyContactName || '',
+          emergencyContactPhone: bodyObj.emergencyPhone || bodyObj.emergencyContactPhone || '',
+          applicationSubmittedAt: new Date(),
+        });
+      }
+
+      // Do NOT issue JWT token for riders — they must await superadmin approval
+      return NextResponse.json(
+        {
+          success: true,
+          pendingApproval: true,
+          message: 'Rider account created successfully! Your application is pending review by a Superadmin.',
+          user: {
+            id: (user._id as unknown as string).toString(),
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            role: user.role,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+          },
+        },
+        { status: 201 },
+      );
+    }
+
+    // ── Sign JWT for active users (customer / super_admin) ───────────────────
     const token = signToken({
       userId: (user._id as unknown as string).toString(),
       email: user.email,

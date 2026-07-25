@@ -199,6 +199,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       
       if (res.ok && data.success) {
+        if (data.pendingApproval) {
+          // Pending superadmin approval — do NOT log in or store token
+          return true;
+        }
+
         // Persist JWT
         if (data.token) localStorage.setItem('africart-token', data.token);
         const u: User = data.user;
@@ -255,6 +260,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const json = await res.json();
       if (res.ok && json.success) {
+        if (json.pendingApproval) {
+          // Vendor account is pending superadmin review — do NOT set session
+          return { success: true, vendorStatus: json.vendorStatus || 'pending' };
+        }
         if (json.token) localStorage.setItem('africart-token', json.token);
         const u: User = { ...json.user, role: 'vendor' as const };
         setUser(u);

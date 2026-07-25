@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Create User (role: vendor) ─────────────────────────────────────────────
+    // ── Create User (role: vendor, isActive: false pending approval) ─────────
     // Password is hashed by the User pre-save hook — do NOT hash manually.
     const user = await User.create({
       name: name.trim(),
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       phone: phone.trim(),
       password,
       role: 'vendor',
-      isActive: true,
+      isActive: false,
     });
 
     createdUserId = (user._id as unknown as string).toString();
@@ -105,17 +105,12 @@ export async function POST(req: Request) {
       appliedAt: new Date(),
     });
 
-    // ── Sign JWT ──────────────────────────────────────────────────────────────
-    const token = signToken({
-      userId: createdUserId,
-      email: user.email,
-      role: 'vendor',
-    });
-
+    // Do NOT issue JWT token — vendor must await superadmin approval before logging in
     return NextResponse.json(
       {
         success: true,
-        token,
+        pendingApproval: true,
+        message: 'Vendor application submitted! Your account is pending review by a Superadmin.',
         user: {
           id: createdUserId,
           name: user.name,

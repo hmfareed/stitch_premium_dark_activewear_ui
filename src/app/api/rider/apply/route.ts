@@ -165,7 +165,11 @@ export async function POST(req: NextRequest) {
 
     // Ensure user role is updated to rider
     if (user.role !== 'rider') {
-      await User.updateOne({ _id: user._id }, { $set: { role: 'rider' } });
+      const profile = await Rider.findOne({ userid: user._id });
+      if (profile && profile.status === 'approved') {
+        user.role = 'rider';
+        await user.save();
+      }
     }
 
     return NextResponse.json({

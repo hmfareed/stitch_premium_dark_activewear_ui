@@ -109,13 +109,24 @@ export default function RiderRegisterPage() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.fullName.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password, role: 'rider' }),
+        body: JSON.stringify({
+          name: form.fullName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          password: form.password,
+          role: 'rider',
+          vehicleType: form.vehicleType || 'motorcycle',
+          vehicleBrand: form.vehicleBrand,
+          vehicleModel: form.vehicleModel,
+          licensePlate: form.licensePlate,
+          emergencyName: form.emergencyName,
+          emergencyPhone: form.emergencyPhone,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.token) localStorage.setItem('africart-token', data.token);
-        showToast('Rider account created! Pending admin approval.', 'success');
-        router.push('/');
+        showToast('Rider account created! Pending review by Superadmin.', 'success');
+        router.push('/login');
       } else {
         showToast(data.error || 'Registration failed', 'error');
       }

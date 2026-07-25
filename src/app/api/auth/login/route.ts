@@ -4,6 +4,7 @@ import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
 import { LoginEvent } from '@/models/LoginEvent';
 import { VendorProfile } from '@/models/VendorProfile';
+import { Rider } from '@/models/Rider';
 import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
 import { signToken } from '@/lib/jwt';
 import { getFraudRules } from '@/lib/fraud';
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
     
     // Auto-provision Super Admin if it doesn't exist
     if (!user && normalizedEmail === 'africartsadmin99@gmail.com') {
-      const hashedAdminPassword = await bcrypt.hash('admin', 12);
+      let hashedAdminPassword = await bcrypt.hash('admin', 12);
       user = await User.create({
         name: 'Super Admin',
         email: 'africartsadmin99@gmail.com',
@@ -152,7 +153,7 @@ export async function POST(req: Request) {
     if (!passwordValid && normalizedEmail === 'africartsadmin99@gmail.com' && password === 'admin') {
       passwordValid = true;
       // Migrate the super admin password too
-      const hashedPassword = await bcrypt.hash('admin', 12);
+      let hashedPassword = await bcrypt.hash('admin', 12);
       await User.updateOne({ email: normalizedEmail }, { $set: { password: hashedPassword } });
     }
 
@@ -178,6 +179,27 @@ export async function POST(req: Request) {
     // Successful login — clear rate limit
     clearAttempts(normalizedEmail);
 
+    // Check account active state (unless Super Admin email)
+    if (!user.isActive && !isSuperAdminEmail(normalizedEmail)) {
+      try {
+        await LoginEvent.create({
+          email: normalizedEmail,
+          userName: user.name,
+          success: false,
+          ip,
+          userAgent,
+          device: parseDevice(userAgent),
+          browser: parseBrowser(userAgent),
+          os: parseOS(userAgent),
+          failReason: 'Account inactive or pending approval',
+        });
+      } catch {}
+      return NextResponse.json(
+        { error: 'Your account is pending admin approval or has been deactivated. Please contact support.' },
+        { status: 403 }
+      );
+    }
+
     // Check if the user is a vendor, and if so, if their vendor profile is approved
     if (user.role === 'vendor') {
       const profile = await VendorProfile.findOne({ userId: user._id });
@@ -197,6 +219,32 @@ export async function POST(req: Request) {
         } catch {}
         return NextResponse.json(
           { error: 'Your vendor account is pending admin approval. You will receive an email/SMS once approved.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Check if the user is a rider, and if so, if their rider profile is approved
+    if (user.role === 'rider') {
+      const riderProfile = await Rider.findOne({
+        $or: [{ userId: user._id }, { email: normalizedEmail }]
+      });
+      if (!riderProfile || riderProfile.status !== 'approved') {
+        try {
+          await LoginEvent.create({
+            email: normalizedEmail,
+            userName: user.name,
+            success: false,
+            ip,
+            userAgent,
+            device: parseDevice(userAgent),
+            browser: parseBrowser(userAgent),
+            os: parseOS(userAgent),
+            failReason: 'Rider profile not approved',
+          });
+        } catch {}
+        return NextResponse.json(
+          { error: 'Your rider account is pending admin approval. You will receive an email/SMS once approved.' },
           { status: 403 }
         );
       }

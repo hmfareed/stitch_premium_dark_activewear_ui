@@ -37,7 +37,7 @@ const GHANA_ADDRESSES = [
   'Gumbihini West',
   'Bolgatanga Road, Tamale',
   'Salaga Road, Tamale',
-  
+
   // ── Specific Unpopular & Niche Tamale Suburbs ──
   'Shishegu Area, Tamale',
   'Lamankara Street',
@@ -128,7 +128,7 @@ export default function CheckoutPage() {
       fetch(`/api/loyalty?email=${encodeURIComponent(user.email)}`)
         .then(r => r.json())
         .then(data => { if (data.success) setLoyaltyBalance(data.points); })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user]);
 
@@ -137,67 +137,7 @@ export default function CheckoutPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Accra');
-  const [isLoadingGPS, setIsLoadingGPS] = useState(false);
-  const [gpsDetails, setGpsDetails] = useState<{ lat?: number; lng?: number; gpsLocation?: string; mapsUrl?: string }>({});
-
-  // Real Browser Geolocation Handler for Checkout
-  const autofillCheckoutGPS = () => {
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-      showToast('Geolocation is not supported by your browser.', 'error');
-      return;
-    }
-
-    setIsLoadingGPS(true);
-    showToast('Requesting real GPS location...', 'info');
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        const gpsLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-
-        let fetchedStreet = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        let fetchedCity = 'Accra';
-
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const addr = data.address || {};
-            const streetName = addr.road || addr.suburb || addr.neighbourhood || addr.residential || '';
-            const cityName = addr.city || addr.town || addr.village || addr.county || addr.state || 'Accra';
-
-            if (streetName) {
-              fetchedStreet = `${streetName} (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
-            } else if (data.display_name) {
-              fetchedStreet = data.display_name.split(',').slice(0, 2).join(', ');
-            }
-            if (cityName) {
-              fetchedCity = cityName;
-            }
-          }
-        } catch {}
-
-        setAddress(fetchedStreet);
-        setCity(fetchedCity);
-        setGpsDetails({ lat: latitude, lng: longitude, gpsLocation, mapsUrl });
-        setIsLoadingGPS(false);
-        showToast('Real GPS Location captured for delivery!');
-      },
-      (err) => {
-        setIsLoadingGPS(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          showToast('Location permission denied. Please allow location access.', 'error');
-        } else {
-          showToast('Could not fetch GPS location. Please enter address manually.', 'error');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-    );
-  };
+  const [city, setCity] = useState('Tamale');
   const [region, setRegion] = useState('Northern');
   const [momoPhone, setMomoPhone] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -237,22 +177,15 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // Flat platform-wide delivery fee — set only by superadmin in platform settings
+  // Update shipping fee when region changes
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('africart-platform-settings');
-      if (saved) {
-        const platformSettings = JSON.parse(saved);
-        const fee = parseFloat(platformSettings.deliveryFee);
-        if (!isNaN(fee) && fee >= 0) {
-          setShippingFee(fee);
-          return;
-        }
-      }
-    } catch {}
-    // Default to 10 GH₵ if no admin setting is found
-    setShippingFee(10);
-  }, []);
+    const rate = shippingRates.find(r => r.region === region);
+    if (rate) {
+      setShippingFee(rate.fee);
+    } else {
+      setShippingFee(0);
+    }
+  }, [region, shippingRates]);
 
   /* Whether the current region allows Cash on Delivery */
   const selectedRateData = shippingRates.find(r => r.region === region);
@@ -264,63 +197,20 @@ export default function CheckoutPage() {
       setFullName(prev => prev || user.name || '');
       setEmail(prev => prev || user.email || '');
       setPhone(prev => prev || user.phone || '');
-
-      const localSaved = localStorage.getItem(`africart-addresses-${user.email}`);
-      const localAddrs: any[] = localSaved ? JSON.parse(localSaved) : [];
-
-      // Fetch saved addresses from backend API
+      // Fetch saved addresses
       fetch(`/api/addresses?email=${encodeURIComponent(user.email)}`)
         .then(r => r.json())
         .then(data => {
-          let combined: any[] = [];
-          if (data.success && Array.isArray(data.addresses)) {
-            combined = [...data.addresses];
-          }
-          localAddrs.forEach(la => {
-            if (!combined.some(c => (c._id && c._id === la.id) || (c.address === la.street))) {
-              combined.push({
-                _id: la.id,
-                label: la.name || 'Saved Address',
-                address: la.street,
-                city: la.city,
-                isDefault: la.isDefault,
-              });
-            }
-          });
-
-          if (combined.length > 0) {
-            setSavedAddresses(combined);
-            const defaultAddr = combined.find((a: any) => a.isDefault) || combined[0];
-            selectSavedAddress(defaultAddr);
-          } else if (localAddrs.length > 0) {
-            const mapped = localAddrs.map(la => ({
-              _id: la.id,
-              label: la.name || 'Saved Address',
-              address: la.street,
-              city: la.city,
-              isDefault: la.isDefault,
-            }));
-            setSavedAddresses(mapped);
-            const defaultAddr = mapped.find((a: any) => a.isDefault) || mapped[0];
-            selectSavedAddress(defaultAddr);
+          if (data.success && data.addresses?.length > 0) {
+            setSavedAddresses(data.addresses);
+            // Auto-select default address
+            const defaultAddr = data.addresses.find((a: any) => a.isDefault);
+            if (defaultAddr) selectSavedAddress(defaultAddr);
           }
         })
-        .catch(() => {
-          if (localAddrs.length > 0) {
-            const mapped = localAddrs.map(la => ({
-              _id: la.id,
-              label: la.name || 'Saved Address',
-              address: la.street,
-              city: la.city,
-              isDefault: la.isDefault,
-            }));
-            setSavedAddresses(mapped);
-            const defaultAddr = mapped.find((a: any) => a.isDefault) || mapped[0];
-            selectSavedAddress(defaultAddr);
-          }
-        });
+        .catch(() => { });
     }
-  }, [user]);
+  }, [user, isLoading, router]);
 
   /* If CoD was selected but region no longer supports it, fall back to MoMo */
   useEffect(() => {
@@ -330,14 +220,12 @@ export default function CheckoutPage() {
   }, [region, regionCoversCOD]);
 
   const selectSavedAddress = (addr: any) => {
-    if (!addr) return;
-    const addrId = addr._id || addr.id;
-    setSelectedAddressId(addrId);
-    setFullName(addr.fullName || addr.name || user?.name || '');
-    setPhone(addr.phone || user?.phone || '');
-    setAddress(addr.address || addr.street || '');
-    if (addr.city) setCity(addr.city);
-    if (addr.region) setRegion(addr.region);
+    setSelectedAddressId(addr._id);
+    setFullName(addr.fullName);
+    setPhone(addr.phone);
+    setAddress(addr.address);
+    setCity(addr.city);
+    setRegion(addr.region);
   };
 
   const clearSavedAddress = () => {
@@ -495,7 +383,7 @@ export default function CheckoutPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, purpose: 'checkout' }),
           });
-        } catch {}
+        } catch { }
       }
       // Award loyalty points (1 point per GH₵1 spent)
       if (user?.email) {
@@ -504,14 +392,14 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: user.email, action: 'award', points: earnedPoints, reason: `Order ${orderId}` }),
-        }).catch(() => {});
+        }).catch(() => { });
         // Deduct redeemed points
         if (redeemPoints && pointsToRedeem > 0) {
           fetch('/api/loyalty', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: user.email, action: 'redeem', points: pointsToRedeem, reason: `Redeemed on ${orderId}` }),
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     } catch (err) { console.error('Failed to save COD order:', err); }
@@ -530,7 +418,7 @@ export default function CheckoutPage() {
       status: paymentRef ? 'Confirmed' : 'Pending',
       total: finalTotal,
       itemsCount: cart.length,
-      shippingAddress: { fullName, email, phone, address, city, region, ...gpsDetails },
+      shippingAddress: { fullName, email, phone, address, city, region },
       paymentInfo: {
         method: paymentMethod === 'MOBILE_MONEY' ? 'Mobile Money' : 'Card',
         ...(paymentMethod === 'MOBILE_MONEY' ? { network: mobileNetwork, momoPhone } : {}),
@@ -752,13 +640,13 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, action: 'award', points: earnedPoints, reason: `Order ${orderId}` }),
-      }).catch(() => {});
+      }).catch(() => { });
       if (redeemPoints && pointsToRedeem > 0) {
         fetch('/api/loyalty', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: user.email, action: 'redeem', points: pointsToRedeem, reason: `Redeemed on ${orderId}` }),
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
     await saveOrderAndRedirect(orderId, paymentRef);
@@ -955,24 +843,7 @@ export default function CheckoutPage() {
 
               {/* Address */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ ...labelStyle, margin: 0 }}>Address</label>
-                  <button
-                    type="button"
-                    onClick={autofillCheckoutGPS}
-                    disabled={isLoadingGPS}
-                    style={{
-                      background: 'rgba(195,244,0,0.15)', color: 'var(--lime-400)',
-                      border: '1px solid var(--lime-400)', padding: '4px 10px',
-                      borderRadius: 16, fontSize: 10, fontWeight: 700,
-                      cursor: isLoadingGPS ? 'wait' : 'pointer', display: 'flex',
-                      alignItems: 'center', gap: 4
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>my_location</span>
-                    {isLoadingGPS ? 'Locating...' : 'Use Real GPS'}
-                  </button>
-                </div>
+                <label style={labelStyle}>Address</label>
                 <input
                   required
                   list="ghana-addresses"
@@ -982,11 +853,6 @@ export default function CheckoutPage() {
                   placeholder="Street address"
                   autoComplete="street-address"
                 />
-                {gpsDetails.gpsLocation && (
-                  <p style={{ fontSize: 10, color: 'var(--lime-400)', marginTop: 4, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    📍 GPS Coordinates Attached: {gpsDetails.gpsLocation}
-                  </p>
-                )}
               </div>
 
               {/* City + Region */}
@@ -1003,26 +869,26 @@ export default function CheckoutPage() {
                     autoComplete="address-level2"
                   />
                 </div>
-                 <div>
-                   <label style={labelStyle}>Region</label>
-                   <select
-                     required
-                     style={inputStyle}
-                     value={region}
-                     onChange={e => setRegion(e.target.value)}
-                   >
-                     <option value="">Select Region</option>
-                     {shippingRates.map(r => (
-                       <option key={r.region} value={r.region}>{r.region}</option>
-                     ))}
-                     <option value="Other">Other (Contact Support)</option>
-                   </select>
-                   {region && region !== 'Other' && shippingRates.find(r => r.region === region) && (
-                     <p style={{ fontSize: 10, color: 'var(--lime-400)', marginTop: 4, fontWeight: 600 }}>
-                       Est. Delivery: {shippingRates.find(r => r.region === region).estimatedDays}
-                     </p>
-                   )}
-                 </div>
+                <div>
+                  <label style={labelStyle}>Region</label>
+                  <select
+                    required
+                    style={inputStyle}
+                    value={region}
+                    onChange={e => setRegion(e.target.value)}
+                  >
+                    <option value="">Select Region</option>
+                    {shippingRates.map(r => (
+                      <option key={r.region} value={r.region}>{r.region}</option>
+                    ))}
+                    <option value="Other">Other (Contact Support)</option>
+                  </select>
+                  {region && region !== 'Other' && shippingRates.find(r => r.region === region) && (
+                    <p style={{ fontSize: 10, color: 'var(--lime-400)', marginTop: 4, fontWeight: 600 }}>
+                      Est. Delivery: {shippingRates.find(r => r.region === region).estimatedDays}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1133,8 +999,8 @@ export default function CheckoutPage() {
                     <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--lime-400)' }}>check_circle</span>
                     <span style={{ fontSize: 11, color: 'var(--lime-400)', fontWeight: 600 }}>
                       {detectNetwork(momoPhone) === 'MTN' ? 'MTN Mobile Money' :
-                       detectNetwork(momoPhone) === 'TELECEL' ? 'Telecel Cash' :
-                       'AirtelTigo Cash'} number detected
+                        detectNetwork(momoPhone) === 'TELECEL' ? 'Telecel Cash' :
+                          'AirtelTigo Cash'} number detected
                     </span>
                   </div>
                 )}
@@ -1310,13 +1176,13 @@ export default function CheckoutPage() {
               <div style={{ marginBottom: 16 }}>
                 {!appliedPromo ? (
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input 
-                      value={promoInput} 
+                    <input
+                      value={promoInput}
                       onChange={e => setPromoInput(e.target.value.toUpperCase())}
-                      placeholder="Promo Code" 
-                      style={{ flex: 1, padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 8, color: 'var(--foreground)', textTransform: 'uppercase', outline: 'none' }} 
+                      placeholder="Promo Code"
+                      style={{ flex: 1, padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 8, color: 'var(--foreground)', textTransform: 'uppercase', outline: 'none' }}
                     />
-                    <button 
+                    <button
                       type="button"
                       onClick={handleApplyPromo}
                       disabled={promoLoading || !promoInput.trim()}

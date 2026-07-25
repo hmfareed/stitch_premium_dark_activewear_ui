@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { VendorApplication } from '@/models/VendorApplication';
 import { User } from '@/models/User';
+import { VendorProfile } from '@/models/VendorProfile';
 import { sendSMS } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
 
@@ -41,16 +42,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await application.save();
 
     if (status === 'approved') {
-      // Promote user to vendor role
-      await User.findOneAndUpdate(
-        { email: application.email },
+      // Promote user to vendor role and mark active
+      const user = await User.findOneAndUpdate(
+        { email: application.email.toLowerCase() },
         {
           role: 'vendor',
+          isActive: true,
           isVerified: trustTier !== 'unverified',
           storeName: application.storeName || '',
         },
         { new: true }
       );
+
+      // Synchronize VendorProfile status to approved
+      if (user) {
+        await VendorProfile.findOneAndUpdate(
+          { userId: user._id },
+          {
+            status: 'approved',
+            businessName: application.storeName || user.name,
+            businessCategory: application.storeCategories?.[0] || 'Fashion',
+            momoNumber: application.payoutDetails?.momoNumber || '',
+          },
+          { upsert: true, new: true }
+        );
+      }
 
       // SMS
       if (application.phone) {
@@ -77,6 +93,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     if (status === 'rejected') {
+      const user = await User.findOneAndUpdate(
+        { email: application.email.toLowerCase() },
+        { isActive: false }
+      );
+      if (user) {
+        await VendorProfile.findOneAndUpdate(
+          { userId: user._id },
+          { status: 'rejected' }
+        );
+      }
+
       // SMS
       if (application.phone) {
         await sendSMS(

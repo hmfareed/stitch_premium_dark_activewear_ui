@@ -117,8 +117,8 @@ export default function VendorRegisterPage() {
       });
 
       if (res.success) {
-        showToast('Vendor application submitted! Account pending review.', 'success');
-        router.push('/');
+        showToast('Vendor application submitted! Account pending review by Superadmin.', 'success');
+        router.push('/login');
       } else {
         showToast(res.error || 'Vendor registration failed', 'error');
       }

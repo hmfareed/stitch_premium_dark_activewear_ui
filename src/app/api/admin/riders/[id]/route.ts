@@ -83,6 +83,26 @@ export async function PATCH(
 
     await rider.save();
 
+    // Synchronize User model status
+    try {
+      const userUpdate: Record<string, any> = {};
+      if (targetStatus === 'approved') {
+        userUpdate.role = 'rider';
+        userUpdate.isActive = true;
+      } else if (targetStatus === 'rejected' || targetStatus === 'suspended') {
+        userUpdate.isActive = false;
+      }
+
+      if (Object.keys(userUpdate).length > 0) {
+        await User.findOneAndUpdate(
+          { $or: [{ _id: rider.userId }, { email: rider.email.toLowerCase() }] },
+          { $set: userUpdate }
+        );
+      }
+    } catch (userErr) {
+      console.warn('Failed to sync User status for rider:', userErr);
+    }
+
     // Audit log
     try {
       await AuditLog.create({
