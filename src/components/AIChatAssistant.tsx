@@ -174,7 +174,7 @@ export default function AIChatAssistant({ isOpen, onClose }: { isOpen: boolean; 
       showToast,
     };
 
-    const response = await processIntent(userText, ctx);
+    const response = await processIntent(userText, ctx, messages);
 
     setTimeout(() => {
       setIsTyping(false);
@@ -234,7 +234,7 @@ export default function AIChatAssistant({ isOpen, onClose }: { isOpen: boolean; 
         <div style={{ flex: 1 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: '#e9edef', margin: 0 }}>AfriCart Assistant</h3>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
-            <span style={{ fontSize: 10, color: 'var(--lime-400)', fontWeight: 700 }}>{isPidgin ? 'LOCAL' : '24/7 ONLINE'}</span>
+            <span style={{ fontSize: 10, color: 'var(--lime-400)', fontWeight: 700 }}>{isPidgin ? '🌍 PIDGIN (NVIDIA AI)' : '⚡ NVIDIA AI ONLINE'}</span>
             <button
               onClick={() => setIsPidgin(!isPidgin)}
               style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 10, cursor: 'pointer' }}
@@ -269,6 +269,11 @@ export default function AIChatAssistant({ isOpen, onClose }: { isOpen: boolean; 
       <div style={{ flex: 1, padding: '14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="no-scrollbar">
         {messages.map((msg) => (
           <div key={msg.id} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
+            {msg.role === 'assistant' && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(0, 229, 255, 0.12)', color: 'var(--lime-400)', fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 6, marginBottom: 4 }}>
+                ⚡ NVIDIA LLM (Llama 3.3 70B)
+              </div>
+            )}
             <div
               style={{
                 padding: '10px 14px',

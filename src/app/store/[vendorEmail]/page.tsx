@@ -75,7 +75,25 @@ export default function VendorStorePage() {
     }
   };
 
+  const [storeInfo, setStoreInfo] = useState<any>(null);
+
+  useEffect(() => {
+    if (!decodedEmail) return;
+    fetch(`/api/stores?vendorEmail=${encodeURIComponent(decodedEmail)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.stores?.[0]) {
+          setStoreInfo(d.stores[0]);
+        }
+      })
+      .catch(() => {});
+  }, [decodedEmail]);
+
   const handleAddToCart = (product: any) => {
+    if (storeInfo?.isPaused) {
+      showToast('This store is currently on vacation mode and not accepting new orders.', 'error');
+      return;
+    }
     addToCart(product);
     showToast(`${product.name} added to cart!`);
     setAddedId(product.id);

@@ -21,7 +21,7 @@ export async function GET(req: Request, props: { params: Promise<{ email: string
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: resolveUserRole(user.email, user.role),
+        role: resolveUserRole(user.email || '', user.role),
         profilePic: user.profilePic
       }
     });

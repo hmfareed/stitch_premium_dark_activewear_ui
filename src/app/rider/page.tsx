@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -64,6 +64,8 @@ export default function RiderDashboard() {
   });
   const [location, setLocation] = useState<LocationData | null>(null);
   const [showCodeModal, setShowCodeModal] = useState(false);
+  const [showSosModal, setShowSosModal] = useState(false);
+  const [sosSending, setSosSending] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [deliveryToConfirm, setDeliveryToConfirm] = useState<DeliveryOrder | null>(null);
   const [activeMobileTab, setActiveMobileTab] = useState<'home' | 'deliveries' | 'earnings' | 'wallet'>('home');
@@ -185,6 +187,31 @@ export default function RiderDashboard() {
       }
     } catch (error) {
       console.error('Error confirming delivery:', error);
+    }
+  };
+
+  const handleTriggerSos = async () => {
+    setSosSending(true);
+    try {
+      const res = await fetch('/api/rider/sos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          riderPhone: user?.phone,
+          riderEmail: user?.email,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+          activeSubOrderId: currentOrder?.orderId,
+          note: 'One-tap SOS Emergency Triggered from Rider Dashboard',
+        }),
+      });
+      if (res.ok) {
+        setShowSosModal(true);
+      }
+    } catch (error) {
+      console.error('Error sending SOS alert:', error);
+    } finally {
+      setSosSending(false);
     }
   };
 
@@ -385,8 +412,30 @@ export default function RiderDashboard() {
             </div>
           </div>
 
-          {/* Right: Prominent Online Status Switch */}
+          {/* Right: SOS Emergency Button & Online Status Switch */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <button
+              onClick={handleTriggerSos}
+              disabled={sosSending}
+              style={{
+                backgroundColor: '#EF4444',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '6px 14px',
+                borderRadius: '100px',
+                fontWeight: 900,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sos</span>
+              <span>{sosSending ? 'ALERTING...' : 'SOS'}</span>
+            </button>
+
             <div
               onClick={toggleOnlineStatus}
               style={{

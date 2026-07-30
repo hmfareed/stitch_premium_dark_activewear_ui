@@ -60,6 +60,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           { userId: user._id },
           {
             status: 'approved',
+            subscriptionTier: 'trial',
             businessName: application.storeName || user.name,
             businessCategory: application.storeCategories?.[0] || 'Fashion',
             momoNumber: application.payoutDetails?.momoNumber || '',

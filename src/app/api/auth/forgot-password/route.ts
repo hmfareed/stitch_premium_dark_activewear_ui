@@ -1,56 +1,61 @@
-import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { User } from '@/models/User';
-import { sendEmail, getEmailTemplate } from '@/lib/email';
+import { OTP } from '@/models/OTP';
+import { sendSMS } from '@/lib/sms';
 
-/**
- * POST — Request a password reset email
- * Generates a random token, stores it on the user, and emails a reset link.
- */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     await connectToDatabase();
-    const { email } = await req.json();
+    const { identifier, phone, email } = await req.json();
+    const searchId = (identifier || phone || email || '').trim();
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    if (!searchId) {
+      return NextResponse.json({ success: false, error: 'Phone number or email is required' }, { status: 400 });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    
-    // Always return success to prevent email enumeration attacks
+    const user = await User.findOne({
+      $or: [
+        { phone: searchId },
+        { email: searchId.toLowerCase() },
+      ],
+    });
+
     if (!user) {
-      return NextResponse.json({ success: true, message: 'If an account exists, a reset email has been sent.' });
+      // Don't reveal if account exists to prevent enumeration
+      return NextResponse.json({
+        success: true,
+        message: 'If an account exists with this phone/email, an OTP reset code has been sent.',
+      });
     }
 
-    // Generate a secure random token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    // Generate 6-digit OTP for password reset
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
-    // Save token to user
-    await User.updateOne(
-      { email: email.toLowerCase() },
-      { $set: { resetToken, resetTokenExpiry } }
-    );
+    // Delete existing unused password_reset OTPs for this user's phone
+    await OTP.deleteMany({ phone: user.phone, purpose: 'password_reset', used: false });
 
-    // Build reset URL
-    const origin = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/[^/]*$/, '') || 'https://africart.vercel.app';
-    const resetUrl = `${origin}/reset-password?token=${resetToken}&email=${encodeURIComponent(email.toLowerCase())}`;
+    await OTP.create({
+      phone: user.phone,
+      code,
+      purpose: 'password_reset',
+      expiresAt,
+    });
 
-    // Send email
-    const html = getEmailTemplate(
-      'Reset Your Password 🔐',
-      `Hi ${user.name},<br><br>We received a request to reset your password. Click the button below to choose a new password.<br><br>This link expires in <b>1 hour</b>. If you didn't request this, you can safely ignore this email.`,
-      'Reset Password',
-      resetUrl
-    );
+    const smsMessage = `Your AfriCart password reset verification code is: ${code}. Valid for 10 minutes.`;
+    const smsResult = await sendSMS(user.phone, smsMessage);
 
-    await sendEmail(email.toLowerCase(), 'AfriCart: Password Reset Request', html);
-
-    return NextResponse.json({ success: true, message: 'If an account exists, a reset email has been sent.' });
+    return NextResponse.json({
+      success: true,
+      phone: user.phone,
+      simulated: smsResult.simulated ?? false,
+      message: smsResult.simulated
+        ? `[DEV] Password reset OTP sent (simulated). Code: ${code}`
+        : 'Password reset OTP code sent successfully via SMS.',
+    });
   } catch (error: any) {
-    console.error('Password Reset Request Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('Forgot password error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Vehicle type is required' }, { status: 400 });
     }
 
-    // Check for existing application
-    let rider = await Rider.findOne({ email: user.email.toLowerCase() });
+    const userEmail = (user.email || user.phone).toLowerCase();
+    let rider = await Rider.findOne({ $or: [{ userId: user._id }, { email: userEmail }] });
 
     if (rider) {
       // If already approved, notify user
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       // Create new application
       rider = new Rider({
         userId: user._id,
-        email: user.email.toLowerCase(),
+        email: userEmail,
         phone: formData.phone || user.phone || '',
         fullName: formData.fullName || user.name || '',
         nationalId: formData.nationalId || '',

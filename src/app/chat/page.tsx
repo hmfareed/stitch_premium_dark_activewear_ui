@@ -221,7 +221,7 @@ function ChatPageContent() {
         showToast,
       };
 
-      const response = await processIntent(userText, ctx);
+      const response = await processIntent(userText, ctx, messages);
 
       setTimeout(() => {
         setIsTyping(false);
@@ -334,6 +334,11 @@ function ChatPageContent() {
       <div ref={messagesRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }} className="no-scrollbar">
         {messages.map((msg) => (
           <div key={msg.id} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+            {msg.role === 'assistant' && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(0, 229, 255, 0.12)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6, marginBottom: 4 }}>
+                ⚡ NVIDIA LLM (Llama 3.3 70B)
+              </div>
+            )}
             {/* Text Bubble */}
             <div
               style={{

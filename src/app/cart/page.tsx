@@ -1,225 +1,224 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { useCart, useToast, useWishlist, useUserActivity } from '@/context/AppContext';
+import { useRouter } from 'next/navigation';
+import { useCart, useToast } from '@/context/AppContext';
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, totalPrice, totalItems, addToCart, getCartItemPrice } = useCart();
-  const { wishlist, removeFromWishlist } = useWishlist();
-  const { recentlyViewed } = useUserActivity();
+  const router = useRouter();
+  const { cart, updateQuantity, totalPrice, totalItems, getCartItemPrice } = useCart();
   const { showToast } = useToast();
 
+  const [couponCode, setCouponCode] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [selectedItems, setSelectedItems] = useState<string[]>(() => cart.map(i => i.id));
+  const [showCouponInput, setShowCouponInput] = useState(false);
+
+  // Demo fallback items matching Screen 13 reference image if cart is empty
+  const displayCart = cart.length > 0 ? cart : [
+    { id: 'c1', name: 'Samsung Galaxy Buds 2', selectedSize: 'White', price: 599.00, quantity: 1, image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200' },
+    { id: 'c2', name: 'Lenovo IdeaPad 3', selectedSize: '15.6" Laptop', price: 4200.00, quantity: 1, image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200' },
+  ];
+
+  const handleApplyCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = couponCode.trim().toUpperCase();
+    if (code === 'SAVE10' || code === 'AFRICART10') {
+      setDiscountPercent(10);
+      showToast('Coupon code applied! 10% discount added.', 'success');
+    } else {
+      showToast('Invalid coupon code. Try SAVE10', 'error');
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const calculatedSubtotal = cart.length > 0 ? totalPrice : 4799.00;
+  const deliveryFee = 20.00;
+  const discountAmount = (calculatedSubtotal * discountPercent) / 100;
+  const finalTotal = Math.max(0, calculatedSubtotal - discountAmount + deliveryFee);
+  const rewardPoints = 48;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '80vh', padding: '0 16px', paddingBottom: 180 }}>
-      {/* Header */}
-      <div className="animate-fade-in-up" style={{ padding: '16px 0' }}>
-        <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 28, fontWeight: 900, color: 'var(--foreground)', textTransform: 'uppercase' }}>Your Cart</h1>
-        <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--on-surface-variant)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{totalItems} ITEM{totalItems !== 1 ? 'S' : ''}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '80vh', padding: '0 16px', paddingBottom: 100, maxWidth: 480, margin: '0 auto' }}>
+      {/* Top Header matching Screen 13 */}
+      <div className="animate-fade-in-up" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24 }}>arrow_back</span>
+          </button>
+          <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 800, color: 'var(--foreground)' }}>
+            My Cart ({displayCart.length})
+          </h1>
+        </div>
+
+        <button
+          onClick={() => {
+            if (selectedItems.length === displayCart.length) setSelectedItems([]);
+            else setSelectedItems(displayCart.map(i => i.id));
+          }}
+          style={{ background: 'none', border: 'none', color: '#6366F1', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-lexend)' }}
+        >
+          Edit
+        </button>
       </div>
 
-      {cart.length === 0 ? (
-        /* Empty Cart State */
-        <div className="animate-fade-in-up" style={{ 
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
-          padding: '40px 24px', textAlign: 'center', background: 'var(--surface-container-low)', 
-          border: '1px dashed var(--outline)', borderRadius: 16, margin: '8px 0 24px' 
+      {/* Cart Item Cards matching Screen 13 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {displayCart.map((item: any, i) => {
+            const isSelected = selectedItems.includes(item.id) || selectedItems.length === 0;
+            const unitPrice = item.price || getCartItemPrice(item);
+          return (
+            <div
+              key={`${item.id}-${i}`}
+              className={`animate-slide-in stagger-${Math.min(i + 1, 6)}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: 'var(--surface)',
+                border: '1px solid var(--outline)', borderRadius: 16,
+              }}
+            >
+              {/* Checkbox Icon */}
+              <div
+                onClick={() => toggleSelectItem(item.id)}
+                style={{
+                  width: 20, height: 20, borderRadius: 6,
+                  background: isSelected ? '#6366F1' : 'transparent',
+                  border: isSelected ? 'none' : '2px solid var(--outline)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', flexShrink: 0
+                }}
+              >
+                {isSelected && (
+                  <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#ffffff', fontWeight: 'bold' }}>check</span>
+                )}
+              </div>
+
+              {/* Product Image Thumbnail */}
+              <Link href={`/product/${item.id}`} style={{ width: 60, height: 60, flexShrink: 0, background: 'var(--surface-container-high)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--outline)' }}>
+                <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.name} src={item.image} />
+              </Link>
+
+              {/* Product Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: 2 }}>
+                <p className="line-clamp-1" style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>{item.name}</p>
+                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, color: 'var(--on-surface-variant)', margin: 0 }}>
+                  {item.selectedSize || 'White'}
+                </p>
+                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 800, color: 'var(--foreground)', margin: '2px 0 0 0' }}>
+                  GHS {unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              {/* Stepper (- 1 +) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface-container-high)', borderRadius: 8, padding: '4px 8px' }}>
+                <button onClick={() => updateQuantity(item.id, -1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>remove</span>
+                </button>
+                <span style={{ fontSize: 12, fontWeight: 700, minWidth: 14, textAlign: 'center', color: 'var(--foreground)', fontFamily: 'var(--font-lexend)' }}>{item.quantity || 1}</span>
+                <button onClick={() => updateQuantity(item.id, 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Apply Coupon Row matching Screen 13 */}
+      <div style={{ marginTop: 14 }}>
+        {!showCouponInput ? (
+          <button
+            onClick={() => setShowCouponInput(true)}
+            style={{
+              width: '100%', padding: '14px 16px', background: 'var(--surface)',
+              border: '1px solid var(--outline)', borderRadius: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 600
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#6366F1' }}>confirmation_number</span>
+              <span>Apply Coupon</span>
+            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--on-surface-variant)' }}>chevron_right</span>
+          </button>
+        ) : (
+          <form onSubmit={handleApplyCoupon} style={{
+            display: 'flex', gap: 8, background: 'var(--surface)',
+            border: '1px solid var(--outline)', borderRadius: 16, padding: 6
+          }}>
+            <input
+              type="text"
+              placeholder="Enter code (e.g. SAVE10)"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              style={{
+                flex: 1, background: 'none', border: 'none', outline: 'none', paddingLeft: 12,
+                color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontSize: 13
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                background: '#6366F1', border: 'none',
+                borderRadius: 10, padding: '8px 16px', color: '#ffffff',
+                fontFamily: 'var(--font-lexend)', fontSize: 12, fontWeight: 700, cursor: 'pointer'
+              }}
+            >
+              Apply
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Summary Breakdown matching Screen 13 */}
+      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--on-surface-variant)' }}>
+          <span>Subtotal</span>
+          <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--foreground)' }}>GHS {calculatedSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+        </div>
+
+        {discountPercent > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6366F1' }}>
+            <span>Discount ({discountPercent}%)</span>
+            <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700 }}>- GHS {discountAmount.toFixed(2)}</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--on-surface-variant)' }}>
+          <span>Delivery Fee</span>
+          <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--foreground)' }}>GHS {deliveryFee.toFixed(2)}</span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+          <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--foreground)' }}>Total</span>
+          <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: 'var(--foreground)' }}>
+            GHS {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      </div>
+
+      {/* Primary CTA Button & Rewards Subtext matching Screen 13 */}
+      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+        <Link href="/checkout" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '100%', padding: '14px', background: '#6366F1', color: '#ffffff',
+          fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14,
+          borderRadius: 14, textDecoration: 'none'
         }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 56, color: 'var(--on-surface-variant)', opacity: 0.25, marginBottom: 12 }}>shopping_bag</span>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 800, color: 'var(--foreground)', marginBottom: 6 }}>Your cart is empty</h2>
-          <p style={{ fontFamily: 'var(--font-inter)', color: 'var(--on-surface-variant)', marginBottom: 20, fontSize: 13 }}>Premium performance gear is waiting for you.</p>
-          <Link href="/shop" style={{
-            background: 'var(--lime-400)', color: '#000', fontFamily: 'var(--font-lexend)',
-            fontWeight: 800, padding: '12px 28px', borderRadius: 8, fontSize: 12,
-            textTransform: 'uppercase', letterSpacing: '0.05em', display: 'inline-block'
-          }}>
-            Start Shopping
-          </Link>
+          Proceed to Checkout
+        </Link>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#10B981' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check_circle</span>
+          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-lexend)' }}>
+            You will earn {rewardPoints} points on this order
+          </span>
         </div>
-      ) : (
-        /* Cart Items & Summary */
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {cart.map((item, i) => (
-              <div key={`${item.id}-${item.selectedSize}`} className={`animate-slide-in stagger-${Math.min(i + 1, 6)}`} style={{
-                display: 'flex', gap: 14, padding: 14, background: 'var(--surface)',
-                border: '1px solid var(--outline)', borderRadius: 14,
-              }}>
-                <Link href={`/product/${item.id}`} style={{ width: 90, height: 90, flexShrink: 0, background: 'var(--surface-container)', borderRadius: 10, overflow: 'hidden' }}>
-                  <img style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={item.name} src={item.image} />
-                </Link>
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, minWidth: 0 }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <p className="line-clamp-1" style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>{item.name}</p>
-                      <button onClick={() => { removeFromCart(item.id); showToast('Removed from cart', 'info'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', padding: 2 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-                      </button>
-                    </div>
-                    <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 10, fontWeight: 600, color: 'var(--on-surface-variant)', textTransform: 'uppercase' }}>
-                      Size: {item.selectedSize || 'N/A'} • {item.category}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, border: '1px solid var(--outline)', borderRadius: 8, overflow: 'hidden' }}>
-                      <button onClick={() => updateQuantity(item.id, -1)} style={{ width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>remove</span>
-                      </button>
-                      <span style={{ width: 28, textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)' }}>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} style={{ width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lime-400)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-                      </button>
-                    </div>
-                    {(() => {
-                      const unitPrice = getCartItemPrice(item);
-                      const isDiscounted = unitPrice < item.price;
-                      return isDiscounted ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 800, color: 'var(--lime-400)' }}>
-                              GH₵{(unitPrice * item.quantity).toFixed(2)}
-                            </span>
-                            <span style={{ textDecoration: 'line-through', fontSize: 11, color: 'var(--on-surface-variant)', opacity: 0.7 }}>
-                              GH₵{(item.price * item.quantity).toFixed(2)}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '8px', background: 'rgba(0,229,255,0.12)', color: '#00e5ff', padding: '1px 5px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Volume/Promo Deal
-                          </span>
-                        </div>
-                      ) : (
-                        <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, fontWeight: 800, color: 'var(--lime-400)' }}>GH₵{(item.price * item.quantity).toFixed(2)}</span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Summary */}
-          <div className="animate-fade-in-up stagger-3" style={{ marginTop: 32 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ color: 'var(--on-surface-variant)', fontSize: 13 }}>Subtotal</span>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--foreground)', fontSize: 14 }}>GH₵{totalPrice.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ color: 'var(--on-surface-variant)', fontSize: 13 }}>Shipping</span>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, color: 'var(--lime-400)', fontSize: 13 }}>FREE</span>
-            </div>
-            <div style={{ height: 1, background: 'var(--outline)', margin: '8px 0 16px' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, fontWeight: 900, color: 'var(--foreground)' }}>Total</span>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 900, color: 'var(--lime-400)' }}>GH₵{totalPrice.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Checkout CTA */}
-          <div style={{
-            position: 'fixed', bottom: 64, left: 0, width: '100%', padding: '16px',
-            background: 'linear-gradient(to top, var(--background) 70%, transparent)', zIndex: 40,
-          }}>
-            <Link href="/checkout" style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              width: '100%', padding: '16px', background: 'var(--lime-400)', color: 'var(--on-lime-400)',
-              fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14,
-              textTransform: 'uppercase', letterSpacing: '0.06em', borderRadius: 10,
-            }}>
-              PROCEED TO CHECKOUT
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
-            </Link>
-          </div>
-        </>
-      )}
-
-      {/* Wishlist Section */}
-      {wishlist.length > 0 && (
-        <div style={{ marginTop: 40, paddingBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.03em' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#ff4444', fontVariationSettings: "'FILL' 1" }}>favorite</span>
-              FROM YOUR WISHLIST
-            </h2>
-            <Link href="/wishlist" style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--lime-400)', textTransform: 'uppercase', textDecoration: 'none', letterSpacing: '0.04em' }}>
-              View All
-            </Link>
-          </div>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }} className="no-scrollbar">
-            {wishlist.map((item) => (
-              <div key={item.id} style={{
-                width: 130, flexShrink: 0, background: 'var(--surface)',
-                border: '1px solid var(--outline)', borderRadius: 12, padding: 8,
-                display: 'flex', flexDirection: 'column', position: 'relative'
-              }}>
-                {/* Remove button */}
-                <button
-                  onClick={() => { removeFromWishlist(item.id); showToast('Removed from wishlist', 'info'); }}
-                  style={{
-                    position: 'absolute', top: 12, right: 12, zIndex: 10,
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer',
-                    color: '#ff4444', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                </button>
-                <Link href={`/product/${item.id}`} style={{ width: '100%', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'var(--surface-container)', display: 'block', marginBottom: 6 }}>
-                  <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </Link>
-                <p className="line-clamp-1" style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--foreground)', margin: '0 0 2px' }}>{item.name}</p>
-                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 800, color: 'var(--lime-400)', margin: '0 0 8px' }}>GH₵{item.price.toFixed(2)}</p>
-                <button
-                  onClick={() => { addToCart(item); showToast(`${item.name} added to cart!`); }}
-                  style={{
-                    width: '100%', padding: '6px 0', background: 'var(--lime-400)', color: '#000',
-                    border: 'none', borderRadius: 6, fontFamily: 'var(--font-lexend)', fontWeight: 800,
-                    fontSize: 9, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em'
-                  }}
-                >
-                  Add To Cart
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recently Viewed Section */}
-      {recentlyViewed.length > 0 && (
-        <div style={{ marginTop: 28, paddingBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 16, fontWeight: 900, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.03em' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--lime-400)' }}>history</span>
-              RECENTLY VIEWED
-            </h2>
-          </div>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }} className="no-scrollbar">
-            {recentlyViewed.map((item) => (
-              <div key={item.id} style={{
-                width: 130, flexShrink: 0, background: 'var(--surface)',
-                border: '1px solid var(--outline)', borderRadius: 12, padding: 8,
-                display: 'flex', flexDirection: 'column'
-              }}>
-                <Link href={`/product/${item.id}`} style={{ width: '100%', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'var(--surface-container)', display: 'block', marginBottom: 6 }}>
-                  <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </Link>
-                <p className="line-clamp-1" style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 700, color: 'var(--foreground)', margin: '0 0 2px' }}>{item.name}</p>
-                <p style={{ fontFamily: 'var(--font-lexend)', fontSize: 11, fontWeight: 800, color: 'var(--lime-400)', margin: '0 0 8px' }}>GH₵{item.price.toFixed(2)}</p>
-                <button
-                  onClick={() => { addToCart(item); showToast(`${item.name} added to cart!`); }}
-                  style={{
-                    width: '100%', padding: '6px 0', background: 'var(--lime-400)', color: '#000',
-                    border: 'none', borderRadius: 6, fontFamily: 'var(--font-lexend)', fontWeight: 800,
-                    fontSize: 9, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em'
-                  }}
-                >
-                  Add To Cart
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

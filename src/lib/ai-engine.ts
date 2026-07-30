@@ -44,6 +44,7 @@ export interface AIMessage {
   expressOrder?: ExpressOrderInfo;
   hasTail?: boolean;
   marginTop?: string;
+  modelBadge?: string;
 }
 
 export interface AIAction {
@@ -498,7 +499,8 @@ export const KNOWN_COUPONS: Record<string, { discount: number; label: string }> 
 
 export async function processIntent(
   input: string,
-  ctx: AIEngineContext
+  ctx: AIEngineContext,
+  historyMessages: AIMessage[] = []
 ): Promise<AIResponse> {
   const text = input.trim();
   const lower = text.toLowerCase();
@@ -665,7 +667,70 @@ export async function processIntent(
   }
 
   // ─────────────────────────────────────────────────────
-  // IDLE INTENTS
+  // NVIDIA NIM LLM API INFERENCE (Primary AI Engine)
+  // ─────────────────────────────────────────────────────
+  try {
+    const catalogSummary = allProducts
+      .slice(0, 20)
+      .map(
+        prod => `- ${prod.name} (GH₵${prod.price}, Cat: ${prod.category}, SubCat: ${prod.subCategory || 'N/A'}, Rating: ${prod.rating}★)`
+      )
+      .join('\n');
+
+    const formattedHistory = historyMessages.map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const apiRes = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        history: formattedHistory,
+        isPidgin: p,
+        user,
+        catalogSummary,
+        sessionState,
+      }),
+    });
+
+    if (apiRes.ok) {
+      const data = await apiRes.json();
+      if (data.success && data.reply) {
+        // Find matching product visual cards to attach alongside LLM reply
+        const matchedProducts = searchProducts(text, allProducts);
+        const productsToAttach = matchedProducts.length > 0 ? matchedProducts.slice(0, 4) : undefined;
+
+        // Custom action chips based on intent context
+        let actions: AIAction[] | undefined;
+        if (matchedProducts.length > 0) {
+          actions = [
+            { label: '🛒 View Recommended', value: `show me ${text}`, type: 'query' },
+            { label: '📦 Track My Order', value: 'track my order', type: 'query' },
+          ];
+        } else if (/\b(track|order|delivery|status)\b/i.test(lower)) {
+          actions = [
+            { label: '📦 Track Order', value: 'track my order', type: 'query' },
+            { label: '🆘 Support', value: '/chat', type: 'link' },
+          ];
+        }
+
+        return {
+          role: 'assistant',
+          content: data.reply,
+          products: productsToAttach,
+          actions,
+          modelBadge: '⚡ NVIDIA Llama 3.3 70B AI',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('NVIDIA AI API route unavailable, executing local intent fallback:', err);
+  }
+
+  // ─────────────────────────────────────────────────────
+  // IDLE INTENTS (Local Fallback Engine)
   // ─────────────────────────────────────────────────────
 
   // ── POLITE FILTER ──────────────────────────────

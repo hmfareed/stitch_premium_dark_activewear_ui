@@ -27,37 +27,49 @@ export interface IStore extends Document {
   vendorId: mongoose.Types.ObjectId;
   vendorEmail: string;
 
-  // Phase 1 — Store identity
+  // Store identity
   name: string;
   slug: string; // URL-safe unique handle e.g. "kente-village"
   category: string;
   businessType: BusinessType;
   businessRegNumber?: string;
 
-  // Phase 1 — Contact & logistics
+  // Contact & logistics
   contactPhone?: string;
   contactEmail?: string;
   pickupAddress?: IPickupAddress;
 
-  // Phase 2 — Paystack payout
+  // Paystack payout
   payoutDetails?: IPayoutDetails;
   paystackSubaccountCode?: string;
   paystackSubaccountStatus: PaystackSubaccountStatus;
 
-  // Phase 3 — Verification
+  // Verification
   verificationTier: VerificationTier;
   phoneVerified: boolean;
-  contentReviewed: boolean; // set by admin lightweight review
+  contentReviewed: boolean;
 
   // Status machine
   status: StoreStatus;
-  rejectionReason?: string; // if admin rejects at go-live
+  rejectionReason?: string;
 
-  // Branding (populated later via Store Design)
+  // Store Status — Pause / Vacation Mode (Spec §1.4)
+  isPaused: boolean;
+  pauseReason?: string;
+  expectedReturnDate?: Date;
+
+  // Branding
   storeLogo?: string;
   storeBanner?: string;
   storeBio?: string;
   returnPolicy?: string;
+
+  // Storefront Builder (Spec §8.0a)
+  templateId?: string;
+  themeAccentColor?: string;
+  aboutText?: string;
+  featuredProductIds?: string[];
+  storefrontDraft?: Record<string, any>; // staged preview before publish
 
   createdAt: Date;
   goLiveAt?: Date;
@@ -105,18 +117,30 @@ const StoreSchema: Schema<IStore> = new Schema({
   status:          { type: String, enum: ['setup', 'payment_pending', 'under_review', 'active', 'suspended'], default: 'setup' },
   rejectionReason: { type: String },
 
+  // Store Pause / Vacation Mode (Spec §1.4)
+  isPaused:           { type: Boolean, default: false },
+  pauseReason:        { type: String },
+  expectedReturnDate: { type: Date },
+
   storeLogo:    { type: String },
   storeBanner:  { type: String },
   storeBio:     { type: String },
   returnPolicy: { type: String },
 
+  // Storefront Builder (Spec §8.0a)
+  templateId:         { type: String, default: 'classic_grid' },
+  themeAccentColor:   { type: String, default: '#2563EB' },
+  aboutText:          { type: String, maxlength: 300 },
+  featuredProductIds: { type: [String], default: [] },
+  storefrontDraft:    { type: Schema.Types.Mixed, default: null },
+
   createdAt: { type: Date, default: Date.now },
   goLiveAt:  { type: Date },
 });
 
-// Index for quick vendor lookups
 StoreSchema.index({ vendorEmail: 1 });
 StoreSchema.index({ status: 1 });
+StoreSchema.index({ slug: 1 });
 
 export const Store: Model<IStore> =
   mongoose.models.Store || mongoose.model<IStore>('Store', StoreSchema);

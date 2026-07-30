@@ -4,16 +4,19 @@ export type VendorStatus = 'pending' | 'approved' | 'rejected';
 
 export interface IVendorProfile extends Document {
   userId: mongoose.Types.ObjectId;
+  email?: string;
   businessName: string;
   businessCategory: string;
   momoNumber: string;
   status: VendorStatus;
+  subscriptionTier?: string;
   verificationDocs: string[];  // placeholder for future document upload URLs
   createdAt: Date;
 }
 
 const VendorProfileSchema: Schema<IVendorProfile> = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  email: { type: String },
   businessName: { type: String, required: true, trim: true },
   businessCategory: { type: String, required: true },
   momoNumber: { type: String, required: true },
@@ -22,6 +25,7 @@ const VendorProfileSchema: Schema<IVendorProfile> = new Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending',
   },
+  subscriptionTier: { type: String, default: 'trial' },
   verificationDocs: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
 });

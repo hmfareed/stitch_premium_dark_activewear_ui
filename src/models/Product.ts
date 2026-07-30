@@ -1,5 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
+export type ProductModerationStatus = 'pending_review' | 'approved' | 'flagged';
+
 export interface IProduct extends Document {
   id: string;
   name: string;
@@ -7,7 +9,7 @@ export interface IProduct extends Document {
   price: number;
   originalPrice?: number;
   image: string;
-  images?: string[];  // Additional product images (gallery)
+  images?: string[];
   description: string;
   subCategory: string;
   rating: number;
@@ -31,6 +33,8 @@ export interface IProduct extends Document {
   vendorEmail?: string;
   vendorStoreName?: string;
   stock?: number;
+  reservedStock?: number;
+  moderationStatus?: ProductModerationStatus; // Product moderation queue per spec §5.5a
   wholesaleTiers?: Array<{ minQuantity: number; discountPercent: number }>;
   campaignId?: string;
   createdAt: Date;
@@ -67,6 +71,8 @@ const ProductSchema: Schema<IProduct> = new Schema({
   vendorEmail: { type: String },
   vendorStoreName: { type: String },
   stock: { type: Number, default: 0 },
+  reservedStock: { type: Number, default: 0 },
+  moderationStatus: { type: String, enum: ['pending_review', 'approved', 'flagged'], default: 'approved' },
   wholesaleTiers: [{
     minQuantity: { type: Number, required: true },
     discountPercent: { type: Number, required: true }

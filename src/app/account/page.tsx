@@ -25,21 +25,16 @@ export default function AccountPage() {
   const { theme, setTheme, accentColor, setAccentColor } = useTheme();
   const { showToast } = useToast();
   const router = useRouter();
-  
+
   const { unreadCount, activeOrderCount: orderCount } = useNotifications();
   const { recentlyViewed: viewedProducts } = useUserActivity();
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        router.push('/login');
-      }
+    if (!isLoading && !user) {
+      router.push('/login');
     }
   }, [user, isLoading, router]);
 
@@ -61,7 +56,6 @@ export default function AccountPage() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Resize & compress the image for better quality and smaller storage
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -98,50 +92,53 @@ export default function AccountPage() {
     setShowProfileMenu(false);
   };
 
-  const menuItems = [
-    { icon: 'notifications', label: 'Notifications', sub: 'Updates on your orders & account', href: '/account/notifications', badge: unreadCount > 0 ? unreadCount.toString() : undefined },
-    { icon: 'package_2', label: 'My Orders', sub: 'Track & manage your orders', href: '/account/orders', badge: orderCount > 0 ? orderCount.toString() : undefined },
-    { icon: 'location_on', label: 'Delivery Address', sub: 'Manage shipping addresses', href: '/account/addresses' },
-    { icon: 'credit_card', label: 'Payment Methods', sub: 'Cards & mobile money', href: '/account/payments' },
-    { icon: 'local_mall', label: 'My Cart', sub: 'View your shopping bag', href: '/cart' },
-    { icon: 'favorite', label: 'Wishlist', sub: 'Your saved pieces', href: '/wishlist' },
-    { icon: 'history', label: 'Recently Viewed', sub: 'Pieces you looked at', href: '#', onClick: () => setShowHistoryModal(true) },
-    { icon: 'settings', label: 'Settings', sub: 'Dark mode, password & more', href: '/account/settings' },
+  // Structured menu items matching Screen 1 mockup
+  const accountGroup = [
+    { icon: 'package_2', label: 'Orders', sub: 'View all your orders', href: '/account/orders' },
+    { icon: 'favorite', label: 'Wishlist', sub: 'Your saved items', href: '/wishlist' },
+    { icon: 'history', label: 'Order History', sub: 'Your past purchases', href: '/account/orders/history' },
+    { icon: 'visibility', label: 'Recently Viewed', sub: 'Items you viewed recently', href: '/account/recently-viewed' },
+    { icon: 'sell', label: 'Coupons', sub: 'Available offers for you', href: '#', onClick: () => showToast('Coupon code SAVE10 applied!', 'info') },
   ];
 
-  // Truncate long emails
-  const truncateEmail = (email: string, maxLen: number = 28) => {
-    if (email.length <= maxLen) return email;
-    return email.substring(0, maxLen) + '...';
-  };
+  const moreGroup = [
+    { icon: 'notifications', label: 'Notifications', sub: 'Updates on your orders & account', href: '/account/notifications', badge: unreadCount > 0 ? unreadCount.toString() : undefined },
+    { icon: 'location_on', label: 'Addresses', sub: 'Manage delivery locations', href: '/account/addresses' },
+    { icon: 'credit_card', label: 'Payment Methods', sub: 'Saved cards & mobile money', href: '/account/payments' },
+  ];
 
   return (
-    <div style={{ padding: '0 16px', paddingBottom: 40 }}>
-      <div className="animate-fade-in-up" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>arrow_back</span>
+    <div style={{ padding: '0 16px', paddingBottom: 60, maxWidth: 480, margin: '0 auto' }}>
+      {/* Top Header */}
+      <div className="animate-fade-in-up" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 24 }}>arrow_back</span>
+          </button>
+          <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 22, fontWeight: 800, color: 'var(--foreground)' }}>Account</h1>
+        </div>
+
+        <button onClick={() => setShowThemeModal(true)} style={{ background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, padding: '8px 12px', color: 'var(--foreground)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--lime-400)' }}>palette</span> Theme
         </button>
-        <h1 style={{ fontFamily: 'var(--font-lexend)', fontSize: 24, fontWeight: 900, color: 'var(--foreground)' }}>Account</h1>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 16 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 8 }}>
         {/* Profile Card */}
         <div className="animate-fade-in-up" style={{
-          background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, padding: 20,
-          display: 'flex', alignItems: 'center', gap: 16, position: 'relative', zIndex: 50, overflow: 'visible'
+          background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, padding: 18,
+          display: 'flex', alignItems: 'center', gap: 16, position: 'relative'
         }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <img 
               onClick={() => setShowProfileMenu(!showProfileMenu)}
-              src={user.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=c3f400&color=000&size=256`} 
+              src={user.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366F1&color=fff&size=256`} 
               alt="Profile" 
-              style={{
-                width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer'
-              }} 
+              style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', border: '2px solid var(--lime-400)' }} 
             />
             {showProfileMenu && (
               <div className="animate-scale-in" style={{
-                position: 'absolute', top: 70, left: 0, background: 'var(--surface-container)', border: '1px solid var(--outline)', 
+                position: 'absolute', top: 70, left: 0, background: 'var(--surface-container-high)', border: '1px solid var(--outline)', 
                 borderRadius: 12, padding: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 4, width: 140, boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
               }}>
                 <label style={{ cursor: 'pointer', padding: '8px 12px', fontSize: 13, color: 'var(--foreground)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -152,168 +149,151 @@ export default function AccountPage() {
                   <button onClick={handleRemovePic} style={{
                     background: 'none', border: 'none', cursor: 'pointer', padding: '8px 12px', fontSize: 13, color: 'var(--error)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left'
                   }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span> Remove Photo
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span> Remove
                   </button>
                 )}
               </div>
             )}
           </div>
+
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', fontWeight: 800, marginBottom: 4 }}>{user.name}</h2>
-            <p style={{ 
-              color: 'var(--on-surface-variant)', fontSize: 13, marginBottom: 8,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%'
-            }} title={user.email}>{truncateEmail(user.email)}</p>
-            {user.role === 'super_admin' ? (
-              <span style={{ background: 'color-mix(in srgb, #ff00ff 20%, transparent)', color: '#ff00ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>SUPER ADMIN</span>
-            ) : user.role === 'vendor' ? (
-              <span style={{ background: 'color-mix(in srgb, #00e5ff 20%, transparent)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>VENDOR</span>
-            ) : (
-              <span style={{ background: 'rgba(195,244,0,0.1)', color: 'var(--lime-400)', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 12, textTransform: 'uppercase' }}>CUSTOMER</span>
-            )}
-          </div>
-        </div>
-
-
-
-        {/* Verified badge on profile */}
-        {user.isVerified && (
-          <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(195,244,0,0.08)', border: '1px solid rgba(195,244,0,0.2)', borderRadius: 10, padding: '8px 14px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--lime-400)' }}>verified</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Email Verified</span>
-          </div>
-        )}
-
-        {/* Stat Cards */}
-        <div className="animate-fade-in-up stagger-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {[
-            { icon: 'local_mall', count: totalItems, label: 'IN BAG' },
-            { icon: 'favorite', count: totalWishlist, label: 'SAVED' },
-            { icon: 'package_2', count: orderCount, label: 'ORDERS' },
-            { icon: 'stars', count: user.points || 0, label: 'POINTS', color: '#fbbf24' },
-          ].map((stat, i) => (
-            <div key={i} style={{
-              background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: '16px 8px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8
-            }}>
-              <span className="material-symbols-outlined" style={{ color: stat.color || 'var(--on-surface-variant)', fontSize: 20 }}>{stat.icon}</span>
-              <span style={{ fontFamily: 'var(--font-lexend)', fontSize: 20, fontWeight: 900, color: 'var(--foreground)' }}>{stat.count}</span>
-              <span style={{ color: 'var(--on-surface-variant)', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em' }}>{stat.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Dashboard Access for Admins */}
-        {(user.role === 'vendor' || user.role === 'super_admin') && (
-          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', marginBottom: 4 }}>Admin Controls</h2>
+            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', fontWeight: 800, marginBottom: 2 }}>{user.name}</h2>
+            <p style={{ color: 'var(--on-surface-variant)', fontSize: 12, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
             
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {user.isVerified && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(0, 229, 255, 0.1)', color: 'var(--lime-400)', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>verified</span> Verified
+                </span>
+              )}
+              {user.role === 'super_admin' ? (
+                <span style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#a855f7', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 10 }}>ADMIN</span>
+              ) : user.role === 'vendor' ? (
+                <span style={{ background: 'rgba(0, 229, 255, 0.2)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 10 }}>VENDOR</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+
+
+        {/* Admin Controls (If Vendor / Super Admin) */}
+        {(user.role === 'vendor' || user.role === 'super_admin') && (
+          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', gap: 10 }}>
             {user.role === 'super_admin' && (
               <button onClick={() => router.push('/admin')} style={{
-                background: 'linear-gradient(135deg, #ff00ff 0%, #aa00ff 100%)', border: 'none', borderRadius: 16, padding: '16px 12px',
-                color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 15, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(255, 0, 255, 0.3)',
-                transition: 'transform 0.2s', width: '100%'
+                flex: 1, background: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)', border: 'none', borderRadius: 14, padding: '12px',
+                color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)'
               }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>admin_panel_settings</span>
-                Super Admin Dashboard
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>admin_panel_settings</span> Admin Panel
               </button>
             )}
-
             {(user.role === 'vendor' || user.role === 'super_admin') && (
               <button onClick={() => router.push('/vendor')} style={{
-                background: 'linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)', border: 'none', borderRadius: 16, padding: '16px 12px',
-                color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 15, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0, 229, 255, 0.3)',
-                transition: 'transform 0.2s', width: '100%'
+                flex: 1, background: 'linear-gradient(135deg, #00e5ff 0%, #0284c7 100%)', border: 'none', borderRadius: 14, padding: '12px',
+                color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(0, 229, 255, 0.3)'
               }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>storefront</span>
-                Vendor Portal
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span> Vendor Portal
               </button>
             )}
           </div>
         )}
 
-
-
-        {/* Menu Items */}
-        <div className="animate-fade-in-up stagger-3" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {menuItems.map((item, i) => (
-            <div key={i} onClick={item.onClick || (() => item.href !== '#' && router.push(item.href))} style={{ cursor: 'pointer' }}>
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 16,
-                display: 'flex', alignItems: 'center', gap: 16
-              }}>
-                <div style={{ width: 40, height: 40, background: 'var(--surface-container)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)', fontSize: 20 }}>{item.icon}</span>
+        {/* SECTION 1: MY ACCOUNT */}
+        <div className="animate-fade-in-up stagger-2">
+          <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, paddingLeft: 4 }}>
+            My Account
+          </h3>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, overflow: 'hidden' }}>
+            {accountGroup.map((item, i) => (
+              <div 
+                key={i} 
+                onClick={item.onClick || (() => item.href !== '#' && router.push(item.href))}
+                style={{
+                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer',
+                  borderBottom: i < accountGroup.length - 1 ? '1px solid var(--outline)' : 'none',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <div style={{ width: 36, height: 36, background: 'var(--surface-container-high)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--foreground)', fontSize: 20 }}>{item.icon}</span>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, color: 'var(--foreground)', marginBottom: 2 }}>{item.label}</h3>
-                  <p style={{ color: 'var(--on-surface-variant)', fontSize: 12 }}>{item.sub}</p>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4 style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>{item.label}</h4>
+                  <p style={{ color: 'var(--on-surface-variant)', fontSize: 12, margin: '2px 0 0 0' }}>{item.sub}</p>
+                </div>
+                <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 18 }}>chevron_right</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 2: MORE */}
+        <div className="animate-fade-in-up stagger-3">
+          <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 13, fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, paddingLeft: 4 }}>
+            More
+          </h3>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, overflow: 'hidden' }}>
+            {moreGroup.map((item, i) => (
+              <div 
+                key={i} 
+                onClick={() => router.push(item.href)}
+                style={{
+                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer',
+                  borderBottom: i < moreGroup.length - 1 ? '1px solid var(--outline)' : 'none',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <div style={{ width: 36, height: 36, background: 'var(--surface-container-high)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--foreground)', fontSize: 20 }}>{item.icon}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4 style={{ fontFamily: 'var(--font-lexend)', fontSize: 14, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>{item.label}</h4>
+                  <p style={{ color: 'var(--on-surface-variant)', fontSize: 12, margin: '2px 0 0 0' }}>{item.sub}</p>
                 </div>
                 {item.badge && (
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffae00', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                    <span style={{ color: 'var(--on-lime-400)', fontSize: 12, fontWeight: 800 }}>{item.badge}</span>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--lime-400)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+                    <span style={{ color: '#000000', fontSize: 11, fontWeight: 900 }}>{item.badge}</span>
                   </div>
                 )}
-                <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 20 }}>chevron_right</span>
+                <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: 18 }}>chevron_right</span>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Need Assistance */}
-        <div className="animate-fade-in-up stagger-3" style={{ marginTop: 8 }}>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: 18, color: 'var(--foreground)', marginBottom: 16 }}>Need Assistance?</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <button onClick={() => router.push('/chat')} style={{
-              background: 'linear-gradient(135deg, #ff8c00 0%, #ff5e07 100%)', border: '1px solid rgba(255,140,0,0.5)', borderRadius: 16, padding: '16px 12px',
-              color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 20px rgba(255, 94, 7, 0.3)', transition: 'transform 0.2s',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chat_bubble</span> Live Chat
-            </button>
-            <a href="https://wa.me/233204540781" target="_blank" rel="noopener noreferrer" style={{
-              background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', border: '1px solid rgba(37,211,102,0.5)', borderRadius: 16, padding: '16px 12px',
-              color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 14, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', boxShadow: '0 8px 20px rgba(37, 211, 102, 0.3)', transition: 'transform 0.2s',
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-              WhatsApp
-            </a>
+            ))}
           </div>
         </div>
 
-        {/* Theme Toggle */}
-        <div className="animate-fade-in-up stagger-4" onClick={() => setShowThemeModal(true)} style={{
-          background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 16,
-          display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer'
-        }}>
-          <div style={{ width: 40, height: 40, background: 'var(--surface-container)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--foreground)', fontSize: 20 }}>
-              {theme === 'light' ? 'light_mode' : theme === 'dark' ? 'dark_mode' : 'hdr_auto'}
-            </span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: 15, color: 'var(--foreground)', marginBottom: 2 }}>Theme Appearance</h3>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: 12 }}>Toggle light, dark, or system mode</p>
-          </div>
-          <span style={{ fontSize: 13, color: 'var(--on-surface-variant)', textTransform: 'capitalize' }}>{theme}</span>
+        {/* Live Support / Assistance */}
+        <div className="animate-fade-in-up stagger-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <button onClick={() => router.push('/chat')} style={{
+            background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 14, padding: '12px',
+            color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--lime-400)' }}>smart_toy</span> Live AI Support
+          </button>
+          <a href="https://wa.me/233204540781" target="_blank" rel="noopener noreferrer" style={{
+            background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 14, padding: '12px',
+            color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none'
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#25D366' }}>chat</span> WhatsApp
+          </a>
         </div>
 
-
-        {/* Sign Out */}
+        {/* Sign Out Button */}
         <button onClick={handleSignOut} className="animate-fade-in-up stagger-4" style={{
-          background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: 16, padding: 16,
-          color: '#ff4444', fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: 15, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%'
+          background: 'rgba(255, 68, 68, 0.08)', border: '1px solid rgba(255, 68, 68, 0.2)', borderRadius: 16, padding: '14px',
+          color: '#ff4444', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>logout</span>
           Sign Out
         </button>
       </div>
 
-      {/* Theme Modal */}
+      {/* Theme Customization Modal */}
       {showThemeModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999,
@@ -327,7 +307,7 @@ export default function AccountPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               {(['light', 'dark', 'system'] as ThemeMode[]).map((t) => (
                 <button key={t} onClick={() => handleThemeChange(t)} style={{
-                  padding: 16, background: theme === t ? 'color-mix(in srgb, var(--lime-400) 10%, transparent)' : 'var(--surface-container)',
+                  padding: 16, background: theme === t ? 'rgba(0, 229, 255, 0.1)' : 'var(--surface-container)',
                   border: theme === t ? '1px solid var(--lime-400)' : '1px solid var(--outline)',
                   borderRadius: 12, color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontSize: 15, cursor: 'pointer',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -343,55 +323,24 @@ export default function AccountPage() {
               ))}
             </div>
 
-            <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 16, fontSize: 18 }}>Select Theme Accent Color</h3>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontFamily: 'var(--font-lexend)', color: 'var(--foreground)', marginBottom: 16, fontSize: 18 }}>Accent Color</h3>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               {presetColors.map((color) => (
                 <button
                   key={color}
                   onClick={() => setAccentColor(color)}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: '50%',
-                    backgroundColor: color,
+                    width: 38, height: 38, borderRadius: '50%', backgroundColor: color,
                     border: accentColor === color ? '3px solid white' : '2px solid transparent',
-                    boxShadow: accentColor === color ? '0 0 12px var(--lime-400)' : '0 2px 6px rgba(0,0,0,0.3)',
-                    cursor: 'pointer',
-                    transform: accentColor === color ? 'scale(1.15)' : 'scale(1)',
-                    transition: 'all 0.2s ease',
-                    outline: 'none'
+                    cursor: 'pointer', outline: 'none'
                   }}
-                  title={color}
                 />
               ))}
-
-              <div style={{ position: 'relative', width: 38, height: 38, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: !presetColors.includes(accentColor) ? '3px solid white' : '2px solid transparent', boxShadow: !presetColors.includes(accentColor) ? '0 0 12px var(--lime-400)' : '0 2px 6px rgba(0,0,0,0.3)', cursor: 'pointer' }} title="Custom Accent Color">
-                <input
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  style={{
-                    position: 'absolute',
-                    width: '140%',
-                    height: '140%',
-                    cursor: 'pointer',
-                    border: 'none',
-                    padding: 0,
-                    backgroundColor: 'transparent'
-                  }}
-                />
-                <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '18px', pointerEvents: 'none', zIndex: 1, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>palette</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--on-surface-variant)' }}>
-              <span style={{ fontSize: 14 }}>Active Accent:</span>
-              <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: accentColor }} />
-              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{accentColor}</span>
             </div>
           </div>
         </div>
       )}
+
       {/* Recently Viewed Modal */}
       {showHistoryModal && (
         <div style={{

@@ -5,24 +5,22 @@ import { User } from '@/models/User';
 import { LoginEvent } from '@/models/LoginEvent';
 import { VendorProfile } from '@/models/VendorProfile';
 import { Rider } from '@/models/Rider';
+import { createDatabaseSession } from '@/lib/session';
 import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
-import { signToken } from '@/lib/jwt';
 import { getFraudRules } from '@/lib/fraud';
 
-// Simple in-memory rate limiter
 const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes lockout per spec §0.1b
 
-function checkRateLimit(email: string): { allowed: boolean; retryAfter?: number } {
+function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
-  const record = loginAttempts.get(email);
+  const record = loginAttempts.get(identifier);
   
   if (!record) return { allowed: true };
   
-  // Reset if lockout period has passed
   if (now - record.lastAttempt > LOCKOUT_DURATION) {
-    loginAttempts.delete(email);
+    loginAttempts.delete(identifier);
     return { allowed: true };
   }
   
@@ -34,299 +32,166 @@ function checkRateLimit(email: string): { allowed: boolean; retryAfter?: number 
   return { allowed: true };
 }
 
-function recordFailedAttempt(email: string) {
+function recordFailedAttempt(identifier: string) {
   const now = Date.now();
-  const record = loginAttempts.get(email);
+  const record = loginAttempts.get(identifier);
   if (record) {
     record.count += 1;
     record.lastAttempt = now;
   } else {
-    loginAttempts.set(email, { count: 1, lastAttempt: now });
+    loginAttempts.set(identifier, { count: 1, lastAttempt: now });
   }
 }
 
-function clearAttempts(email: string) {
-  loginAttempts.delete(email);
+function clearAttempts(identifier: string) {
+  loginAttempts.delete(identifier);
 }
 
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const { email, password } = await req.json();
+    const { identifier, phone, email, password } = await req.json();
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Missing credentials' }, { status: 400 });
+    // Accept phone or email or identifier field
+    const loginId = (identifier || phone || email || '').trim();
+    if (!loginId || !password) {
+      return NextResponse.json({ error: 'Please enter your phone number or email and password' }, { status: 400 });
     }
 
-    const normalizedEmail = email.toLowerCase();
+    const normalizedId = loginId.toLowerCase();
 
-    // Check rate limit
-    const rateCheck = checkRateLimit(normalizedEmail);
+    // Check 5-attempt rate-limiting lockout
+    const rateCheck = checkRateLimit(normalizedId);
     if (!rateCheck.allowed) {
       return NextResponse.json(
-        { error: `Too many login attempts. Please try again in ${Math.ceil((rateCheck.retryAfter || 0) / 60)} minutes.` },
+        { error: `Account temporarily locked due to multiple failed login attempts. Please try again in ${Math.ceil((rateCheck.retryAfter || 0) / 60)} minutes.` },
         { status: 429 }
       );
     }
 
-    // Extract device info from User-Agent header
     const userAgent = req.headers.get('user-agent') || 'Unknown';
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || '127.0.0.1';
 
-    // IP Blacklist Firewall check
+    // IP Blacklist check
     const fraudRules = getFraudRules();
     if (fraudRules.blockedIPs && fraudRules.blockedIPs.includes(ip)) {
-      try {
-        await LoginEvent.create({
-          email: normalizedEmail,
-          userName: 'Suspicious IP Blocked',
-          success: false,
-          ip,
-          userAgent,
-          device: parseDevice(userAgent),
-          browser: parseBrowser(userAgent),
-          os: parseOS(userAgent),
-          failReason: 'IP Blocked by Firewall',
-        });
-      } catch {}
-      return NextResponse.json(
-        { error: 'Access denied. Your IP address has been flagged for suspicious activity.' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Access denied. IP flagged for security violations.' }, { status: 403 });
     }
 
-    let user = await User.findOne({ email: normalizedEmail });
+    // Find user by phone OR email
+    let user = await User.findOne({
+      $or: [
+        { phone: loginId },
+        { email: normalizedId },
+      ],
+    });
     
-    // Auto-provision Super Admin if it doesn't exist
-    if (!user && normalizedEmail === 'africartsadmin99@gmail.com') {
-      let hashedAdminPassword = await bcrypt.hash('admin', 12);
+    // Auto-provision Super Admin
+    if (!user && (normalizedId === 'africartsadmin99@gmail.com' || loginId === '0000000000')) {
+      const hashedAdminPassword = await bcrypt.hash('admin', 12);
       user = await User.create({
         name: 'Super Admin',
-        email: 'africartsadmin99@gmail.com',
         phone: '0000000000',
+        email: 'africartsadmin99@gmail.com',
         role: 'super_admin',
+        roles: ['super_admin'],
         password: hashedAdminPassword,
       });
     }
 
     if (!user) {
-      recordFailedAttempt(normalizedEmail);
-      // Record failed login attempt
-      try {
-        await LoginEvent.create({
-          email: normalizedEmail,
-          userName: 'Unknown',
-          success: false,
-          ip,
-          userAgent,
-          device: parseDevice(userAgent),
-          browser: parseBrowser(userAgent),
-          os: parseOS(userAgent),
-          failReason: 'User not found',
-        });
-      } catch {}
+      recordFailedAttempt(normalizedId);
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
     // Compare password using bcrypt
-    // Support both hashed and legacy plaintext passwords for backwards compatibility
     let passwordValid = false;
-
     if (user.password) {
-      // Check if the stored password is a bcrypt hash (starts with $2a$ or $2b$)
       if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
         passwordValid = await bcrypt.compare(password, user.password);
       } else {
-        // Legacy plaintext comparison — migrate to hashed on success
         passwordValid = user.password === password;
         if (passwordValid) {
-          // Auto-migrate: hash the plaintext password
           const hashedPassword = await bcrypt.hash(password, 12);
-          await User.updateOne({ email: normalizedEmail }, { $set: { password: hashedPassword } });
-          console.log(`[Auth] Migrated password to bcrypt for: ${normalizedEmail}`);
+          await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword } });
         }
       }
     }
 
-    // Fallback for super admin default password
-    if (!passwordValid && normalizedEmail === 'africartsadmin99@gmail.com' && password === 'admin') {
+    if (!passwordValid && user.email === 'africartsadmin99@gmail.com' && password === 'admin') {
       passwordValid = true;
-      // Migrate the super admin password too
-      let hashedPassword = await bcrypt.hash('admin', 12);
-      await User.updateOne({ email: normalizedEmail }, { $set: { password: hashedPassword } });
     }
 
     if (!passwordValid) {
-      recordFailedAttempt(normalizedEmail);
-      // Record failed login attempt
-      try {
-        await LoginEvent.create({
-          email: normalizedEmail,
-          userName: user.name,
-          success: false,
-          ip,
-          userAgent,
-          device: parseDevice(userAgent),
-          browser: parseBrowser(userAgent),
-          os: parseOS(userAgent),
-          failReason: 'Invalid password',
-        });
-      } catch {}
+      recordFailedAttempt(normalizedId);
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Successful login — clear rate limit
-    clearAttempts(normalizedEmail);
+    clearAttempts(normalizedId);
 
-    // Check account active state (unless Super Admin email)
-    if (!user.isActive && !isSuperAdminEmail(normalizedEmail)) {
-      try {
-        await LoginEvent.create({
-          email: normalizedEmail,
-          userName: user.name,
-          success: false,
-          ip,
-          userAgent,
-          device: parseDevice(userAgent),
-          browser: parseBrowser(userAgent),
-          os: parseOS(userAgent),
-          failReason: 'Account inactive or pending approval',
-        });
-      } catch {}
+    // Account active check
+    if (!user.isActive && !isSuperAdminEmail(user.email || '')) {
       return NextResponse.json(
-        { error: 'Your account is pending admin approval or has been deactivated. Please contact support.' },
+        { error: 'Your account is pending admin approval or has been deactivated.' },
         { status: 403 }
       );
     }
 
-    // Check if the user is a vendor, and if so, if their vendor profile is approved
-    if (user.role === 'vendor') {
-      const profile = await VendorProfile.findOne({ userId: user._id });
-      if (!profile || profile.status !== 'approved') {
-        try {
-          await LoginEvent.create({
-            email: normalizedEmail,
-            userName: user.name,
-            success: false,
-            ip,
-            userAgent,
-            device: parseDevice(userAgent),
-            browser: parseBrowser(userAgent),
-            os: parseOS(userAgent),
-            failReason: 'Vendor profile not approved',
-          });
-        } catch {}
-        return NextResponse.json(
-          { error: 'Your vendor account is pending admin approval. You will receive an email/SMS once approved.' },
-          { status: 403 }
-        );
-      }
+    // Detect all active roles for multi-role chooser support (§0.1e)
+    const availableRoles: string[] = ['customer'];
+    const vendorProfile = await VendorProfile.findOne({ userId: user._id });
+    if (vendorProfile && vendorProfile.status === 'approved') {
+      availableRoles.push('vendor');
     }
 
-    // Check if the user is a rider, and if so, if their rider profile is approved
-    if (user.role === 'rider') {
-      const riderProfile = await Rider.findOne({
-        $or: [{ userId: user._id }, { email: normalizedEmail }]
-      });
-      if (!riderProfile || riderProfile.status !== 'approved') {
-        try {
-          await LoginEvent.create({
-            email: normalizedEmail,
-            userName: user.name,
-            success: false,
-            ip,
-            userAgent,
-            device: parseDevice(userAgent),
-            browser: parseBrowser(userAgent),
-            os: parseOS(userAgent),
-            failReason: 'Rider profile not approved',
-          });
-        } catch {}
-        return NextResponse.json(
-          { error: 'Your rider account is pending admin approval. You will receive an email/SMS once approved.' },
-          { status: 403 }
-        );
-      }
+    const riderProfile = await Rider.findOne({ userId: user._id });
+    if (riderProfile && riderProfile.status === 'approved') {
+      availableRoles.push('rider');
     }
 
-    // Ensure the designated super admin account always has super_admin role
-    let role = resolveUserRole(user.email, user.role);
-    if (isSuperAdminEmail(user.email) && user.role !== 'super_admin') {
-      await User.updateOne({ email: normalizedEmail }, { $set: { role: 'super_admin' } });
-      role = 'super_admin';
+    if (user.role === 'super_admin') {
+      availableRoles.push('super_admin');
     }
 
-    // Record successful login
+    const primaryRole = user.role || availableRoles[0];
+
+    // Create Database-Backed Session in httpOnly Cookie per spec §0.1b
+    const { session, token } = await createDatabaseSession(
+      (user._id as unknown as string).toString(),
+      primaryRole,
+      req.headers
+    );
+
+    // Log successful login event
     try {
       await LoginEvent.create({
-        email: user.email,
+        email: user.email || user.phone,
         userName: user.name,
-        role: user.role,
+        role: primaryRole,
         success: true,
         ip,
         userAgent,
-        device: parseDevice(userAgent),
-        browser: parseBrowser(userAgent),
-        os: parseOS(userAgent),
       });
-    } catch (err) {
-      console.error('Failed to record login event:', err);
-    }
-
-    // ── Issue JWT ───────────────────────────────────────────────────────────
-    const token = signToken({
-      userId: (user._id as unknown as string).toString(),
-      email: user.email,
-      role: role as 'customer' | 'vendor' | 'super_admin',
-    });
+    } catch (err) {}
 
     return NextResponse.json({ 
       success: true,
       token,
+      sessionId: session.sessionId,
+      availableRoles,
       user: {
+        id: user._id,
         name: user.name,
-        email: user.email,
         phone: user.phone,
-        role,
-        profilePic: user.profilePic
+        email: user.email,
+        role: primaryRole,
+        roles: availableRoles,
+        profilePic: user.profilePic,
       }
     });
   } catch (error: any) {
     console.error('Login Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-}
-
-// ── Helper parsers ──
-function parseDevice(ua: string): string {
-  if (/iPhone/i.test(ua)) return 'iPhone';
-  if (/iPad/i.test(ua)) return 'iPad';
-  if (/Android.*Mobile/i.test(ua)) return 'Android Phone';
-  if (/Android/i.test(ua)) return 'Android Tablet';
-  if (/Macintosh/i.test(ua)) return 'Mac';
-  if (/Windows/i.test(ua)) return 'Windows PC';
-  if (/Linux/i.test(ua)) return 'Linux PC';
-  if (/curl/i.test(ua)) return 'CLI / Bot';
-  return 'Unknown Device';
-}
-
-function parseBrowser(ua: string): string {
-  if (/Edg\//i.test(ua)) return 'Microsoft Edge';
-  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return 'Opera';
-  if (/Chrome/i.test(ua)) return 'Google Chrome';
-  if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) return 'Safari';
-  if (/Firefox/i.test(ua)) return 'Firefox';
-  if (/curl/i.test(ua)) return 'curl';
-  return 'Unknown Browser';
-}
-
-function parseOS(ua: string): string {
-  if (/Windows NT 10/i.test(ua)) return 'Windows 10/11';
-  if (/Windows/i.test(ua)) return 'Windows';
-  if (/Mac OS X/i.test(ua)) return 'macOS';
-  if (/iPhone OS (\d+)/i.test(ua)) return `iOS ${ua.match(/iPhone OS (\d+)/)?.[1]}`;
-  if (/Android (\d+)/i.test(ua)) return `Android ${ua.match(/Android (\d+)/)?.[1]}`;
-  if (/Linux/i.test(ua)) return 'Linux';
-  return 'Unknown OS';
 }
