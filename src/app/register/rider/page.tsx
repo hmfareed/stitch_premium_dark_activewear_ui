@@ -38,6 +38,7 @@ const errStyle: React.CSSProperties = {
 
 export default function RiderRegisterPage() {
   const router = useRouter();
+  const { loginWithUser } = useAuth();
   const { showToast } = useToast();
 
   const [stage, setStage] = useState<1 | 2 | 3>(1);
@@ -125,8 +126,12 @@ export default function RiderRegisterPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('Rider account created! Pending review by Superadmin.', 'success');
-        router.push('/login');
+        if (data.token) localStorage.setItem('africart-token', data.token);
+        if (data.user) {
+          loginWithUser(data.user, data.token);
+        }
+        showToast('Rider account created successfully!', 'success');
+        router.push('/rider');
       } else {
         showToast(data.error || 'Registration failed', 'error');
       }

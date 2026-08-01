@@ -15,7 +15,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        router.push('/login');
+        router.push('/');
       } else if (user.role === 'vendor') {
         router.push('/vendor');
       } else if (user.role !== 'super_admin') {
@@ -32,23 +32,233 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const menuItems = [
-    { name: 'Dashboard', icon: 'grid_view', path: '/admin' },
-    { name: 'Users', icon: 'group', path: '/admin/customers' },
-    { name: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
-    { name: 'Riders', icon: 'two_wheeler', path: '/admin/riders' },
-    { name: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
-    { name: 'Products', icon: 'inventory_2', path: '/admin/products' },
-    { name: 'Transactions', icon: 'account_balance_wallet', path: '/admin/finance' },
-    { name: 'Reports', icon: 'description', path: '/admin/campaigns' },
-    { name: 'Analytics', icon: 'analytics', path: '/admin/compliance' },
-    { name: 'Coupons', icon: 'confirmation_number', path: '/admin/campaigns' },
-    { name: 'Disputes', icon: 'gavel', path: '/admin/security' },
-    { name: 'System Settings', icon: 'settings_suggest', path: '/admin/settings' },
-    { name: 'Admins', icon: 'shield_person', path: '/admin/admins' },
-    { name: 'Support Tickets', icon: 'confirmation_number', path: '/admin/messages' },
-    { name: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
+  interface NavSubItem {
+    name: string;
+    path: string;
+  }
+
+  interface NavSection {
+    title: string;
+    icon: string;
+    path?: string;
+    subItems?: NavSubItem[];
+  }
+
+  const navSections: NavSection[] = [
+    { title: 'Dashboard', icon: 'grid_view', path: '/admin' },
+    {
+      title: 'Orders',
+      icon: 'shopping_bag',
+      path: '/admin/orders',
+      subItems: [
+        { name: 'All Orders', path: '/admin/orders' },
+        { name: 'Pending', path: '/admin/orders' },
+        { name: 'Processing', path: '/admin/orders' },
+        { name: 'Ready for Pickup', path: '/admin/orders' },
+        { name: 'Picked Up', path: '/admin/orders' },
+        { name: 'In Transit', path: '/admin/orders' },
+        { name: 'Delivered', path: '/admin/orders' },
+        { name: 'Cancelled', path: '/admin/orders' },
+        { name: 'Returned', path: '/admin/orders' },
+        { name: 'Refunded', path: '/admin/orders' },
+      ],
+    },
+    {
+      title: 'Products',
+      icon: 'inventory_2',
+      path: '/admin/products',
+      subItems: [
+        { name: 'All Products', path: '/admin/products' },
+        { name: 'Pending Approval', path: '/admin/products' },
+        { name: 'Categories', path: '/admin/products' },
+        { name: 'Brands', path: '/admin/products' },
+        { name: 'Attributes', path: '/admin/products' },
+        { name: 'Reviews', path: '/admin/products' },
+        { name: 'Inventory', path: '/admin/products' },
+      ],
+    },
+    {
+      title: 'Vendors',
+      icon: 'storefront',
+      path: '/admin/vendors',
+      subItems: [
+        { name: 'Pending Applications', path: '/admin/vendors' },
+        { name: 'Approved', path: '/admin/vendors' },
+        { name: 'Suspended', path: '/admin/vendors' },
+        { name: 'Performance', path: '/admin/vendors' },
+        { name: 'Reviews', path: '/admin/vendors' },
+        { name: 'KYC', path: '/admin/vendors' },
+      ],
+    },
+    {
+      title: 'Riders',
+      icon: 'two_wheeler',
+      path: '/admin/riders',
+      subItems: [
+        { name: 'Applications', path: '/admin/riders' },
+        { name: 'Active', path: '/admin/riders' },
+        { name: 'Performance', path: '/admin/riders' },
+        { name: 'Delivery Stats', path: '/admin/riders' },
+        { name: 'Earnings', path: '/admin/riders' },
+        { name: 'Verification', path: '/admin/riders' },
+      ],
+    },
+    { title: 'Customers', icon: 'group', path: '/admin/customers' },
+    {
+      title: 'Admin Staff',
+      icon: 'admin_panel_settings',
+      path: '/admin/admins',
+      subItems: [
+        { name: 'All Admins', path: '/admin/admins' },
+        { name: 'Role Applications', path: '/admin/admins' },
+      ],
+    },
+    {
+      title: 'Finance',
+      icon: 'account_balance_wallet',
+      path: '/admin/finance',
+      subItems: [
+        { name: 'Transactions', path: '/admin/finance' },
+        { name: 'Vendor Payouts', path: '/admin/finance' },
+        { name: 'Rider Payments', path: '/admin/finance' },
+        { name: 'Revenue', path: '/admin/finance' },
+        { name: 'Commission', path: '/admin/finance' },
+        { name: 'Wallets', path: '/admin/finance' },
+        { name: 'Refunds', path: '/admin/finance' },
+        { name: 'Taxes', path: '/admin/finance' },
+      ],
+    },
+    {
+      title: 'Marketing',
+      icon: 'campaign',
+      path: '/admin/campaigns',
+      subItems: [
+        { name: 'Coupons', path: '/admin/campaigns' },
+        { name: 'Promo Codes', path: '/admin/campaigns' },
+        { name: 'Flash Sales', path: '/admin/campaigns' },
+        { name: 'Featured Products', path: '/admin/campaigns' },
+        { name: 'Banners', path: '/admin/campaigns' },
+        { name: 'Push/Email/SMS Campaigns', path: '/admin/campaigns' },
+      ],
+    },
+    {
+      title: 'Reports',
+      icon: 'description',
+      path: '/admin/compliance',
+      subItems: [
+        { name: 'Sales', path: '/admin/compliance' },
+        { name: 'Customer', path: '/admin/compliance' },
+        { name: 'Vendor', path: '/admin/compliance' },
+        { name: 'Rider', path: '/admin/compliance' },
+        { name: 'Product', path: '/admin/compliance' },
+        { name: 'Financial', path: '/admin/compliance' },
+      ],
+    },
+    {
+      title: 'Logistics',
+      icon: 'local_shipping',
+      path: '/admin/hub',
+      subItems: [
+        { name: 'Delivery Zones', path: '/admin/hub' },
+        { name: 'Shipping Methods', path: '/admin/hub' },
+        { name: 'Rates', path: '/admin/hub' },
+        { name: 'Warehouses', path: '/admin/hub' },
+        { name: 'Pickup Stations', path: '/admin/hub' },
+      ],
+    },
+    {
+      title: 'Reviews',
+      icon: 'rate_review',
+      path: '/admin/compliance',
+      subItems: [
+        { name: 'Product Reviews', path: '/admin/compliance' },
+        { name: 'Vendor Reviews', path: '/admin/compliance' },
+        { name: 'Rider Reviews', path: '/admin/compliance' },
+        { name: 'Reported Reviews', path: '/admin/compliance' },
+      ],
+    },
+    {
+      title: 'Communication',
+      icon: 'chat',
+      path: '/admin/messages',
+      subItems: [
+        { name: 'Customer Support', path: '/admin/messages' },
+        { name: 'Live Chat', path: '/admin/messages' },
+        { name: 'Vendor/Rider Chat', path: '/admin/messages' },
+        { name: 'Announcements', path: '/admin/messages' },
+      ],
+    },
+    {
+      title: 'Payments',
+      icon: 'credit_card',
+      path: '/admin/finance',
+      subItems: [
+        { name: 'Gateways', path: '/admin/finance' },
+        { name: 'History', path: '/admin/finance' },
+        { name: 'Failed', path: '/admin/finance' },
+        { name: 'Withdrawals', path: '/admin/finance' },
+      ],
+    },
+    {
+      title: 'Content',
+      icon: 'article',
+      path: '/admin/tickets',
+      subItems: [
+        { name: 'Blog', path: '/admin/tickets' },
+        { name: 'FAQs', path: '/admin/tickets' },
+        { name: 'Terms', path: '/admin/tickets' },
+        { name: 'Privacy Policy', path: '/admin/tickets' },
+        { name: 'Help Center', path: '/admin/tickets' },
+      ],
+    },
+    {
+      title: 'Settings',
+      icon: 'settings_suggest',
+      path: '/admin/settings',
+      subItems: [
+        { name: 'General', path: '/admin/settings' },
+        { name: 'Branding', path: '/admin/settings' },
+        { name: 'Currency', path: '/admin/settings' },
+        { name: 'Language', path: '/admin/settings' },
+        { name: 'Tax', path: '/admin/settings' },
+        { name: 'Commission', path: '/admin/settings' },
+        { name: 'Email', path: '/admin/settings' },
+        { name: 'SMS', path: '/admin/settings' },
+        { name: 'AI', path: '/admin/settings' },
+        { name: 'API Keys', path: '/admin/settings' },
+        { name: 'Security', path: '/admin/settings' },
+        { name: 'Backup', path: '/admin/settings' },
+      ],
+    },
+    { title: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
+    {
+      title: 'Security',
+      icon: 'shield',
+      path: '/admin/security',
+      subItems: [
+        { name: 'Login Logs', path: '/admin/security' },
+        { name: 'Access Logs', path: '/admin/security' },
+        { name: 'Fraud Detection', path: '/admin/security' },
+        { name: 'Sessions', path: '/admin/security' },
+      ],
+    },
+    { title: 'Profile', icon: 'person', path: '/admin/settings' },
   ];
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    // Auto expand active section
+    navSections.forEach((section) => {
+      if (section.path && pathname?.startsWith(section.path) && section.path !== '/admin') {
+        setExpandedSections((prev) => ({ ...prev, [section.title]: true }));
+      }
+    });
+  }, [pathname]);
+
+  const toggleSection = (title: string) => {
+    setExpandedSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)', color: 'var(--on-surface)', fontFamily: 'var(--font-inter)', width: '100%', overflowX: 'hidden' }}>
@@ -94,37 +304,127 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Menu Navigation */}
         <nav style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {menuItems.map(item => {
-            const isActive = pathname === item.path || (item.path !== '/admin' && pathname?.startsWith(item.path));
+          {navSections.map((section) => {
+            const hasSub = section.subItems && section.subItems.length > 0;
+            const isExpanded = !!expandedSections[section.title];
+            const isSectionActive = section.path === '/admin'
+              ? pathname === '/admin'
+              : section.path && pathname?.startsWith(section.path);
+
+            if (!hasSub) {
+              return (
+                <Link
+                  key={section.title}
+                  href={section.path || '/admin'}
+                  onClick={() => setSidebarOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    color: isSectionActive ? '#FFFFFF' : '#9B96BE',
+                    backgroundColor: isSectionActive ? 'var(--lime-400)' : 'transparent',
+                    fontWeight: isSectionActive ? 600 : 400,
+                    fontSize: '0.88rem',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ marginRight: '12px', fontSize: '20px', color: isSectionActive ? '#FFF' : '#8580AA' }}>
+                    {section.icon}
+                  </span>
+                  <span>{section.title}</span>
+                </Link>
+              );
+            }
+
             return (
-              <Link
-                key={item.name}
-                href={item.path}
-                onClick={() => setSidebarOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '11px 16px',
-                  borderRadius: '12px',
-                  color: isActive ? '#FFFFFF' : '#9B96BE',
-                  backgroundColor: isActive ? 'var(--lime-400)' : 'transparent',
-                  fontWeight: isActive ? 600 : 400,
-                  fontSize: '0.9rem',
-                  textDecoration: 'none',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: isActive ? '#FFF' : '#8580AA' }}>{item.icon}</span>
-                <span>{item.name}</span>
-              </Link>
+              <div key={section.title} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    color: isSectionActive ? '#FFFFFF' : '#9B96BE',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: isSectionActive ? 600 : 400,
+                    fontSize: '0.88rem',
+                    width: '100%',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isSectionActive ? 'var(--lime-400)' : '#8580AA' }}>
+                      {section.icon}
+                    </span>
+                    <span>{section.title}</span>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#8580AA', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                    expand_more
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '24px', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginTop: '2px', marginBottom: '4px', gap: '2px' }}>
+                    {section.subItems!.map((sub, idx) => (
+                      <Link
+                        key={idx}
+                        href={sub.path}
+                        onClick={() => setSidebarOpen(false)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          color: '#B0AACD',
+                          fontSize: '0.8rem',
+                          textDecoration: 'none',
+                          fontWeight: 400,
+                          transition: 'color 0.15s ease',
+                        }}
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
 
-        {/* Logout Section */}
-        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+
+        {/* Footer actions: View storefront & Logout Section */}
+        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              color: '#FFFFFF',
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+              transition: 'background-color 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: 'var(--lime-400)' }}>storefront</span>
+            <span>View storefront</span>
+          </Link>
           <button
-            onClick={() => { logout(); router.push('/login'); }}
+            onClick={() => { logout(); window.location.href = '/'; }}
             style={{
               width: '100%',
               display: 'flex',
@@ -137,6 +437,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: '0.9rem',
+              boxSizing: 'border-box',
             }}
           >
             <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px' }}>logout</span>

@@ -278,6 +278,11 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     );
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('africart-order-update'));
+      window.dispatchEvent(new CustomEvent('africart-notif-update'));
+    }
+
     try {
       const dbId = (orderToUpdate as any)?._id || orderId;
 
@@ -301,6 +306,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             text: `Your order ${orderToUpdate.id || (orderToUpdate as any).orderId} status has been updated to: ${newStatus}.`,
           })
         });
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('africart-order-update'));
+        window.dispatchEvent(new CustomEvent('africart-notif-update'));
       }
       // Refresh to sync with DB (non-blocking)
       refreshData();

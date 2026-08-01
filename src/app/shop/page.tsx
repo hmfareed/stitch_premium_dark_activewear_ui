@@ -99,6 +99,13 @@ function HomeStorefrontContent() {
   }, [allProducts]);
 
   useEffect(() => {
+    const cat = searchParams.get('category') || 'All';
+    setSelectedCategory(cat);
+    const search = searchParams.get('search') || '';
+    setSearchQuery(search);
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!bannerProducts.length) return;
     const timer = setInterval(() => {
       setBannerIndex(prev => (prev + 1) % bannerProducts.length);

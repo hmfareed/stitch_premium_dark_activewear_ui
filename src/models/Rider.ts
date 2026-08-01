@@ -76,6 +76,8 @@ export interface IRider extends Document {
   averageRating: number;
   totalDeliveries: number;
   onTimeDeliveryRate: number;
+  walletBalance: number;
+  avgDeliveryTime: number;
   
   // Meta
   applicationSubmittedAt?: Date;
@@ -151,6 +153,8 @@ const RiderSchema: Schema<IRider> = new Schema({
   averageRating: { type: Number, default: 0 },
   totalDeliveries: { type: Number, default: 0 },
   onTimeDeliveryRate: { type: Number, default: 0 },
+  walletBalance: { type: Number, default: 0 },
+  avgDeliveryTime: { type: Number, default: 0 },
 
   applicationSubmittedAt: { type: Date },
   approvedAt: { type: Date },

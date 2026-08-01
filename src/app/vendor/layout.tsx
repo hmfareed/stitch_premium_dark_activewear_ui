@@ -16,7 +16,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        router.push('/login');
+        router.push('/');
       } else if (user.role !== 'vendor' && user.role !== 'super_admin') {
         router.push('/');
       }
@@ -61,40 +61,134 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  if (vendorStoreError && !vendorStore) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)', gap: 16, padding: 24 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--error)' }}>cloud_off</span>
-        <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', color: 'var(--on-surface)', textAlign: 'center' }}>Couldn't load your store data</h2>
-        <button
-          onClick={refreshVendorStore}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 12, background: '#10B981', border: 'none', color: '#FFF', fontWeight: 700, cursor: 'pointer' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span>
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   const storeName = vendorStore?.name || "Ree's Store";
   const storeInitials = storeName.substring(0, 2).toUpperCase();
   const vendorEmail = vendorStore?.vendorEmail || user.email;
   const lowStockAlerts = allProducts.filter(p => p.vendorEmail === vendorEmail && (p.stock || 0) <= 5);
 
-  const menuItems = [
-    { name: 'Dashboard', icon: 'grid_view', path: '/vendor' },
-    { name: 'Products', icon: 'inventory_2', path: '/vendor/products' },
-    { name: 'Orders', icon: 'shopping_bag', path: '/vendor/orders', badge: '24' },
-    { name: 'Coupons', icon: 'confirmation_number', path: '/vendor/promotions' },
-    { name: 'Customers', icon: 'group', path: '/vendor/customers' },
-    { name: 'Analytics', icon: 'analytics', path: '/vendor/analytics' },
-    { name: 'Payouts', icon: 'account_balance_wallet', path: '/vendor/payouts' },
-    { name: 'Store Settings', icon: 'storefront', path: '/vendor/settings' },
-    { name: 'Staff', icon: 'badge', path: '/vendor/staff' },
-    { name: 'Messages', icon: 'chat', path: '/vendor/messages', badge: '8' },
-    { name: 'Support', icon: 'help_outline', path: '/vendor/support' },
+  interface VendorNavSubItem {
+    name: string;
+    path: string;
+  }
+
+  interface VendorNavSection {
+    title: string;
+    icon: string;
+    path?: string;
+    badge?: string;
+    subItems?: VendorNavSubItem[];
+  }
+
+  const vendorNavSections: VendorNavSection[] = [
+    { title: 'Dashboard', icon: 'grid_view', path: '/vendor' },
+    {
+      title: 'Orders',
+      icon: 'shopping_bag',
+      path: '/vendor/orders',
+      subItems: [
+        { name: 'New Orders', path: '/vendor/orders' },
+        { name: 'Processing', path: '/vendor/orders' },
+        { name: 'Ready for Pickup', path: '/vendor/orders' },
+        { name: 'Picked Up', path: '/vendor/orders' },
+        { name: 'Delivered', path: '/vendor/orders' },
+        { name: 'Cancelled', path: '/vendor/orders' },
+        { name: 'Returns', path: '/vendor/orders' },
+      ],
+    },
+    {
+      title: 'Products',
+      icon: 'inventory_2',
+      path: '/vendor/products',
+      subItems: [
+        { name: 'All Products', path: '/vendor/products' },
+        { name: 'Add Product', path: '/vendor/products' },
+        { name: 'Draft Products', path: '/vendor/products' },
+        { name: 'Inventory', path: '/vendor/products' },
+        { name: 'Categories', path: '/vendor/products' },
+        { name: 'Product Reviews', path: '/vendor/products' },
+      ],
+    },
+    { title: 'Customers', icon: 'people', path: '/vendor/customers' },
+    {
+      title: 'Sales & Analytics',
+      icon: 'analytics',
+      path: '/vendor/analytics',
+      subItems: [
+        { name: 'Sales Reports', path: '/vendor/analytics' },
+        { name: 'Best Selling Products', path: '/vendor/analytics' },
+        { name: 'Revenue Overview', path: '/vendor/analytics' },
+      ],
+    },
+    {
+      title: 'Finance & Payouts',
+      icon: 'account_balance_wallet',
+      path: '/vendor/payouts',
+      subItems: [
+        { name: 'Wallet & Balance', path: '/vendor/payouts' },
+        { name: 'Withdraw Earnings', path: '/vendor/payouts' },
+        { name: 'Transactions', path: '/vendor/payouts' },
+        { name: 'Payout History', path: '/vendor/payouts' },
+      ],
+    },
+    { title: 'Billing & Plans', icon: 'credit_card', path: '/vendor/billing' },
+    {
+      title: 'Shipping & Delivery',
+      icon: 'local_shipping',
+      path: '/vendor/settings?tab=delivery',
+      subItems: [
+        { name: 'Shipping Settings', path: '/vendor/settings?tab=delivery' },
+        { name: 'Pickup Address', path: '/vendor/settings?tab=delivery' },
+      ],
+    },
+    {
+      title: 'Marketing & Promos',
+      icon: 'campaign',
+      path: '/vendor/promotions',
+      subItems: [
+        { name: 'Discounts & Coupons', path: '/vendor/promotions' },
+        { name: 'Ad Campaigns', path: '/vendor/campaigns' },
+      ],
+    },
+    { title: 'Consignment', icon: 'warehouse', path: '/vendor/consignment' },
+    { title: 'Staff & Team', icon: 'badge', path: '/vendor/staff' },
+    {
+      title: 'Messages & Support',
+      icon: 'chat',
+      path: '/vendor/messages',
+      subItems: [
+        { name: 'Customer Chats', path: '/vendor/messages' },
+        { name: 'Admin Support', path: '/vendor/messages' },
+      ],
+    },
+    { title: 'Notifications', icon: 'notifications', path: '/vendor/settings?tab=notifications' },
+    {
+      title: 'Store Settings',
+      icon: 'storefront',
+      path: '/vendor/settings?tab=store',
+      subItems: [
+        { name: 'Store Profile', path: '/vendor/settings?tab=store' },
+        { name: 'Logo & Banner', path: '/vendor/settings?tab=store' },
+        { name: 'Business Information', path: '/vendor/settings?tab=store' },
+        { name: 'Bank Details', path: '/vendor/payouts' },
+        { name: 'Delivery Locations', path: '/vendor/settings?tab=delivery' },
+      ],
+    },
+    { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
   ];
+
+  const [expandedVendorSections, setExpandedVendorSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    vendorNavSections.forEach((sec) => {
+      if (sec.path && pathname?.startsWith(sec.path) && sec.path !== '/vendor') {
+        setExpandedVendorSections((prev) => ({ ...prev, [sec.title]: true }));
+      }
+    });
+  }, [pathname]);
+
+  const toggleVendorSection = (title: string) => {
+    setExpandedVendorSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)', color: 'var(--on-surface)', fontFamily: 'var(--font-inter)', width: '100%', overflowX: 'hidden' }}>
@@ -157,52 +251,125 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
 
         {/* Navigation items */}
         <nav style={{ flex: 1, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {menuItems.map(item => {
-            const isActive = pathname === item.path || (item.path !== '/vendor' && pathname?.startsWith(item.path));
+          {vendorNavSections.map((sec) => {
+            const hasSub = sec.subItems && sec.subItems.length > 0;
+            const isExpanded = !!expandedVendorSections[sec.title];
+            const isActive = sec.path === '/vendor'
+              ? pathname === '/vendor'
+              : sec.path && pathname?.startsWith(sec.path);
+
+            if (!hasSub) {
+              return (
+                <Link
+                  key={sec.title}
+                  href={sec.path || '/vendor'}
+                  onClick={() => setSidebarOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    color: isActive ? '#FFFFFF' : '#88D1A3',
+                    backgroundColor: isActive ? '#10B981' : 'transparent',
+                    fontWeight: isActive ? 600 : 400,
+                    fontSize: '0.88rem',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#FFF' : '#65B883' }}>{sec.icon}</span>
+                    <span>{sec.title}</span>
+                  </div>
+                </Link>
+              );
+            }
+
             return (
-              <Link
-                key={item.name}
-                href={item.path}
-                onClick={() => setSidebarOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '11px 16px',
-                  borderRadius: '12px',
-                  color: isActive ? '#FFFFFF' : '#88D1A3',
-                  backgroundColor: isActive ? '#10B981' : 'transparent',
-                  fontWeight: isActive ? 600 : 400,
-                  fontSize: '0.9rem',
-                  textDecoration: 'none',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#FFF' : '#65B883' }}>{item.icon}</span>
-                  <span>{item.name}</span>
-                </div>
-                {item.badge && (
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(16,185,129,0.25)',
-                    color: '#FFF',
-                    padding: '2px 8px',
-                    borderRadius: '100px'
-                  }}>
-                    {item.badge}
+              <div key={sec.title} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button
+                  onClick={() => toggleVendorSection(sec.title)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    color: isActive ? '#FFFFFF' : '#88D1A3',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: isActive ? 600 : 400,
+                    fontSize: '0.88rem',
+                    width: '100%',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#10B981' : '#65B883' }}>{sec.icon}</span>
+                    <span>{sec.title}</span>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#65B883', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                    expand_more
                   </span>
+                </button>
+
+                {isExpanded && (
+                  <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '24px', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginTop: '2px', marginBottom: '4px', gap: '2px' }}>
+                    {sec.subItems!.map((sub, idx) => (
+                      <Link
+                        key={idx}
+                        href={sub.path}
+                        onClick={() => setSidebarOpen(false)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          color: '#A3E635',
+                          fontSize: '0.8rem',
+                          textDecoration: 'none',
+                          fontWeight: 400,
+                          transition: 'color 0.15s ease',
+                        }}
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </div>
                 )}
-              </Link>
+              </div>
             );
           })}
         </nav>
 
-        {/* Logout */}
-        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        {/* Footer Actions: View storefront & Logout */}
+        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              color: '#FFFFFF',
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+              transition: 'background-color 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: '#A3E635' }}>storefront</span>
+            <span>View storefront</span>
+          </Link>
           <button
-            onClick={() => { logout(); router.push('/login'); }}
+            onClick={() => { logout(); window.location.href = '/'; }}
             style={{
               width: '100%',
               display: 'flex',
@@ -215,6 +382,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: '0.9rem',
+              boxSizing: 'border-box',
             }}
           >
             <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px' }}>logout</span>

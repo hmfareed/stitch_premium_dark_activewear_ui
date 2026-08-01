@@ -146,15 +146,17 @@ export async function POST(req: Request) {
     }
 
     const riderProfile = await Rider.findOne({ userId: user._id });
-    if (riderProfile && riderProfile.status === 'approved') {
-      availableRoles.push('rider');
+    if ((riderProfile && riderProfile.status === 'approved') || user.role === 'rider') {
+      if (!availableRoles.includes('rider')) {
+        availableRoles.push('rider');
+      }
     }
 
     if (user.role === 'super_admin') {
       availableRoles.push('super_admin');
     }
 
-    const primaryRole = user.role || availableRoles[0];
+    const primaryRole = user.role && availableRoles.includes(user.role) ? user.role : (user.role || availableRoles[0]);
 
     // Create Database-Backed Session in httpOnly Cookie per spec §0.1b
     const { session, token } = await createDatabaseSession(

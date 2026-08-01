@@ -10,7 +10,7 @@ interface User {
   name: string;
   phone?: string;
   profilePic?: string;
-  role?: 'customer' | 'vendor' | 'super_admin' | 'rider';
+  role?: 'customer' | 'vendor' | 'super_admin' | 'rider' | 'staff';
   points?: number;
   isVerified?: boolean;
 }
@@ -897,8 +897,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (err) {
       console.error('Failed to fetch vendor store:', err);
-      // Mark as error so layout does NOT redirect to onboarding on API failures
-      setVendorStoreError(true);
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('africart-vendor-store');
+        if (cached) {
+          try {
+            setVendorStore(JSON.parse(cached));
+          } catch {}
+        }
+      }
+      setVendorStoreError(false);
     } finally {
       setVendorStoreLoading(false);
     }
@@ -1298,9 +1305,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Initial check
     checkOrderStatusChanges();
 
-    // Poll every 15 seconds for order status changes
-    const interval = setInterval(checkOrderStatusChanges, 15000);
-    return () => clearInterval(interval);
+    // Poll every 3 seconds for fast order status change detection
+    const interval = setInterval(checkOrderStatusChanges, 3000);
+
+    const handleOrderSync = () => checkOrderStatusChanges();
+    window.addEventListener('africart-order-update', handleOrderSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('africart-order-update', handleOrderSync);
+    };
   }, [user, refreshCounts]);
 
   useEffect(() => {
@@ -1309,13 +1323,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleStorage = (e: StorageEvent) => {
       if (e.key && e.key.includes('africart-')) refreshCounts();
     };
+    const handleCustomNotif = () => refreshCounts();
+
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('africart-notif-update', handleCustomNotif);
+    window.addEventListener('africart-order-update', handleCustomNotif);
     
-    // Polling as a backup for same-tab updates that don't trigger storage event
-    const interval = setInterval(refreshCounts, 30000);
+    // Polling every 3 seconds to guarantee instant same-tab updates
+    const interval = setInterval(refreshCounts, 3000);
     
     return () => {
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('africart-notif-update', handleCustomNotif);
+      window.removeEventListener('africart-order-update', handleCustomNotif);
       clearInterval(interval);
     };
   }, [refreshCounts]);

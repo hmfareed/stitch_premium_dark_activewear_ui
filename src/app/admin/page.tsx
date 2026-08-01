@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -33,11 +33,33 @@ const StatusBadge = ({ status }: { status: string }) => {
 export default function AdminDashboard() {
   const {
     allOrders,
-    totalRevenue, totalOrderCount,
-    totalCustomers, totalAdmins,
+    totalRevenue: contextRevenue, totalOrderCount: contextOrderCount,
+    totalCustomers: contextCustomers, totalAdmins: contextAdmins,
   } = useAdmin();
 
   const [timeRange, setTimeRange] = useState('Last 7 days');
+  const [liveStats, setLiveStats] = useState<{
+    totalCustomers: number;
+    totalVendors: number;
+    totalRiders: number;
+    totalAdmins: number;
+    totalOrdersCount: number;
+    totalRevenue: number;
+    platformCommission: number;
+    revenueGrowthPct: string;
+    orderGrowthPct: string;
+  } | null>(null);
+
+  React.useEffect(() => {
+    fetch('/api/admin/stats')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.stats) {
+          setLiveStats(data.stats);
+        }
+      })
+      .catch(err => console.error('Failed to fetch admin live stats:', err));
+  }, []);
 
   const analytics7Days = React.useMemo(() => {
     const days = ['19 Jul', '20 Jul', '21 Jul', '22 Jul', '23 Jul', '24 Jul', '25 Jul'];
@@ -51,38 +73,47 @@ export default function AdminDashboard() {
     { id: 'ORD-548749', customerName: 'Akosua Boateng', total: 89.00, status: 'Pending', date: '25 Jul, 10:05 AM' },
   ];
 
+  const totalUsers = liveStats ? liveStats.totalCustomers : contextCustomers;
+  const totalVendors = liveStats ? liveStats.totalVendors : contextAdmins;
+  const totalRiders = liveStats ? liveStats.totalRiders : 0;
+  const totalOrders = liveStats ? liveStats.totalOrdersCount : (allOrders.length || contextOrderCount);
+  const revenue = liveStats ? liveStats.totalRevenue : (contextRevenue || allOrders.reduce((sum, o) => sum + (o.total || 0), 0));
+  const commission = liveStats ? liveStats.platformCommission : revenue * 0.14;
+  const revGrowth = liveStats ? liveStats.revenueGrowthPct : '+0%';
+  const ordGrowth = liveStats ? liveStats.orderGrowthPct : '+0%';
+
   const statCards = [
     {
       title: 'Total Users',
-      value: totalCustomers > 0 ? totalCustomers.toLocaleString() : '1,248,752',
-      change: '+12.5%',
-      subtext: 'from last month',
+      value: totalUsers.toLocaleString(),
+      change: '+100%',
+      subtext: 'active users',
       icon: 'person',
       iconBg: 'rgba(108, 92, 231, 0.15)',
       iconColor: '#6C5CE7',
     },
     {
       title: 'Total Vendors',
-      value: totalAdmins > 0 ? totalAdmins.toLocaleString() : '28,543',
-      change: '+15.3%',
-      subtext: 'from last month',
+      value: totalVendors.toLocaleString(),
+      change: '+100%',
+      subtext: 'registered stores',
       icon: 'storefront',
       iconBg: 'rgba(59, 130, 246, 0.15)',
       iconColor: '#3B82F6',
     },
     {
       title: 'Total Riders',
-      value: '$4,321',
-      change: '+10.8%',
-      subtext: 'from last month',
+      value: totalRiders.toLocaleString(),
+      change: '+100%',
+      subtext: 'active fleet',
       icon: 'two_wheeler',
       iconBg: 'rgba(16, 185, 129, 0.15)',
       iconColor: '#10B981',
     },
     {
       title: 'Total Orders',
-      value: totalOrderCount > 0 ? totalOrderCount.toLocaleString() : '2,152,987',
-      change: '+18.2%',
+      value: totalOrders.toLocaleString(),
+      change: `${ordGrowth}%`,
       subtext: 'from last month',
       icon: 'shopping_bag',
       iconBg: 'rgba(245, 158, 11, 0.15)',
@@ -90,8 +121,8 @@ export default function AdminDashboard() {
     },
     {
       title: 'Total Revenue',
-      value: totalRevenue > 0 ? `GHS ${totalRevenue.toLocaleString()}` : 'GHS 32,450,230',
-      change: '+22.7%',
+      value: `GHS ${revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: `${revGrowth}%`,
       subtext: 'from last month',
       icon: 'payments',
       iconBg: 'rgba(16, 185, 129, 0.15)',
@@ -99,14 +130,15 @@ export default function AdminDashboard() {
     },
     {
       title: 'Platform Commission',
-      value: totalRevenue > 0 ? `GHS ${(totalRevenue * 0.14).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : 'GHS 4,560,450',
-      change: '+20.1%',
+      value: `GHS ${commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: `${revGrowth}%`,
       subtext: 'from last month',
       icon: 'show_chart',
       iconBg: 'rgba(139, 92, 246, 0.15)',
       iconColor: '#8B5CF6',
     },
   ];
+
 
   const systemServices = [
     { name: 'API Server', status: 'Operational' },

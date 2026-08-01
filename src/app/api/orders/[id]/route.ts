@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectToDatabase from '@/lib/mongodb';
 import { Order } from '@/models/Order';
+import { SubOrder } from '@/models/SubOrder';
 import { sendEmail, getEmailTemplate } from '@/lib/email';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     // ─────────────────────────────────────────────────────────────────────────
 
-    // If status is being updated, push to timeline
+    // If status is being updated, push to timeline and update SubOrders
     if (updates.status && updates.status !== existing.status) {
       const descriptions: Record<string, string> = {
         'Processing': 'Vendor is preparing your items for shipment.',
@@ -52,6 +53,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         'Cancelled': 'Order was cancelled by the user or admin.',
         'Picked Up': 'Handoff complete. Customer has collected their order.',
       };
+
+      // Also update any matching SubOrders for this order
+      try {
+        await SubOrder.updateMany(
+          { orderId: existing.orderId },
+          {
+            $set: { status: updates.status },
+            $push: {
+              timeline: {
+                status: updates.status,
+                description: updates.timelineNote || descriptions[updates.status] || `Order status updated to ${updates.status}`,
+                timestamp: new Date(),
+                updatedByRole: 'vendor'
+              }
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Failed to sync SubOrder status:', err);
+      }
 
       // ── Customer Confirmation: push BOTH Delivered + Picked Up atomically ──
       if (updates.status === 'Delivered' && updates.customerConfirmed === true) {

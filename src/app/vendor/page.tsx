@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -21,75 +21,81 @@ export default function VendorDashboard() {
   const vendorProducts = allProducts.filter(p => p.vendorEmail === vendorEmail);
   const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === vendorEmail));
 
-  const realRevenue = vendorOrders.filter(o => o.status !== 'Cancelled').reduce((sum, order) => {
-    const vendorItemsTotal = order.products
-      .filter(p => p.vendorEmail === vendorEmail)
-      .reduce((s, p) => s + (p.price * p.quantity), 0);
-    return sum + vendorItemsTotal;
-  }, 0);
+  const realRevenue = vendorOrders
+    .filter(o => o.status !== 'Cancelled')
+    .reduce((sum, order) => {
+      const vendorItemsTotal = order.products
+        .filter(p => p.vendorEmail === vendorEmail)
+        .reduce((s, p) => s + (p.price * p.quantity), 0);
+      return sum + vendorItemsTotal;
+    }, 0);
 
-  const realTotalOrders = vendorOrders.length > 0 ? vendorOrders.length : 128;
-  const displayRevenue = realRevenue > 0 ? `GHS ${realRevenue.toLocaleString()}` : 'GHS 18,450.00';
+  const realTotalOrders = vendorOrders.length;
+  const lowStockCount = vendorProducts.filter(p => (p.stock || 0) <= 5).length;
+  const displayRevenue = `GHS ${realRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const statCards = [
     {
       title: 'Total Sales',
       value: displayRevenue,
-      change: '+14.5%',
-      subtext: 'vs last 7 days',
+      change: '+100%',
+      subtext: 'vs store launch',
       icon: 'payments',
       iconBg: 'rgba(16, 185, 129, 0.15)',
       iconColor: '#10B981',
     },
     {
-      title: 'Orders',
+      title: 'Total Orders',
       value: realTotalOrders,
-      change: '+11.3%',
-      subtext: 'vs last 7 days',
-      icon: 'storefront',
+      change: '+100%',
+      subtext: 'store orders',
+      icon: 'shopping_bag',
       iconBg: 'rgba(59, 130, 246, 0.15)',
       iconColor: '#3B82F6',
     },
     {
-      title: 'Visitors',
-      value: '2,845',
-      change: '+9.8%',
-      subtext: 'vs last 7 days',
-      icon: 'group',
+      title: 'Total Products',
+      value: vendorProducts.length,
+      change: '+100%',
+      subtext: 'active catalog',
+      icon: 'inventory_2',
       iconBg: 'rgba(139, 92, 246, 0.15)',
       iconColor: '#8B5CF6',
     },
     {
-      title: 'Conversion Rate',
-      value: '4.50%',
-      change: '+2.1%',
-      subtext: 'vs last 7 days',
-      icon: 'trending_up',
-      iconBg: 'rgba(245, 158, 11, 0.15)',
-      iconColor: '#F59E0B',
+      title: 'Low Stock Alerts',
+      value: lowStockCount,
+      change: lowStockCount > 0 ? 'Needs Attention' : 'Healthy',
+      subtext: 'stock ≤ 5 items',
+      icon: 'warning',
+      iconBg: lowStockCount > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+      iconColor: lowStockCount > 0 ? 'var(--error)' : '#10B981',
     },
   ];
 
+  const pendingCount = vendorOrders.filter(o => o.status === 'Pending').length;
+  const processingCount = vendorOrders.filter(o => o.status === 'Processing').length;
+  const shippedCount = vendorOrders.filter(o => o.status === 'Shipped').length;
+  const deliveredCount = vendorOrders.filter(o => o.status === 'Delivered').length;
+  const cancelledCount = vendorOrders.filter(o => o.status === 'Cancelled').length;
+
   const orderSummary = [
-    { label: 'Pending', count: 24, color: '#F59E0B' },
-    { label: 'Processing', count: 18, color: '#3B82F6' },
-    { label: 'Shipped', count: 36, color: '#8B5CF6' },
-    { label: 'Delivered', count: 142, color: '#10B981' },
-    { label: 'Cancelled', count: 8, color: 'var(--error)' },
+    { label: 'Pending', count: pendingCount, color: '#F59E0B' },
+    { label: 'Processing', count: processingCount, color: '#3B82F6' },
+    { label: 'Shipped', count: shippedCount, color: '#8B5CF6' },
+    { label: 'Delivered', count: deliveredCount, color: '#10B981' },
+    { label: 'Cancelled', count: cancelledCount, color: 'var(--error)' },
   ];
 
-  const displayedTopProducts = vendorProducts.length > 0 ? vendorProducts.slice(0, 4) : [
-    { id: '1', name: "Men's Fashion Hoodie", price: 120.00, salesText: '120+ sold', stock: 45 },
-    { id: '2', name: "Women's Denim Jacket", price: 180.00, salesText: '85 sold', stock: 32 },
-    { id: '3', name: 'Sneakers', price: 150.00, salesText: '64 sold', stock: 25 },
-    { id: '4', name: 'Backpack', price: 80.00, salesText: '40 sold', stock: 16 },
-  ];
+  const displayedTopProducts = vendorProducts.slice(0, 4);
+  const displayedRecentOrders = vendorOrders.slice(0, 4).map(o => ({
+    id: o.id || (o as any).orderId,
+    customer: o.customerName || 'Customer',
+    amount: o.products.filter(p => p.vendorEmail === vendorEmail).reduce((s, p) => s + (p.price * p.quantity), 0),
+    status: o.status,
+    time: typeof o.date === 'string' ? o.date : new Date(o.date).toLocaleDateString(),
+  }));
 
-  const displayedRecentOrders = vendorOrders.length > 0 ? vendorOrders.slice(0, 3) : [
-    { id: 'ORD-548752', customer: 'John Doe', amount: 320.00, status: 'Processing', time: '25 Jul, 10:45 AM' },
-    { id: 'ORD-548751', customer: 'Ama Serwaa', amount: 150.00, status: 'Processing', time: '25 Jul, 10:30 AM' },
-    { id: 'ORD-548750', customer: 'Kwame Mensah', amount: 560.00, status: 'Shipped', time: '25 Jul, 10:15 AM' },
-  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>

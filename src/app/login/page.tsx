@@ -49,7 +49,17 @@ export default function LoginPage() {
       const ok = await login(email.trim(), password);
       if (ok) {
         showToast('Logged in successfully!', 'success');
-        router.push('/');
+        const savedUser = JSON.parse(localStorage.getItem('africart-user') || '{}');
+        const role = savedUser?.role;
+        if (role === 'rider') {
+          router.push('/rider');
+        } else if (role === 'vendor') {
+          router.push('/vendor');
+        } else if (role === 'super_admin') {
+          router.push('/admin');
+        } else {
+          router.push('/');
+        }
       } else {
         setError('Invalid credentials');
       }

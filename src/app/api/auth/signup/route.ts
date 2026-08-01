@@ -72,7 +72,8 @@ export async function POST(req: Request) {
       phone: phone.trim(),
       password,
       role,
-      isActive: role !== 'rider', // riders are inactive until admin approval
+      roles: role === 'rider' ? ['rider', 'customer'] : [role],
+      isActive: true,
     });
 
     // ── Create linked Rider profile if rider signup ──────────────────────────
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
           email: normalizedEmail,
           phone: phone.trim(),
           fullName: name.trim(),
-          status: 'pending',
+          status: 'approved',
           onlineStatus: 'offline',
           vehicleType: bodyObj.vehicleType || 'motorcycle',
           vehicleModel: bodyObj.vehicleModel || '',
@@ -93,22 +94,28 @@ export async function POST(req: Request) {
           emergencyContactName: bodyObj.emergencyName || bodyObj.emergencyContactName || '',
           emergencyContactPhone: bodyObj.emergencyPhone || bodyObj.emergencyContactPhone || '',
           applicationSubmittedAt: new Date(),
+          approvedAt: new Date(),
         });
       }
 
-      // Do NOT issue JWT token for riders — they must await superadmin approval
+      const token = signToken({
+        userId: (user._id as unknown as string).toString(),
+        email: user.email,
+        role: 'rider',
+      });
+
       return NextResponse.json(
         {
           success: true,
-          pendingApproval: true,
-          message: 'Rider account created successfully! Your application is pending review by a Superadmin.',
+          token,
           user: {
             id: (user._id as unknown as string).toString(),
             name: user.name,
             email: user.email,
             phone: user.phone,
-            role: user.role,
-            isActive: user.isActive,
+            role: 'rider',
+            roles: ['rider', 'customer'],
+            isActive: true,
             createdAt: user.createdAt,
           },
         },

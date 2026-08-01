@@ -36,6 +36,7 @@ interface RiderStats {
   todayDeliveries: number;
   rating: number;
   onTimeRate: number;
+  avgDeliveryTime: number;
 }
 
 interface LocationData {
@@ -46,7 +47,7 @@ interface LocationData {
 
 export default function RiderDashboard() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
   
   const [isOnline, setIsOnline] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -54,13 +55,14 @@ export default function RiderDashboard() {
   const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([]);
   const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
   const [stats, setStats] = useState<RiderStats>({
-    todayEarnings: 245.00,
-    weekEarnings: 1240.00,
-    monthEarnings: 4850.00,
-    totalDeliveries: 142,
-    todayDeliveries: 8,
-    rating: 4.8,
-    onTimeRate: 98,
+    todayEarnings: 0,
+    weekEarnings: 0,
+    monthEarnings: 0,
+    totalDeliveries: 0,
+    todayDeliveries: 0,
+    rating: 0,
+    onTimeRate: 0,
+    avgDeliveryTime: 0,
   });
   const [location, setLocation] = useState<LocationData | null>(null);
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -72,8 +74,9 @@ export default function RiderDashboard() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to resolve before redirecting
     if (!user) {
-      router.push('/login');
+      router.push('/');
       return;
     }
     if (user.role !== 'rider' && user.role !== 'super_admin') {
@@ -81,7 +84,7 @@ export default function RiderDashboard() {
       return;
     }
     loadRiderData();
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (!isOnline) return;
@@ -236,17 +239,128 @@ export default function RiderDashboard() {
     },
   ];
 
-  const menuItems = [
-    { name: 'Dashboard', icon: 'grid_view', path: '/rider' },
-    { name: 'Deliveries', icon: 'local_shipping', path: '/rider', badge: '3' },
-    { name: 'Earnings', icon: 'payments', path: '/rider' },
-    { name: 'Wallet', icon: 'account_balance_wallet', path: '/rider' },
-    { name: 'Performance', icon: 'star', path: '/rider' },
-    { name: 'History', icon: 'history', path: '/rider' },
-    { name: 'Availability', icon: 'schedule', path: '/rider' },
-    { name: 'Help & Support', icon: 'help_outline', path: '/rider' },
-    { name: 'Settings', icon: 'settings', path: '/rider' },
+  interface RiderNavSubItem {
+    name: string;
+    path?: string;
+  }
+
+  interface RiderNavSection {
+    title: string;
+    icon: string;
+    path?: string;
+    subItems?: RiderNavSubItem[];
+  }
+
+  const riderNavSections: RiderNavSection[] = [
+    { title: 'Dashboard', icon: 'grid_view', path: '/rider' },
+    {
+      title: 'Deliveries',
+      icon: 'local_shipping',
+      path: '/rider',
+      subItems: [
+        { name: 'Available Deliveries', path: '/rider' },
+        { name: 'Accepted Deliveries', path: '/rider' },
+        { name: 'Pickups & In-Transit', path: '/rider' },
+        { name: 'Completed & History', path: '/rider' },
+      ],
+    },
+    {
+      title: 'Navigation & Map',
+      icon: 'map',
+      path: '/rider',
+      subItems: [
+        { name: 'Delivery Map', path: '/rider' },
+        { name: 'Route Optimization', path: '/rider' },
+      ],
+    },
+    {
+      title: 'Earnings & Wallet',
+      icon: 'payments',
+      path: '/rider',
+      subItems: [
+        { name: 'Daily & Weekly Earnings', path: '/rider' },
+        { name: 'Wallet & Payouts', path: '/rider' },
+      ],
+    },
+    {
+      title: 'Messages & Support',
+      icon: 'chat',
+      path: '/rider',
+      subItems: [
+        { name: 'Customer Communication', path: '/rider' },
+        { name: 'Admin Support', path: '/rider' },
+      ],
+    },
+    { title: 'Notifications', icon: 'notifications', path: '/rider' },
+    { title: 'Ratings & Reviews', icon: 'star', path: '/rider' },
+    {
+      title: 'Documents & Verification',
+      icon: 'description',
+      path: '/rider/apply',
+      subItems: [
+        { name: "Driver's License", path: '/rider/apply' },
+        { name: 'National ID (Ghana Card)', path: '/rider/apply' },
+        { name: 'Vehicle Info & Insurance', path: '/rider/apply' },
+        { name: 'Application Status', path: '/rider/application-status' },
+      ],
+    },
+    {
+      title: 'Rider Settings',
+      icon: 'settings',
+      path: '/rider/apply',
+      subItems: [
+        { name: 'Online / Offline Status', path: '/rider' },
+        { name: 'Verification & Profile', path: '/rider/apply' },
+        { name: 'Check Status', path: '/rider/application-status' },
+      ],
+    },
   ];
+
+  const [expandedRiderSections, setExpandedRiderSections] = useState<Record<string, boolean>>({
+    Deliveries: true,
+  });
+  const [riderBreakdown, setRiderBreakdown] = useState<{
+    baseFare: number;
+    incentives: number;
+    tips: number;
+    hourlyDistribution: number[];
+    walletBalance: number;
+  }>({
+    baseFare: 0,
+    incentives: 0,
+    tips: 0,
+    hourlyDistribution: [0, 0, 0, 0, 0, 0, 0],
+    walletBalance: 0,
+  });
+
+  useEffect(() => {
+    fetch('/api/rider/stats')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.baseFare !== undefined) {
+          setRiderBreakdown({
+            baseFare: data.baseFare || 0,
+            incentives: data.incentives || 0,
+            tips: data.tips || 0,
+            hourlyDistribution: data.hourlyDistribution || [0, 0, 0, 0, 0, 0, 0],
+            walletBalance: data.walletBalance || 0,
+          });
+        }
+      })
+      .catch(err => console.error('Failed to load rider stats extra:', err));
+  }, []);
+
+  const toggleRiderSection = (title: string) => {
+    setExpandedRiderSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  if (authLoading || !user || (user.role !== 'rider' && user.role !== 'super_admin')) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
+        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#2563EB' }} />
+      </div>
+    );
+  }
 
   const riderName = user?.name || 'Abdul Rahman';
 
@@ -299,7 +413,7 @@ export default function RiderDashboard() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#FFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{riderName}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                <span style={{ fontSize: '0.72rem', color: '#F59E0B', fontWeight: 700 }}>★ 4.8</span>
+                <span style={{ fontSize: '0.72rem', color: '#F59E0B', fontWeight: 700 }}>★ {stats.rating || 4.8}</span>
                 <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10B981', backgroundColor: 'rgba(16,185,129,0.18)', padding: '2px 8px', borderRadius: '100px' }}>
                   Online
                 </span>
@@ -310,53 +424,121 @@ export default function RiderDashboard() {
 
         {/* Navigation Items */}
         <nav style={{ flex: 1, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {menuItems.map((item, idx) => {
+          {riderNavSections.map((sec, idx) => {
+            const hasSub = sec.subItems && sec.subItems.length > 0;
+            const isExpanded = !!expandedRiderSections[sec.title];
             const isActive = idx === 0;
+
+            if (!hasSub) {
+              return (
+                <Link
+                  key={sec.title}
+                  href={sec.path || '/rider'}
+                  onClick={() => setSidebarOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '11px 16px',
+                    borderRadius: '12px',
+                    color: isActive ? '#FFFFFF' : '#94A3B8',
+                    backgroundColor: isActive ? '#2563EB' : 'transparent',
+                    fontWeight: isActive ? 600 : 400,
+                    fontSize: '0.9rem',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#FFF' : '#64748B' }}>{sec.icon}</span>
+                    <span>{sec.title}</span>
+                  </div>
+                </Link>
+              );
+            }
+
             return (
-              <button
-                key={item.name}
-                onClick={() => setSidebarOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '11px 16px',
-                  borderRadius: '12px',
-                  color: isActive ? '#FFFFFF' : '#94A3B8',
-                  backgroundColor: isActive ? '#2563EB' : 'transparent',
-                  fontWeight: isActive ? 600 : 400,
-                  fontSize: '0.9rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#FFF' : '#64748B' }}>{item.icon}</span>
-                  <span>{item.name}</span>
-                </div>
-                {item.badge && (
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(37,99,235,0.25)',
-                    color: '#FFF',
-                    padding: '2px 8px',
-                    borderRadius: '100px'
-                  }}>
-                    {item.badge}
+              <div key={sec.title} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button
+                  onClick={() => toggleRiderSection(sec.title)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '11px 16px',
+                    borderRadius: '12px',
+                    color: '#94A3B8',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#2563EB' }}>{sec.icon}</span>
+                    <span>{sec.title}</span>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748B', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
+                    expand_more
                   </span>
+                </button>
+
+                {isExpanded && (
+                  <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '24px', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginTop: '2px', marginBottom: '4px', gap: '2px' }}>
+                    {sec.subItems!.map((sub, sIdx) => (
+                      <Link
+                        key={sIdx}
+                        href={sub.path || '/rider'}
+                        onClick={() => setSidebarOpen(false)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          color: '#93C5FD',
+                          fontSize: '0.8rem',
+                          textDecoration: 'none',
+                          fontWeight: 400,
+                          transition: 'color 0.15s ease',
+                        }}
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </nav>
 
-        {/* Logout */}
-        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* Footer Actions: View storefront & Logout */}
+        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              color: '#FFFFFF',
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              boxSizing: 'border-box',
+              transition: 'background-color 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: '#60A5FA' }}>storefront</span>
+            <span>View storefront</span>
+          </Link>
           <button
-            onClick={() => { logout(); router.push('/login'); }}
+            onClick={() => { logout(); window.location.href = '/'; }}
             style={{
               width: '100%',
               display: 'flex',
@@ -369,6 +551,7 @@ export default function RiderDashboard() {
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: '0.9rem',
+              boxSizing: 'border-box',
             }}
           >
             <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px' }}>logout</span>
@@ -491,7 +674,7 @@ export default function RiderDashboard() {
               {[
                 { title: "Today's Earnings", val: `GHS ${stats.todayEarnings.toFixed(2)}`, icon: 'payments', color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
                 { title: 'Deliveries Completed', val: stats.todayDeliveries, icon: 'check_circle', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)' },
-                { title: 'Active Deliveries', val: 3, icon: 'local_shipping', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
+                { title: 'Active Deliveries', val: currentOrder ? 1 : availableOrders.length, icon: 'local_shipping', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)' },
                 { title: 'Acceptance Rate', val: `${stats.onTimeRate}%`, icon: 'thumb_up', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
               ].map((card, idx) => (
                 <div key={idx} style={{
@@ -534,9 +717,9 @@ export default function RiderDashboard() {
               gap: '6px',
             }}>
               {[
-                { label: 'Go to Deliveries', icon: 'local_shipping', count: '3' },
+                { label: 'Go to Deliveries', icon: 'local_shipping', count: String(currentOrder ? 1 : availableOrders.length) },
                 { label: 'Earnings', icon: 'payments' },
-                { label: 'Wallet', icon: 'account_balance_wallet', value: 'GHS 125.50' },
+                { label: 'Wallet', icon: 'account_balance_wallet', value: `GHS ${(riderBreakdown.walletBalance || 0).toFixed(2)}` },
                 { label: 'Performance', icon: 'star' },
                 { label: 'History', icon: 'history' },
                 { label: 'Help & Support', icon: 'help_outline' },
@@ -603,7 +786,59 @@ export default function RiderDashboard() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {mockActiveDeliveries.map((delivery, idx) => (
+                  {currentOrder ? (
+                    <div style={{
+                      padding: '14px',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--surface-container)',
+                      border: '1px solid var(--outline)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      minWidth: 0,
+                    }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
+                        <div style={{
+                          width: '24px', height: '24px', borderRadius: '50%',
+                          backgroundColor: '#2563EB', color: '#FFF',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.75rem', flexShrink: 0
+                        }}>
+                          1
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--on-surface)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{currentOrder.orderId}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Pick up: <strong>{currentOrder.vendorName}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Drop-off: <strong>{currentOrder.customerAddress}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#2563EB', fontWeight: 600, marginTop: '2px' }}>
+                            {currentOrder.estimatedTime} mins away
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={confirmDelivery}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: '#2563EB',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
+                        }}
+                      >
+                        Confirm Code
+                      </button>
+                    </div>
+                  ) : mockActiveDeliveries.map((delivery, idx) => (
                     <div key={idx} style={{
                       padding: '14px',
                       borderRadius: '12px',
@@ -683,22 +918,26 @@ export default function RiderDashboard() {
 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.4rem', fontWeight: 800, color: 'var(--on-surface)' }}>
-                    GHS 245.00
+                    GHS {stats.todayEarnings.toFixed(2)}
                   </span>
-                  <span style={{ color: '#10B981', fontSize: '0.78rem', fontWeight: 700 }}>+15.4% vs yesterday</span>
+                  <span style={{ color: '#10B981', fontSize: '0.78rem', fontWeight: 700 }}>live earnings</span>
                 </div>
 
                 {/* Earnings Hourly Bar Chart */}
                 <div style={{ height: '120px', display: 'flex', alignItems: 'flex-end', gap: '6px', paddingBottom: '6px', borderBottom: '1px solid var(--outline)' }}>
-                  {[15, 30, 45, 80, 60, 95, 40].map((h, i) => (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                      <div style={{
-                        width: '100%', height: `${h}%`,
-                        backgroundColor: i === 5 ? '#2563EB' : 'rgba(37, 99, 235, 0.25)',
-                        borderRadius: '4px 4px 2px 2px',
-                      }} />
-                    </div>
-                  ))}
+                  {riderBreakdown.hourlyDistribution.map((amt, i) => {
+                    const maxAmt = Math.max(...riderBreakdown.hourlyDistribution, 1);
+                    const pct = Math.max((amt / maxAmt) * 100, 10);
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                        <div style={{
+                          width: '100%', height: `${pct}%`,
+                          backgroundColor: i === 4 ? '#2563EB' : 'rgba(37, 99, 235, 0.25)',
+                          borderRadius: '4px 4px 2px 2px',
+                        }} />
+                      </div>
+                    );
+                  })}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--on-surface-variant)', fontSize: '0.68rem', fontWeight: 600 }}>
                   <span>12 AM</span>
@@ -707,21 +946,22 @@ export default function RiderDashboard() {
                   <span>12 PM</span>
                   <span>4 PM</span>
                   <span>8 PM</span>
+                  <span>11 PM</span>
                 </div>
 
                 {/* Earnings Breakdown */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                     <span style={{ color: 'var(--on-surface-variant)' }}>Base Fare</span>
-                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS 150.00</span>
+                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS {riderBreakdown.baseFare.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                     <span style={{ color: 'var(--on-surface-variant)' }}>Incentives</span>
-                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS 70.00</span>
+                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS {riderBreakdown.incentives.toFixed(2)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                     <span style={{ color: 'var(--on-surface-variant)' }}>Tips</span>
-                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS 25.00</span>
+                    <span style={{ fontWeight: 700, color: 'var(--on-surface)' }}>GHS {riderBreakdown.tips.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -754,17 +994,19 @@ export default function RiderDashboard() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center' }}>
                   <div style={{ padding: '12px 8px', backgroundColor: 'var(--surface-container)', borderRadius: '10px', minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>4.8</div>
+                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>{stats.rating || 4.8}</div>
                     <div style={{ color: '#F59E0B', fontSize: '0.75rem', margin: '2px 0' }}>★★★★★</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Customer Rating</div>
                   </div>
                   <div style={{ padding: '12px 8px', backgroundColor: 'var(--surface-container)', borderRadius: '10px', minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>98%</div>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10B981', margin: '2px 0' }}>Excellent</div>
+                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>{stats.onTimeRate || 98}%</div>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10B981', margin: '2px 0' }}>On-Time Rate</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Completion Rate</div>
                   </div>
                   <div style={{ padding: '12px 8px', backgroundColor: 'var(--surface-container)', borderRadius: '10px', minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>12 mins</div>
+                    <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--on-surface)' }}>
+                      {stats.avgDeliveryTime > 0 ? `${stats.avgDeliveryTime} mins` : '—'}
+                    </div>
                     <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10B981', margin: '2px 0' }}>Good</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Avg Delivery</div>
                   </div>
@@ -802,7 +1044,7 @@ export default function RiderDashboard() {
                   <div>
                     <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>Available Balance</div>
                     <div style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.6rem', fontWeight: 800, marginTop: '2px' }}>
-                      GHS 125.50
+                      GHS {(riderBreakdown.walletBalance || 0).toFixed(2)}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -816,6 +1058,7 @@ export default function RiderDashboard() {
                 </div>
               </div>
             </div>
+
           </div>
         </main>
 

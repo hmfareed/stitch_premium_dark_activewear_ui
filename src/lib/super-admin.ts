@@ -7,8 +7,8 @@ export function isSuperAdminEmail(email: string): boolean {
 export function resolveUserRole(
   email: string,
   role?: string
-): 'customer' | 'vendor' | 'super_admin' {
+): 'customer' | 'vendor' | 'super_admin' | 'rider' | 'staff' {
   if (isSuperAdminEmail(email)) return 'super_admin';
-  if (role === 'vendor' || role === 'super_admin') return role;
+  if (role === 'vendor' || role === 'super_admin' || role === 'rider' || role === 'staff') return role;
   return 'customer';
 }

@@ -10,7 +10,6 @@ const navItems = [
   { href: '/shop', icon: 'home', label: 'Home' },
   { href: '/shop?view=categories', icon: 'grid_view', label: 'Categories' },
   { href: '/cart', icon: 'shopping_bag', label: 'Cart' },
-  { href: '/account/orders', icon: 'receipt', label: 'Orders' },
   { href: '/account', icon: 'person', label: 'Account' },
 ];
 
@@ -41,7 +40,7 @@ const iconPaths: Record<string, { outline: string, filled: string }> = {
 function BottomNavBarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { totalItems, openCartDrawer } = useCart();
+  const { totalItems, openCartDrawer, closeCartDrawer } = useCart();
   const { totalWishlist } = useWishlist();
   const { unreadCount, activeOrderCount: orderCount } = useNotifications();
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
@@ -89,6 +88,8 @@ function BottomNavBarContent() {
               if (item.href === '/cart') {
                 e.preventDefault();
                 openCartDrawer();
+              } else {
+                closeCartDrawer();
               }
             }}
             style={{

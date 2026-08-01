@@ -38,7 +38,40 @@ export default function AccountPage() {
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || !user) return null;
+  if (isLoading) return (
+    <div style={{ padding: '0 16px', paddingBottom: 60, maxWidth: 480, margin: '0 auto' }}>
+      {/* Header skeleton */}
+      <div style={{ padding: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--surface-container-high)' }} />
+          <div style={{ width: 90, height: 28, borderRadius: 8, background: 'var(--surface-container-high)' }} />
+        </div>
+        <div style={{ width: 80, height: 36, borderRadius: 12, background: 'var(--surface-container-high)' }} />
+      </div>
+      {/* Profile card skeleton */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, padding: 18, display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--surface-container-high)', flexShrink: 0 }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ width: 140, height: 20, borderRadius: 6, background: 'var(--surface-container-high)' }} />
+          <div style={{ width: 100, height: 14, borderRadius: 6, background: 'var(--surface-container-high)' }} />
+        </div>
+      </div>
+      {/* Menu rows skeleton */}
+      {[...Array(5)].map((_, i) => (
+        <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, marginTop: i === 0 ? 20 : 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--surface-container-high)', flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ width: 100, height: 14, borderRadius: 6, background: 'var(--surface-container-high)' }} />
+            <div style={{ width: 160, height: 11, borderRadius: 6, background: 'var(--surface-container-high)' }} />
+          </div>
+          <div style={{ width: 20, height: 20, borderRadius: 4, background: 'var(--surface-container-high)' }} />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (!user) return null;
+
 
   const handleSignOut = () => {
     logout();
@@ -110,7 +143,7 @@ export default function AccountPage() {
   return (
     <div style={{ padding: '0 16px', paddingBottom: 60, maxWidth: 480, margin: '0 auto' }}>
       {/* Top Header */}
-      <div className="animate-fade-in-up" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="animate-fade-in" style={{ padding: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 24 }}>arrow_back</span>
@@ -125,7 +158,7 @@ export default function AccountPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 8 }}>
         {/* Profile Card */}
-        <div className="animate-fade-in-up" style={{
+        <div className="animate-fade-in" style={{
           background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, padding: 18,
           display: 'flex', alignItems: 'center', gap: 16, position: 'relative'
         }}>
@@ -170,19 +203,19 @@ export default function AccountPage() {
                 <span style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#a855f7', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 10 }}>ADMIN</span>
               ) : user.role === 'vendor' ? (
                 <span style={{ background: 'rgba(0, 229, 255, 0.2)', color: '#00e5ff', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 10 }}>VENDOR</span>
+              ) : user.role === 'rider' ? (
+                <span style={{ background: 'rgba(195, 244, 0, 0.2)', color: '#c3f400', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 10 }}>RIDER</span>
               ) : null}
             </div>
           </div>
         </div>
 
-
-
-        {/* Admin Controls (If Vendor / Super Admin) */}
-        {(user.role === 'vendor' || user.role === 'super_admin') && (
-          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', gap: 10 }}>
+        {/* Portal Controls (If Vendor / Rider / Super Admin) */}
+        {(user.role === 'vendor' || user.role === 'rider' || user.role === 'super_admin') && (
+          <div className="animate-fade-in-up stagger-2" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {user.role === 'super_admin' && (
               <button onClick={() => router.push('/admin')} style={{
-                flex: 1, background: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)', border: 'none', borderRadius: 14, padding: '12px',
+                flex: 1, minWidth: 140, background: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)', border: 'none', borderRadius: 14, padding: '12px',
                 color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)'
               }}>
@@ -191,11 +224,20 @@ export default function AccountPage() {
             )}
             {(user.role === 'vendor' || user.role === 'super_admin') && (
               <button onClick={() => router.push('/vendor')} style={{
-                flex: 1, background: 'linear-gradient(135deg, #00e5ff 0%, #0284c7 100%)', border: 'none', borderRadius: 14, padding: '12px',
+                flex: 1, minWidth: 140, background: 'linear-gradient(135deg, #00e5ff 0%, #0284c7 100%)', border: 'none', borderRadius: 14, padding: '12px',
                 color: '#fff', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(0, 229, 255, 0.3)'
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span> Vendor Portal
+              </button>
+            )}
+            {(user.role === 'rider' || user.role === 'super_admin') && (
+              <button onClick={() => router.push('/rider')} style={{
+                flex: 1, minWidth: 140, background: 'linear-gradient(135deg, #c3f400 0%, #8ba800 100%)', border: 'none', borderRadius: 14, padding: '12px',
+                color: '#000', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 12px rgba(195, 244, 0, 0.3)'
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>two_wheeler</span> Rider Portal
               </button>
             )}
           </div>
