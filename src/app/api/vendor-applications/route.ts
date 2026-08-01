@@ -96,6 +96,7 @@ export async function PUT(req: Request) {
         { email: application.email },
         {
           role: 'vendor',
+          isActive: true,
           isVerified: trustTier !== 'unverified',
           storeName: application.storeName || '',
         },
