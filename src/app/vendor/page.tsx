@@ -16,7 +16,8 @@ export default function VendorDashboard() {
   if (!user) return null;
 
   const vendorEmail = vendorStore?.vendorEmail || user.email;
-  const storeName = vendorStore?.name || "Ree's Fashion Store";
+  const storeName = vendorStore?.name || user.name || "Vendor Store";
+  const { vendorStoreLoading } = useStore();
 
   const vendorProducts = allProducts.filter(p => p.vendorEmail === vendorEmail);
   const vendorOrders = allOrders.filter(o => o.products.some(p => p.vendorEmail === vendorEmail));
@@ -37,7 +38,7 @@ export default function VendorDashboard() {
   const statCards = [
     {
       title: 'Total Sales',
-      value: displayRevenue,
+      value: vendorStoreLoading ? '—' : displayRevenue,
       change: '+100%',
       subtext: 'vs store launch',
       icon: 'payments',
@@ -46,7 +47,7 @@ export default function VendorDashboard() {
     },
     {
       title: 'Total Orders',
-      value: realTotalOrders,
+      value: vendorStoreLoading ? '—' : realTotalOrders,
       change: '+100%',
       subtext: 'store orders',
       icon: 'shopping_bag',
@@ -55,7 +56,7 @@ export default function VendorDashboard() {
     },
     {
       title: 'Total Products',
-      value: vendorProducts.length,
+      value: vendorStoreLoading ? '—' : vendorProducts.length,
       change: '+100%',
       subtext: 'active catalog',
       icon: 'inventory_2',

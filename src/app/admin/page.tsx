@@ -66,26 +66,23 @@ export default function AdminDashboard() {
     return { days };
   }, []);
 
-  const displayedOrders = allOrders.length > 0 ? allOrders.slice(0, 4) : [
-    { id: 'ORD-548752', customerName: 'John Doe', total: 320.00, status: 'Delivered', date: '25 Jul, 10:45 AM' },
-    { id: 'ORD-548751', customerName: 'Ama Serwaa', total: 150.00, status: 'Processing', date: '25 Jul, 10:30 AM' },
-    { id: 'ORD-548750', customerName: 'Kwame Mensah', total: 560.00, status: 'Shipped', date: '25 Jul, 10:15 AM' },
-    { id: 'ORD-548749', customerName: 'Akosua Boateng', total: 89.00, status: 'Pending', date: '25 Jul, 10:05 AM' },
-  ];
+  const displayedOrders = allOrders.slice(0, 4);
 
-  const totalUsers = liveStats ? liveStats.totalCustomers : contextCustomers;
-  const totalVendors = liveStats ? liveStats.totalVendors : contextAdmins;
+  const totalUsers = liveStats ? liveStats.totalCustomers : 0;
+  const totalVendors = liveStats ? liveStats.totalVendors : 0;
   const totalRiders = liveStats ? liveStats.totalRiders : 0;
-  const totalOrders = liveStats ? liveStats.totalOrdersCount : (allOrders.length || contextOrderCount);
-  const revenue = liveStats ? liveStats.totalRevenue : (contextRevenue || allOrders.reduce((sum, o) => sum + (o.total || 0), 0));
-  const commission = liveStats ? liveStats.platformCommission : revenue * 0.14;
+  const totalOrders = liveStats ? liveStats.totalOrdersCount : 0;
+  const revenue = liveStats ? liveStats.totalRevenue : 0;
+  const commission = liveStats ? liveStats.platformCommission : 0;
   const revGrowth = liveStats ? liveStats.revenueGrowthPct : '+0%';
   const ordGrowth = liveStats ? liveStats.orderGrowthPct : '+0%';
+
+  const statsLoading = liveStats === null;
 
   const statCards = [
     {
       title: 'Total Users',
-      value: totalUsers.toLocaleString(),
+      value: statsLoading ? '—' : totalUsers.toLocaleString(),
       change: '+100%',
       subtext: 'active users',
       icon: 'person',
@@ -94,7 +91,7 @@ export default function AdminDashboard() {
     },
     {
       title: 'Total Vendors',
-      value: totalVendors.toLocaleString(),
+      value: statsLoading ? '—' : totalVendors.toLocaleString(),
       change: '+100%',
       subtext: 'registered stores',
       icon: 'storefront',
@@ -103,7 +100,7 @@ export default function AdminDashboard() {
     },
     {
       title: 'Total Riders',
-      value: totalRiders.toLocaleString(),
+      value: statsLoading ? '—' : totalRiders.toLocaleString(),
       change: '+100%',
       subtext: 'active fleet',
       icon: 'two_wheeler',
@@ -112,8 +109,8 @@ export default function AdminDashboard() {
     },
     {
       title: 'Total Orders',
-      value: totalOrders.toLocaleString(),
-      change: `${ordGrowth}%`,
+      value: statsLoading ? '—' : totalOrders.toLocaleString(),
+      change: `${ordGrowth}`,
       subtext: 'from last month',
       icon: 'shopping_bag',
       iconBg: 'rgba(245, 158, 11, 0.15)',
@@ -121,8 +118,8 @@ export default function AdminDashboard() {
     },
     {
       title: 'Total Revenue',
-      value: `GHS ${revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      change: `${revGrowth}%`,
+      value: statsLoading ? '—' : `GHS ${revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: `${revGrowth}`,
       subtext: 'from last month',
       icon: 'payments',
       iconBg: 'rgba(16, 185, 129, 0.15)',
@@ -130,14 +127,15 @@ export default function AdminDashboard() {
     },
     {
       title: 'Platform Commission',
-      value: `GHS ${commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      change: `${revGrowth}%`,
+      value: statsLoading ? '—' : `GHS ${commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: `${revGrowth}`,
       subtext: 'from last month',
       icon: 'show_chart',
       iconBg: 'rgba(139, 92, 246, 0.15)',
       iconColor: '#8B5CF6',
     },
   ];
+
 
 
   const systemServices = [

@@ -1,11 +1,11 @@
-const CACHE_NAME = 'africart-pwa-v5';
+const CACHE_NAME = 'africart-v7';
 
-// 1. Guaranteed Instant Installation:
+// Installation: skip waiting immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// 2. Active Activation — clear old caches:
+// Activation: take control of all clients and clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -16,56 +16,56 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// 3. Fetch handler — never block navigation requests.
+// Fetch handler: ALWAYS return a valid Response for navigation requests!
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
 
-  // Always bypass SW for: API routes, chrome extensions
-  if (
-    url.includes('/api/') ||
-    url.startsWith('chrome-extension://')
-  ) {
+  // Always bypass SW for API routes and browser extensions
+  if (url.includes('/api/') || url.startsWith('chrome-extension://')) {
     return;
   }
 
-  // CRITICAL: For ALL page navigation requests (refreshes, direct URL visits),
-  // do NOT call event.respondWith at all — let the browser handle it natively.
-  // This prevents ANY service worker interference with page loads.
+  // Navigation requests (page loads / refreshes)
   if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        // Fallback 1: Try matching request from cache
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+
+        // Fallback 2: Try matching root path from cache
+        const rootCached = await caches.match('/');
+        if (rootCached) return rootCached;
+
+        // Fallback 3: Return a valid HTML response so Chromium NEVER shows "This page couldn't load"
+        return new Response(
+          '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="1"></head><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">Reloading...</body></html>',
+          { headers: { 'Content-Type': 'text/html' } }
+        );
+      })
+    );
     return;
   }
 
-  // For panel routes (admin, vendor, rider), skip the SW entirely.
-  if (
-    url.includes('/admin') ||
-    url.includes('/vendor') ||
-    url.includes('/rider')
-  ) {
-    return;
-  }
-
-  // For static assets (JS, CSS, images, fonts) — network first, cache fallback:
+  // Static assets (JS, CSS, images) -> Network first with cache fallback
   event.respondWith(
     fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+      .then((response) => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
-        return networkResponse;
+        return response;
       })
-      .catch(() => {
-        return caches.match(event.request);
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || new Response('', { status: 404 });
       })
   );
 });

@@ -76,15 +76,16 @@ export default function RiderDashboard() {
   useEffect(() => {
     if (authLoading) return; // Wait for auth to resolve before redirecting
     if (!user) {
-      router.push('/');
+      router.replace('/');
       return;
     }
     if (user.role !== 'rider' && user.role !== 'super_admin') {
-      router.push('/');
+      router.replace('/');
       return;
     }
     loadRiderData();
   }, [user, authLoading, router]);
+
 
   useEffect(() => {
     if (!isOnline) return;
@@ -362,7 +363,7 @@ export default function RiderDashboard() {
     );
   }
 
-  const riderName = user?.name || 'Abdul Rahman';
+  const riderName = user?.name || 'Rider';
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)', color: 'var(--on-surface)', fontFamily: 'var(--font-inter)', width: '100%', overflowX: 'hidden' }}>

@@ -6,6 +6,91 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, useStore } from '@/context/AppContext';
 
+interface VendorNavSubItem {
+  name: string;
+  path: string;
+}
+
+interface VendorNavSection {
+  title: string;
+  icon: string;
+  path?: string;
+  subItems?: VendorNavSubItem[];
+}
+
+const vendorNavSections: VendorNavSection[] = [
+  { title: 'Dashboard', icon: 'grid_view', path: '/vendor' },
+  {
+    title: 'Products & Catalog',
+    icon: 'inventory_2',
+    path: '/vendor/products',
+    subItems: [
+      { name: 'All Products', path: '/vendor/products' },
+      { name: 'Add Product', path: '/vendor/products' },
+      { name: 'Stock & Inventory', path: '/vendor/products' },
+    ],
+  },
+  {
+    title: 'Orders & Sales',
+    icon: 'shopping_bag',
+    path: '/vendor/orders',
+    subItems: [
+      { name: 'All Orders', path: '/vendor/orders' },
+      { name: 'Pending Orders', path: '/vendor/orders' },
+      { name: 'Processing', path: '/vendor/orders' },
+      { name: 'Ready for Pickup', path: '/vendor/orders' },
+      { name: 'Delivered', path: '/vendor/orders' },
+    ],
+  },
+  { title: 'Customers', icon: 'group', path: '/vendor/customers' },
+  {
+    title: 'Earnings & Payouts',
+    icon: 'account_balance_wallet',
+    path: '/vendor/payouts',
+    subItems: [
+      { name: 'Payout History', path: '/vendor/payouts' },
+      { name: 'Request Payout', path: '/vendor/payouts' },
+      { name: 'Bank & MoMo Setup', path: '/vendor/payouts' },
+    ],
+  },
+  { title: 'Analytics & Reports', icon: 'analytics', path: '/vendor/analytics' },
+  {
+    title: 'Promotions & Ads',
+    icon: 'campaign',
+    path: '/vendor/promotions',
+    subItems: [
+      { name: 'Store Coupons', path: '/vendor/promotions' },
+      { name: 'Flash Sales', path: '/vendor/promotions' },
+      { name: 'Ad Campaigns', path: '/vendor/campaigns' },
+    ],
+  },
+  { title: 'Consignment', icon: 'warehouse', path: '/vendor/consignment' },
+  { title: 'Staff & Team', icon: 'badge', path: '/vendor/staff' },
+  {
+    title: 'Messages & Support',
+    icon: 'chat',
+    path: '/vendor/messages',
+    subItems: [
+      { name: 'Customer Chats', path: '/vendor/messages' },
+      { name: 'Admin Support', path: '/vendor/messages' },
+    ],
+  },
+  { title: 'Notifications', icon: 'notifications', path: '/vendor/settings?tab=notifications' },
+  {
+    title: 'Store Settings',
+    icon: 'storefront',
+    path: '/vendor/settings?tab=store',
+    subItems: [
+      { name: 'Store Profile', path: '/vendor/settings?tab=store' },
+      { name: 'Logo & Banner', path: '/vendor/settings?tab=store' },
+      { name: 'Business Information', path: '/vendor/settings?tab=store' },
+      { name: 'Bank Details', path: '/vendor/payouts' },
+      { name: 'Delivery Locations', path: '/vendor/settings?tab=delivery' },
+    ],
+  },
+  { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
+];
+
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -13,15 +98,18 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
   const { user, isLoading, logout } = useAuth();
   const { allProducts, vendorStore, vendorStoreLoading, vendorStoreError, refreshVendorStore } = useStore();
 
+  const [expandedVendorSections, setExpandedVendorSections] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        router.push('/');
+        router.replace('/');
       } else if (user.role !== 'vendor' && user.role !== 'super_admin') {
-        router.push('/');
+        router.replace('/');
       }
     }
   }, [user, isLoading, router]);
+
 
   const isOnboardingRoute = pathname?.startsWith('/vendor/onboarding');
   useEffect(() => {
@@ -40,6 +128,14 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
       router.push('/vendor/onboarding');
     }
   }, [isLoading, vendorStoreLoading, vendorStoreError, user, vendorStore, isOnboardingRoute, router]);
+
+  useEffect(() => {
+    vendorNavSections.forEach((sec) => {
+      if (sec.path && pathname?.startsWith(sec.path) && sec.path !== '/vendor') {
+        setExpandedVendorSections((prev) => ({ ...prev, [sec.title]: true }));
+      }
+    });
+  }, [pathname]);
 
   if (isLoading || !user || (user.role !== 'vendor' && user.role !== 'super_admin')) {
     return (
@@ -175,16 +271,6 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
     },
     { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
   ];
-
-  const [expandedVendorSections, setExpandedVendorSections] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    vendorNavSections.forEach((sec) => {
-      if (sec.path && pathname?.startsWith(sec.path) && sec.path !== '/vendor') {
-        setExpandedVendorSections((prev) => ({ ...prev, [sec.title]: true }));
-      }
-    });
-  }, [pathname]);
 
   const toggleVendorSection = (title: string) => {
     setExpandedVendorSections((prev) => ({ ...prev, [title]: !prev[title] }));

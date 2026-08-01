@@ -96,14 +96,11 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(
-                    function(reg) {
-                      console.log('PWA ServiceWorker registered with scope: ', reg.scope);
-                    },
-                    function(err) {
-                      console.log('PWA ServiceWorker registration failed: ', err);
-                    }
-                  );
+                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                    reg.update();
+                  }).catch(function(err) {
+                    console.log('SW registration error:', err);
+                  });
                 });
               }
             `,

@@ -84,8 +84,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const syncedRole = resolveUserRole(parsedUser.email, data.user.role);
             setUser(prev => {
               if (!prev) return prev;
-              if (prev.role !== syncedRole || prev.name !== data.user.name || prev.isVerified !== data.user.isVerified) {
-                const updatedUser = { ...prev, role: syncedRole, name: data.user.name, isVerified: data.user.isVerified };
+              // Never downgrade a privileged role based on async API response.
+              // If the current role is super_admin/vendor/rider/staff, keep it.
+              const privilegedRoles = ['super_admin', 'vendor', 'rider', 'staff'];
+              const isCurrentPrivileged = privilegedRoles.includes(prev.role ?? '');
+              const isSyncedPrivileged = privilegedRoles.includes(syncedRole);
+              const finalRole = (isCurrentPrivileged && !isSyncedPrivileged) ? prev.role : syncedRole;
+              if (prev.role !== finalRole || prev.name !== data.user.name || prev.isVerified !== data.user.isVerified) {
+                const updatedUser = { ...prev, role: finalRole, name: data.user.name, isVerified: data.user.isVerified };
                 localStorage.setItem('africart-user', JSON.stringify(updatedUser));
                 return updatedUser;
               }
@@ -113,17 +119,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const parsedUser: User = { ...rawUser, role: resolvedRole };
           
           setUser(parsedUser);
-          
-          // Initial sync on mount
-          syncUser(parsedUser);
 
-          // Sync on window focus
+          // Track whether loading has been finalized (prevent double-call)
+          let loadingDone = false;
+          const finishLoading = (updatedUser?: User) => {
+            if (loadingDone) return;
+            loadingDone = true;
+            if (updatedUser) setUser(updatedUser);
+            setIsLoading(false);
+          };
+
+          // Safety net: if the API takes > 3s, unblock using localStorage data
+          const safetyTimeout = setTimeout(() => finishLoading(), 3000);
+
+          // CRITICAL FIX: Keep isLoading=true until the API sync completes.
+          // This ensures the auth guard fires AFTER we have the confirmed role,
+          // preventing premature redirects when localStorage has a stale role.
+          fetch(`/api/users/${encodeURIComponent(parsedUser.email)}`)
+            .then(res => res.json())
+            .then(data => {
+              clearTimeout(safetyTimeout);
+              if (data.success && data.user) {
+                const syncedRole = resolveUserRole(parsedUser.email, data.user.role);
+                const privilegedRoles = ['super_admin', 'vendor', 'rider', 'staff'];
+                const isCurrentPrivileged = privilegedRoles.includes(resolvedRole);
+                const isSyncedPrivileged = privilegedRoles.includes(syncedRole);
+                const finalRole = (isCurrentPrivileged && !isSyncedPrivileged) ? resolvedRole : syncedRole;
+                const updatedUser: User = { ...parsedUser, role: finalRole, name: data.user.name, isVerified: data.user.isVerified };
+                localStorage.setItem('africart-user', JSON.stringify(updatedUser));
+                finishLoading(updatedUser);
+              } else {
+                finishLoading();
+              }
+            })
+            .catch(() => {
+              clearTimeout(safetyTimeout);
+              finishLoading(); // On network error, fall back to localStorage role
+            });
+
+          // Background sync on window focus (no loading state change)
           const handleFocus = () => syncUser(parsedUser);
           window.addEventListener('focus', handleFocus);
-          
-          // Set loading to false AFTER user is set
-          setIsLoading(false);
-          return () => window.removeEventListener('focus', handleFocus);
+          return () => {
+            clearTimeout(safetyTimeout);
+            window.removeEventListener('focus', handleFocus);
+          };
         } else {
           setIsLoading(false);
         }

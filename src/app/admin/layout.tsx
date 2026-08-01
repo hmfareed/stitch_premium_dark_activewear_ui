@@ -6,246 +6,238 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AppContext';
 
+interface NavSubItem {
+  name: string;
+  path: string;
+}
+
+interface NavSection {
+  title: string;
+  icon: string;
+  path?: string;
+  subItems?: NavSubItem[];
+}
+
+const navSections: NavSection[] = [
+  { title: 'Dashboard', icon: 'grid_view', path: '/admin' },
+  {
+    title: 'Orders',
+    icon: 'shopping_bag',
+    path: '/admin/orders',
+    subItems: [
+      { name: 'All Orders', path: '/admin/orders' },
+      { name: 'Pending', path: '/admin/orders' },
+      { name: 'Processing', path: '/admin/orders' },
+      { name: 'Ready for Pickup', path: '/admin/orders' },
+      { name: 'Picked Up', path: '/admin/orders' },
+      { name: 'In Transit', path: '/admin/orders' },
+      { name: 'Delivered', path: '/admin/orders' },
+      { name: 'Cancelled', path: '/admin/orders' },
+      { name: 'Returned', path: '/admin/orders' },
+      { name: 'Refunded', path: '/admin/orders' },
+    ],
+  },
+  {
+    title: 'Products',
+    icon: 'inventory_2',
+    path: '/admin/products',
+    subItems: [
+      { name: 'All Products', path: '/admin/products' },
+      { name: 'Pending Approval', path: '/admin/products' },
+      { name: 'Categories', path: '/admin/products' },
+      { name: 'Brands', path: '/admin/products' },
+      { name: 'Attributes', path: '/admin/products' },
+      { name: 'Reviews', path: '/admin/products' },
+      { name: 'Inventory', path: '/admin/products' },
+    ],
+  },
+  {
+    title: 'Vendors',
+    icon: 'storefront',
+    path: '/admin/vendors',
+    subItems: [
+      { name: 'Pending Applications', path: '/admin/vendors' },
+      { name: 'Approved', path: '/admin/vendors' },
+      { name: 'Suspended', path: '/admin/vendors' },
+      { name: 'Performance', path: '/admin/vendors' },
+      { name: 'Reviews', path: '/admin/vendors' },
+      { name: 'KYC', path: '/admin/vendors' },
+    ],
+  },
+  {
+    title: 'Riders',
+    icon: 'two_wheeler',
+    path: '/admin/riders',
+    subItems: [
+      { name: 'Applications', path: '/admin/riders' },
+      { name: 'Active', path: '/admin/riders' },
+      { name: 'Performance', path: '/admin/riders' },
+      { name: 'Delivery Stats', path: '/admin/riders' },
+      { name: 'Earnings', path: '/admin/riders' },
+      { name: 'Verification', path: '/admin/riders' },
+    ],
+  },
+  { title: 'Customers', icon: 'group', path: '/admin/customers' },
+  {
+    title: 'Admin Staff',
+    icon: 'admin_panel_settings',
+    path: '/admin/admins',
+    subItems: [
+      { name: 'All Admins', path: '/admin/admins' },
+      { name: 'Role Applications', path: '/admin/admins' },
+    ],
+  },
+  {
+    title: 'Finance',
+    icon: 'account_balance_wallet',
+    path: '/admin/finance',
+    subItems: [
+      { name: 'Transactions', path: '/admin/finance' },
+      { name: 'Vendor Payouts', path: '/admin/finance' },
+      { name: 'Rider Payments', path: '/admin/finance' },
+      { name: 'Revenue', path: '/admin/finance' },
+      { name: 'Commission', path: '/admin/finance' },
+      { name: 'Wallets', path: '/admin/finance' },
+      { name: 'Refunds', path: '/admin/finance' },
+      { name: 'Taxes', path: '/admin/finance' },
+    ],
+  },
+  {
+    title: 'Marketing',
+    icon: 'campaign',
+    path: '/admin/campaigns',
+    subItems: [
+      { name: 'Coupons', path: '/admin/campaigns' },
+      { name: 'Promo Codes', path: '/admin/campaigns' },
+      { name: 'Flash Sales', path: '/admin/campaigns' },
+      { name: 'Featured Products', path: '/admin/campaigns' },
+      { name: 'Banners', path: '/admin/campaigns' },
+      { name: 'Push/Email/SMS Campaigns', path: '/admin/campaigns' },
+    ],
+  },
+  {
+    title: 'Reports',
+    icon: 'description',
+    path: '/admin/compliance',
+    subItems: [
+      { name: 'Sales', path: '/admin/compliance' },
+      { name: 'Customer', path: '/admin/compliance' },
+      { name: 'Vendor', path: '/admin/compliance' },
+      { name: 'Rider', path: '/admin/compliance' },
+      { name: 'Product', path: '/admin/compliance' },
+      { name: 'Financial', path: '/admin/compliance' },
+    ],
+  },
+  {
+    title: 'Logistics',
+    icon: 'local_shipping',
+    path: '/admin/hub',
+    subItems: [
+      { name: 'Delivery Zones', path: '/admin/hub' },
+      { name: 'Shipping Methods', path: '/admin/hub' },
+      { name: 'Rates', path: '/admin/hub' },
+      { name: 'Warehouses', path: '/admin/hub' },
+      { name: 'Pickup Stations', path: '/admin/hub' },
+    ],
+  },
+  {
+    title: 'Reviews',
+    icon: 'rate_review',
+    path: '/admin/compliance',
+    subItems: [
+      { name: 'Product Reviews', path: '/admin/compliance' },
+      { name: 'Vendor Reviews', path: '/admin/compliance' },
+      { name: 'Rider Reviews', path: '/admin/compliance' },
+      { name: 'Reported Reviews', path: '/admin/compliance' },
+    ],
+  },
+  {
+    title: 'Communication',
+    icon: 'chat',
+    path: '/admin/messages',
+    subItems: [
+      { name: 'Customer Support', path: '/admin/messages' },
+      { name: 'Live Chat', path: '/admin/messages' },
+      { name: 'Vendor/Rider Chat', path: '/admin/messages' },
+      { name: 'Announcements', path: '/admin/messages' },
+    ],
+  },
+  {
+    title: 'Payments',
+    icon: 'credit_card',
+    path: '/admin/finance',
+    subItems: [
+      { name: 'Gateways', path: '/admin/finance' },
+      { name: 'History', path: '/admin/finance' },
+      { name: 'Failed', path: '/admin/finance' },
+      { name: 'Withdrawals', path: '/admin/finance' },
+    ],
+  },
+  {
+    title: 'Content',
+    icon: 'article',
+    path: '/admin/tickets',
+    subItems: [
+      { name: 'Blog', path: '/admin/tickets' },
+      { name: 'FAQs', path: '/admin/tickets' },
+      { name: 'Terms', path: '/admin/tickets' },
+      { name: 'Privacy Policy', path: '/admin/tickets' },
+      { name: 'Help Center', path: '/admin/tickets' },
+    ],
+  },
+  {
+    title: 'Settings',
+    icon: 'settings_suggest',
+    path: '/admin/settings',
+    subItems: [
+      { name: 'General', path: '/admin/settings' },
+      { name: 'Branding', path: '/admin/settings' },
+      { name: 'Currency', path: '/admin/settings' },
+      { name: 'Language', path: '/admin/settings' },
+      { name: 'Tax', path: '/admin/settings' },
+      { name: 'Commission', path: '/admin/settings' },
+      { name: 'Email', path: '/admin/settings' },
+      { name: 'SMS', path: '/admin/settings' },
+      { name: 'AI', path: '/admin/settings' },
+      { name: 'API Keys', path: '/admin/settings' },
+      { name: 'Security', path: '/admin/settings' },
+      { name: 'Backup', path: '/admin/settings' },
+    ],
+  },
+  { title: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
+  {
+    title: 'Security',
+    icon: 'shield',
+    path: '/admin/security',
+    subItems: [
+      { name: 'Login Logs', path: '/admin/security' },
+      { name: 'Access Logs', path: '/admin/security' },
+      { name: 'Fraud Detection', path: '/admin/security' },
+      { name: 'Sessions', path: '/admin/security' },
+    ],
+  },
+  { title: 'Profile', icon: 'person', path: '/admin/settings' },
+];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
 
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        router.push('/');
+        router.replace('/');
       } else if (user.role === 'vendor') {
-        router.push('/vendor');
+        router.replace('/vendor');
       } else if (user.role !== 'super_admin') {
-        router.push('/');
+        router.replace('/');
       }
     }
   }, [user, isLoading, router]);
-
-  if (isLoading || !user || user.role !== 'super_admin') {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
-        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--lime-400)' }} />
-      </div>
-    );
-  }
-
-  interface NavSubItem {
-    name: string;
-    path: string;
-  }
-
-  interface NavSection {
-    title: string;
-    icon: string;
-    path?: string;
-    subItems?: NavSubItem[];
-  }
-
-  const navSections: NavSection[] = [
-    { title: 'Dashboard', icon: 'grid_view', path: '/admin' },
-    {
-      title: 'Orders',
-      icon: 'shopping_bag',
-      path: '/admin/orders',
-      subItems: [
-        { name: 'All Orders', path: '/admin/orders' },
-        { name: 'Pending', path: '/admin/orders' },
-        { name: 'Processing', path: '/admin/orders' },
-        { name: 'Ready for Pickup', path: '/admin/orders' },
-        { name: 'Picked Up', path: '/admin/orders' },
-        { name: 'In Transit', path: '/admin/orders' },
-        { name: 'Delivered', path: '/admin/orders' },
-        { name: 'Cancelled', path: '/admin/orders' },
-        { name: 'Returned', path: '/admin/orders' },
-        { name: 'Refunded', path: '/admin/orders' },
-      ],
-    },
-    {
-      title: 'Products',
-      icon: 'inventory_2',
-      path: '/admin/products',
-      subItems: [
-        { name: 'All Products', path: '/admin/products' },
-        { name: 'Pending Approval', path: '/admin/products' },
-        { name: 'Categories', path: '/admin/products' },
-        { name: 'Brands', path: '/admin/products' },
-        { name: 'Attributes', path: '/admin/products' },
-        { name: 'Reviews', path: '/admin/products' },
-        { name: 'Inventory', path: '/admin/products' },
-      ],
-    },
-    {
-      title: 'Vendors',
-      icon: 'storefront',
-      path: '/admin/vendors',
-      subItems: [
-        { name: 'Pending Applications', path: '/admin/vendors' },
-        { name: 'Approved', path: '/admin/vendors' },
-        { name: 'Suspended', path: '/admin/vendors' },
-        { name: 'Performance', path: '/admin/vendors' },
-        { name: 'Reviews', path: '/admin/vendors' },
-        { name: 'KYC', path: '/admin/vendors' },
-      ],
-    },
-    {
-      title: 'Riders',
-      icon: 'two_wheeler',
-      path: '/admin/riders',
-      subItems: [
-        { name: 'Applications', path: '/admin/riders' },
-        { name: 'Active', path: '/admin/riders' },
-        { name: 'Performance', path: '/admin/riders' },
-        { name: 'Delivery Stats', path: '/admin/riders' },
-        { name: 'Earnings', path: '/admin/riders' },
-        { name: 'Verification', path: '/admin/riders' },
-      ],
-    },
-    { title: 'Customers', icon: 'group', path: '/admin/customers' },
-    {
-      title: 'Admin Staff',
-      icon: 'admin_panel_settings',
-      path: '/admin/admins',
-      subItems: [
-        { name: 'All Admins', path: '/admin/admins' },
-        { name: 'Role Applications', path: '/admin/admins' },
-      ],
-    },
-    {
-      title: 'Finance',
-      icon: 'account_balance_wallet',
-      path: '/admin/finance',
-      subItems: [
-        { name: 'Transactions', path: '/admin/finance' },
-        { name: 'Vendor Payouts', path: '/admin/finance' },
-        { name: 'Rider Payments', path: '/admin/finance' },
-        { name: 'Revenue', path: '/admin/finance' },
-        { name: 'Commission', path: '/admin/finance' },
-        { name: 'Wallets', path: '/admin/finance' },
-        { name: 'Refunds', path: '/admin/finance' },
-        { name: 'Taxes', path: '/admin/finance' },
-      ],
-    },
-    {
-      title: 'Marketing',
-      icon: 'campaign',
-      path: '/admin/campaigns',
-      subItems: [
-        { name: 'Coupons', path: '/admin/campaigns' },
-        { name: 'Promo Codes', path: '/admin/campaigns' },
-        { name: 'Flash Sales', path: '/admin/campaigns' },
-        { name: 'Featured Products', path: '/admin/campaigns' },
-        { name: 'Banners', path: '/admin/campaigns' },
-        { name: 'Push/Email/SMS Campaigns', path: '/admin/campaigns' },
-      ],
-    },
-    {
-      title: 'Reports',
-      icon: 'description',
-      path: '/admin/compliance',
-      subItems: [
-        { name: 'Sales', path: '/admin/compliance' },
-        { name: 'Customer', path: '/admin/compliance' },
-        { name: 'Vendor', path: '/admin/compliance' },
-        { name: 'Rider', path: '/admin/compliance' },
-        { name: 'Product', path: '/admin/compliance' },
-        { name: 'Financial', path: '/admin/compliance' },
-      ],
-    },
-    {
-      title: 'Logistics',
-      icon: 'local_shipping',
-      path: '/admin/hub',
-      subItems: [
-        { name: 'Delivery Zones', path: '/admin/hub' },
-        { name: 'Shipping Methods', path: '/admin/hub' },
-        { name: 'Rates', path: '/admin/hub' },
-        { name: 'Warehouses', path: '/admin/hub' },
-        { name: 'Pickup Stations', path: '/admin/hub' },
-      ],
-    },
-    {
-      title: 'Reviews',
-      icon: 'rate_review',
-      path: '/admin/compliance',
-      subItems: [
-        { name: 'Product Reviews', path: '/admin/compliance' },
-        { name: 'Vendor Reviews', path: '/admin/compliance' },
-        { name: 'Rider Reviews', path: '/admin/compliance' },
-        { name: 'Reported Reviews', path: '/admin/compliance' },
-      ],
-    },
-    {
-      title: 'Communication',
-      icon: 'chat',
-      path: '/admin/messages',
-      subItems: [
-        { name: 'Customer Support', path: '/admin/messages' },
-        { name: 'Live Chat', path: '/admin/messages' },
-        { name: 'Vendor/Rider Chat', path: '/admin/messages' },
-        { name: 'Announcements', path: '/admin/messages' },
-      ],
-    },
-    {
-      title: 'Payments',
-      icon: 'credit_card',
-      path: '/admin/finance',
-      subItems: [
-        { name: 'Gateways', path: '/admin/finance' },
-        { name: 'History', path: '/admin/finance' },
-        { name: 'Failed', path: '/admin/finance' },
-        { name: 'Withdrawals', path: '/admin/finance' },
-      ],
-    },
-    {
-      title: 'Content',
-      icon: 'article',
-      path: '/admin/tickets',
-      subItems: [
-        { name: 'Blog', path: '/admin/tickets' },
-        { name: 'FAQs', path: '/admin/tickets' },
-        { name: 'Terms', path: '/admin/tickets' },
-        { name: 'Privacy Policy', path: '/admin/tickets' },
-        { name: 'Help Center', path: '/admin/tickets' },
-      ],
-    },
-    {
-      title: 'Settings',
-      icon: 'settings_suggest',
-      path: '/admin/settings',
-      subItems: [
-        { name: 'General', path: '/admin/settings' },
-        { name: 'Branding', path: '/admin/settings' },
-        { name: 'Currency', path: '/admin/settings' },
-        { name: 'Language', path: '/admin/settings' },
-        { name: 'Tax', path: '/admin/settings' },
-        { name: 'Commission', path: '/admin/settings' },
-        { name: 'Email', path: '/admin/settings' },
-        { name: 'SMS', path: '/admin/settings' },
-        { name: 'AI', path: '/admin/settings' },
-        { name: 'API Keys', path: '/admin/settings' },
-        { name: 'Security', path: '/admin/settings' },
-        { name: 'Backup', path: '/admin/settings' },
-      ],
-    },
-    { title: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
-    {
-      title: 'Security',
-      icon: 'shield',
-      path: '/admin/security',
-      subItems: [
-        { name: 'Login Logs', path: '/admin/security' },
-        { name: 'Access Logs', path: '/admin/security' },
-        { name: 'Fraud Detection', path: '/admin/security' },
-        { name: 'Sessions', path: '/admin/security' },
-      ],
-    },
-    { title: 'Profile', icon: 'person', path: '/admin/settings' },
-  ];
-
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Auto expand active section
@@ -255,6 +247,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     });
   }, [pathname]);
+
+  if (isLoading || !user || user.role !== 'super_admin') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
+        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--lime-400)' }} />
+      </div>
+    );
+  }
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) => ({ ...prev, [title]: !prev[title] }));
