@@ -1,616 +1,548 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useToast } from '@/context/AppContext';
+import React, { useState, useEffect, useCallback } from 'react';
 
-interface RiderDoc {
-  type: string;
-  url: string;
-  verified: boolean;
-}
+type DeliveryTab = 'partners' | 'drivers' | 'regions' | 'rates' | 'tracking' | 'stations';
 
-interface RiderItem {
-  id: string;
-  userId?: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  nationalId?: string;
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'suspended';
-  onlineStatus: 'offline' | 'online' | 'on_delivery';
-  vehicleType: string;
-  vehicleModel?: string;
-  vehicleRegistration?: string;
-  vehicleYear?: number;
-  preferredZones: string[];
-  momoNumber?: string;
-  momoNetwork?: string;
-  documents: RiderDoc[];
-  totalEarnings: number;
-  totalDeliveries: number;
-  averageRating: number;
-  applicationSubmittedAt?: string;
-  approvedAt?: string;
-  rejectionReason?: string;
-  notes?: string;
-  createdAt?: string;
-}
-
-export default function AdminRidersPage() {
-  const { showToast } = useToast();
-  const [riders, setRiders] = useState<RiderItem[]>([]);
-  const [stats, setStats] = useState({ total: 0, pending: 0, underReview: 0, approved: 0, rejected: 0, suspended: 0 });
+export default function AdminDeliveryPage() {
+  const [activeTab, setActiveTab] = useState<DeliveryTab>('partners');
   const [loading, setLoading] = useState(true);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedVehicle, setSelectedVehicle] = useState('');
+  // Data Arrays
+  const [partnersList, setPartnersList] = useState<any[]>([]);
+  const [driversList, setDriversList] = useState<any[]>([]);
+  const [regionsList, setRegionsList] = useState<any[]>([]);
+  const [trackingList, setTrackingList] = useState<any[]>([]);
+  const [stationsList, setStationsList] = useState<any[]>([]);
 
-  // Selected Rider Modal
-  const [selectedRider, setSelectedRider] = useState<RiderItem | null>(null);
-  const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  // Modal Operation State
+  const [modalType, setModalType] = useState<'create_partner' | 'create_station' | 'create_region' | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchRiders();
-  }, [activeTab, selectedVehicle]);
+  // Form States
+  const [formPartnerName, setFormPartnerName] = useState('');
+  const [formPartnerEmail, setFormPartnerEmail] = useState('');
+  const [formPartnerPhone, setFormPartnerPhone] = useState('');
 
-  const fetchRiders = async () => {
+  const [formStationName, setFormStationName] = useState('');
+  const [formStationCity, setFormStationCity] = useState('Accra');
+  const [formStationAddress, setFormStationAddress] = useState('');
+  const [formStationGps, setFormStationGps] = useState('');
+  const [formStationPhone, setFormStationPhone] = useState('');
+
+  const [formRegionName, setFormRegionName] = useState('');
+  const [formBaseRate, setFormBaseRate] = useState('15');
+  const [formPerKmRate, setFormPerKmRate] = useState('1.5');
+  const [formHours, setFormHours] = useState('24 - 48 Hours');
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  // Fetch Delivery Telemetry
+  const fetchDeliveryData = useCallback(async () => {
     setLoading(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('africart-token') : null;
     try {
-      const queryParams = new URLSearchParams();
-      if (activeTab !== 'all') queryParams.set('status', activeTab);
-      if (selectedVehicle) queryParams.set('vehicleType', selectedVehicle);
-      if (searchQuery) queryParams.set('search', searchQuery);
-
-      const res = await fetch(`/api/admin/riders?${queryParams.toString()}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch('/api/admin/delivery');
       const data = await res.json();
-
-      if (res.ok && data.success) {
-        setRiders(data.riders || []);
-        if (data.stats) setStats(data.stats);
-      } else {
-        showToast(data.message || 'Failed to load rider applications', 'error');
+      if (data.success) {
+        setPartnersList(data.partners || []);
+        setDriversList(data.drivers || []);
+        setRegionsList(data.regions || []);
+        setTrackingList(data.tracking || []);
+        setStationsList(data.stations || []);
       }
     } catch (err) {
-      console.error('Error fetching riders:', err);
-      showToast('Error loading riders list', 'error');
+      console.error('Error fetching delivery data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchDeliveryData();
+  }, [fetchDeliveryData]);
+
+  // Action: Create Partner
+  const handleCreatePartner = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetchRiders();
-  };
-
-  const handleUpdateStatus = async (riderId: string, actionStatus: string, reason?: string) => {
-    setIsUpdating(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('africart-token') : null;
+    setActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/riders/${riderId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          action: actionStatus,
-          rejectionReason: reason,
-        }),
+      const res = await fetch('/api/admin/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_partner', name: formPartnerName, contactEmail: formPartnerEmail, contactPhone: formPartnerPhone }),
       });
-
       const data = await res.json();
-      if (res.ok && data.success) {
-        showToast(`Rider application status updated to ${actionStatus.toUpperCase()}`, 'success');
-        setShowRejectModal(false);
-        setRejectReasonInput('');
-        setSelectedRider(null);
-        fetchRiders();
-      } else {
-        showToast(data.message || 'Failed to update rider status', 'error');
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        resetForm();
+        fetchDeliveryData();
       }
     } catch (err) {
-      console.error('Status update error:', err);
-      showToast('Error updating rider status', 'error');
+      console.error('Create partner error:', err);
     } finally {
-      setIsUpdating(false);
+      setActionLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return { bg: 'rgba(195, 244, 0, 0.15)', color: 'var(--lime-400)', border: '1px solid var(--lime-400)', label: 'Approved' };
-      case 'rejected':
-        return { bg: 'rgba(255, 68, 68, 0.15)', color: '#ff4444', border: '1px solid #ff4444', label: 'Rejected' };
-      case 'under_review':
-        return { bg: 'rgba(255, 170, 0, 0.15)', color: '#ffaa00', border: '1px solid #ffaa00', label: 'Under Review' };
-      case 'suspended':
-        return { bg: 'rgba(255, 68, 68, 0.15)', color: '#ff4444', border: '1px solid #ff4444', label: 'Suspended' };
-      default:
-        return { bg: 'rgba(0, 229, 255, 0.15)', color: '#00e5ff', border: '1px solid #00e5ff', label: 'Pending' };
+  // Action: Create Station
+  const handleCreateStation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_station', name: formStationName, city: formStationCity, address: formStationAddress, gpsCode: formStationGps, contactPhone: formStationPhone }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        resetForm();
+        fetchDeliveryData();
+      }
+    } catch (err) {
+      console.error('Create station error:', err);
+    } finally {
+      setActionLoading(false);
     }
   };
+
+  // Action: Create Region
+  const handleCreateRegion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_region', name: formRegionName, baseRate: formBaseRate, perKmRate: formPerKmRate, estimatedHours: formHours }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        resetForm();
+        fetchDeliveryData();
+      }
+    } catch (err) {
+      console.error('Create region error:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Toggle Active Status
+  const handleToggleActive = async (id: string, targetType: string) => {
+    try {
+      const res = await fetch(`/api/admin/delivery/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        fetchDeliveryData();
+      }
+    } catch (err) {
+      console.error('Toggle error:', err);
+    }
+  };
+
+  const resetForm = () => {
+    setFormPartnerName(''); setFormPartnerEmail(''); setFormPartnerPhone('');
+    setFormStationName(''); setFormStationAddress(''); setFormStationGps('');
+    setFormRegionName(''); setFormBaseRate('15'); setFormPerKmRate('1.5');
+  };
+
+  const formatGhs = (val: number) => `GH₵ ${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ padding: '24px', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
 
-      {/* Top Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 28 }}>
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={toastStyle}>
+          <span className="material-symbols-outlined" style={{ color: '#38bdf8' }}>check_circle</span>
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Header Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)', fontSize: 32 }}>two_wheeler</span>
-            Rider Onboarding & Fleet Management
+          <h1 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 900, color: '#0f172a', margin: 0, fontFamily: 'var(--font-lexend, sans-serif)' }}>
+            Delivery & Logistics Governance Portal
           </h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
-            Audit verification documents, approve delivery applicants, and manage nationwide rider operations.
+          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+            3PL logistics partners, fleet drivers, coverage regions, shipping rate formulas, live order tracking & pickup lockers
           </p>
         </div>
 
-        <button
-          onClick={fetchRiders}
-          style={{
-            padding: '10px 18px',
-            borderRadius: 10,
-            background: 'var(--surface-container-high)',
-            border: '1px solid var(--outline)',
-            color: 'var(--foreground)',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span>
-          Refresh Fleet
-        </button>
-      </div>
-
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 28 }}>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 20 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Total Fleet</span>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '2rem', fontWeight: 900, margin: '8px 0 0 0', color: 'var(--foreground)' }}>{stats.total}</h2>
-        </div>
-
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 20 }}>
-          <span style={{ fontSize: '0.8rem', color: '#00e5ff', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Pending Review</span>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '2rem', fontWeight: 900, margin: '8px 0 0 0', color: '#00e5ff' }}>{stats.pending}</h2>
-        </div>
-
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 20 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--lime-400)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Approved Active</span>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '2rem', fontWeight: 900, margin: '8px 0 0 0', color: 'var(--lime-400)' }}>{stats.approved}</h2>
-        </div>
-
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 20 }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--error)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Rejected / Suspended</span>
-          <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '2rem', fontWeight: 900, margin: '8px 0 0 0', color: 'var(--error)' }}>{stats.rejected + stats.suspended}</h2>
+        {/* Global Action Triggers */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => { resetForm(); setModalType('create_partner'); }} style={btnPrimaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>local_shipping</span>
+            <span>+ Add Partner</span>
+          </button>
+          <button onClick={() => { resetForm(); setModalType('create_station'); }} style={btnSecondaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span>
+            <span>+ Pickup Station</span>
+          </button>
+          <button onClick={() => { resetForm(); setModalType('create_region'); }} style={btnSecondaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>map</span>
+            <span>+ Add Region</span>
+          </button>
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-
-          {/* Status Tabs */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[
-              { id: 'all', label: `All (${stats.total})` },
-              { id: 'pending', label: `Pending (${stats.pending})` },
-              { id: 'approved', label: `Approved (${stats.approved})` },
-              { id: 'rejected', label: `Rejected (${stats.rejected})` },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 20,
-                  border: activeTab === tab.id ? '1px solid var(--lime-400)' : '1px solid var(--outline)',
-                  background: activeTab === tab.id ? 'rgba(195, 244, 0, 0.12)' : 'var(--surface-container)',
-                  color: activeTab === tab.id ? 'var(--lime-400)' : 'var(--on-surface-variant)',
-                  fontSize: '0.85rem',
-                  fontWeight: activeTab === tab.id ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search & Vehicle Filter */}
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flex: 1, maxWidth: 480 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <input
-                type="text"
-                placeholder="Search name, phone, plate, ID..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px 10px 38px',
-                  borderRadius: 10,
-                  background: 'var(--surface-container)',
-                  border: '1px solid var(--outline)',
-                  color: 'var(--foreground)',
-                  fontSize: '0.875rem',
-                  outline: 'none'
-                }}
-              />
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)', fontSize: 18 }}>
-                search
-              </span>
-            </div>
-
-            <select
-              value={selectedVehicle}
-              onChange={e => setSelectedVehicle(e.target.value)}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 10,
-                background: 'var(--surface-container)',
-                border: '1px solid var(--outline)',
-                color: 'var(--foreground)',
-                fontSize: '0.875rem',
-                outline: 'none'
-              }}
-            >
-              <option value="">All Vehicles</option>
-              <option value="motorcycle">Motorcycle</option>
-              <option value="bicycle">Bicycle</option>
-              <option value="car">Car</option>
-              <option value="van">Van</option>
-              <option value="walking">Walking</option>
-            </select>
-          </form>
-
+      {/* Telemetry Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Logistics Partners</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#2563eb', marginTop: 4 }}>{partnersList.length} Partners</div>
+        </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Active Fleet Drivers</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#16a34a', marginTop: 4 }}>{driversList.length} Drivers</div>
+        </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Self-Service Pickup Stations</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#7c3aed', marginTop: 4 }}>{stationsList.length} Lockers</div>
         </div>
       </div>
 
-      {/* Main Riders Table */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-            <div className="animate-pulse-glow" style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--lime-400)', margin: '0 auto 16px' }} />
-            <p style={{ margin: 0 }}>Loading rider applications...</p>
-          </div>
-        ) : riders.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 12 }}>two_wheeler</span>
-            <h3 style={{ margin: '0 0 4px 0', fontFamily: 'var(--font-lexend)', color: 'var(--foreground)' }}>No Rider Records Found</h3>
-            <p style={{ margin: 0, fontSize: '0.875rem' }}>No rider applications matching the selected criteria.</p>
-          </div>
-        ) : (
+      {/* 6 Sub-View Navigation Tabs */}
+      <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { id: 'partners', label: 'Delivery Partners', icon: 'local_shipping' },
+          { id: 'drivers', label: 'Drivers & Riders', icon: 'two_wheeler' },
+          { id: 'regions', label: 'Coverage Regions', icon: 'map' },
+          { id: 'rates', label: 'Shipping Rates Engine', icon: 'calculate' },
+          { id: 'tracking', label: 'Live Tracking Stream', icon: 'near_me' },
+          { id: 'stations', label: 'Pickup Stations', icon: 'storefront' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as DeliveryTab)}
+            style={{
+              border: 'none',
+              background: activeTab === tab.id ? '#0f172a' : 'transparent',
+              color: activeTab === tab.id ? '#ffffff' : '#64748b',
+              fontWeight: activeTab === tab.id ? 800 : 600,
+              fontSize: 12,
+              padding: '8px 14px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '4px solid #16a34a', borderTopColor: 'transparent', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 12, fontWeight: 600, fontSize: 13 }}>Loading logistics telemetry...</p>
+        </div>
+      ) : activeTab === 'partners' ? (
+
+        /* SUB-VIEW 1: DELIVERY PARTNERS */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Logistics Company Partners ({partnersList.length})</h3>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: 'var(--surface-container-low)', borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '16px 20px' }}>Rider / Applicant</th>
-                  <th style={{ padding: '16px 20px' }}>Vehicle & Plate</th>
-                  <th style={{ padding: '16px 20px' }}>Mobile Money</th>
-                  <th style={{ padding: '16px 20px' }}>Ghana Card ID</th>
-                  <th style={{ padding: '16px 20px' }}>Documents</th>
-                  <th style={{ padding: '16px 20px' }}>Status</th>
-                  <th style={{ padding: '16px 20px', textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Partner Company</th>
+                  <th style={{ padding: 10 }}>Contact Email & Phone</th>
+                  <th style={{ padding: 10 }}>API Integration</th>
+                  <th style={{ padding: 10 }}>Performance Rating</th>
+                  <th style={{ padding: 10 }}>Status</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {riders.map(rider => {
-                  const b = getStatusBadge(rider.status);
-                  return (
-                    <tr key={rider.id} style={{ borderBottom: '1px solid var(--outline)', transition: 'background 0.2s' }}>
-
-                      {/* Name & Phone */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '0.925rem' }}>{rider.fullName}</div>
-                        <div style={{ color: 'var(--on-surface-variant)', fontSize: '0.8rem', marginTop: 2 }}>{rider.email} • {rider.phone}</div>
-                      </td>
-
-                      {/* Vehicle */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 600, textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--lime-400)' }}>
-                            {rider.vehicleType === 'motorcycle' ? 'two_wheeler' : rider.vehicleType === 'car' ? 'directions_car' : rider.vehicleType === 'bicycle' ? 'pedal_bike' : 'directions_walk'}
-                          </span>
-                          {rider.vehicleType}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: 2 }}>
-                          {rider.vehicleRegistration || 'No Plate'} {rider.vehicleModel ? `(${rider.vehicleModel})` : ''}
-                        </div>
-                      </td>
-
-                      {/* Momo */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 600 }}>{rider.momoNetwork || 'MTN'}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{rider.momoNumber || rider.phone}</div>
-                      </td>
-
-                      {/* Ghana Card */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{rider.nationalId || 'N/A'}</div>
-                      </td>
-
-                      {/* Documents */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <span style={{
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            background: rider.documents.some(d => d.type === 'id_card') ? 'rgba(195, 244, 0, 0.15)' : 'var(--surface-container-high)',
-                            color: rider.documents.some(d => d.type === 'id_card') ? 'var(--lime-400)' : 'var(--on-surface-variant)',
-                            fontWeight: 600
-                          }}>
-                            Card
-                          </span>
-                          {(['car', 'van'].includes(rider.vehicleType) || rider.documents.some(d => d.type === 'license')) && (
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: 6,
-                              fontSize: '0.75rem',
-                              background: rider.documents.some(d => d.type === 'license') ? 'rgba(195, 244, 0, 0.15)' : 'var(--surface-container-high)',
-                              color: rider.documents.some(d => d.type === 'license') ? 'var(--lime-400)' : 'var(--on-surface-variant)',
-                              fontWeight: 600
-                            }}>
-                              License
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td style={{ padding: '16px 20px' }}>
-                        <span style={{
-                          padding: '4px 12px',
-                          borderRadius: 12,
-                          background: b.bg,
-                          color: b.color,
-                          border: b.border,
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          textTransform: 'uppercase'
-                        }}>
-                          {b.label}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                          <button
-                            onClick={() => setSelectedRider(rider)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: 8,
-                              background: 'var(--surface-container-high)',
-                              border: '1px solid var(--outline)',
-                              color: 'var(--foreground)',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Inspect Audit
-                          </button>
-
-                          {rider.status !== 'approved' && (
-                            <button
-                              onClick={() => handleUpdateStatus(rider.id, 'approved')}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                background: 'var(--lime-400)',
-                                border: 'none',
-                                color: '#000',
-                                fontSize: '0.8rem',
-                                fontWeight: 800,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Approve
-                            </button>
-                          )}
-
-                          {rider.status !== 'rejected' && (
-                            <button
-                              onClick={() => { setSelectedRider(rider); setShowRejectModal(true); }}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                background: 'rgba(255,68,68,0.15)',
-                                border: '1px solid var(--error)',
-                                color: 'var(--error)',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Reject
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })}
+                {partnersList.map(p => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12, fontWeight: 800, color: '#0f172a' }}>{p.name}</td>
+                    <td style={{ padding: 12, color: '#475569' }}>{p.contactEmail} • {p.contactPhone}</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle('#2563eb', '#dbeafe')}>{p.apiIntegration ? 'CONNECTED (REST API)' : 'MANUAL'}</span>
+                    </td>
+                    <td style={{ padding: 12, fontWeight: 800, color: '#eab308' }}>⭐ {p.rating} / 5.0</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle(p.isActive ? '#166534' : '#991b1b', p.isActive ? '#dcfce7' : '#fee2e2')}>
+                        {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => handleToggleActive(p.id, 'partner')} style={{ border: 'none', background: '#f1f5f9', color: '#0f172a', padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                        {p.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      ) : activeTab === 'drivers' ? (
 
-      {/* DETAIL MODAL */}
-      {selectedRider && !showRejectModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="glass animate-scale-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, maxWidth: 680, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}>
+        /* SUB-VIEW 2: DRIVERS & RIDERS */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Fleet Drivers & Dispatch Riders ({driversList.length})</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Driver Name</th>
+                  <th style={{ padding: 10 }}>Phone & Email</th>
+                  <th style={{ padding: 10 }}>Vehicle Type</th>
+                  <th style={{ padding: 10 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {driversList.map(d => (
+                  <tr key={d.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12, fontWeight: 800, color: '#0f172a' }}>{d.name}</td>
+                    <td style={{ padding: 12, color: '#475569' }}>{d.phone} • {d.email}</td>
+                    <td style={{ padding: 12, fontWeight: 700 }}>{d.vehicleType}</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle('#166534', '#dcfce7')}>{d.status.toUpperCase()}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'regions' || activeTab === 'rates' ? (
 
-            <button
-              onClick={() => setSelectedRider(null)}
-              style={{ position: 'absolute', right: 20, top: 20, background: 'var(--surface-container)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: 'var(--foreground)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
-            </button>
+        /* SUB-VIEW 3 & 4: REGIONS & SHIPPING RATES ENGINE */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Coverage Regions & Shipping Rate Formulas ({regionsList.length})</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Region Name</th>
+                  <th style={{ padding: 10 }}>Base Delivery Fee</th>
+                  <th style={{ padding: 10 }}>Per KM Distance Rate</th>
+                  <th style={{ padding: 10 }}>Estimated Time</th>
+                  <th style={{ padding: 10 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionsList.map(r => (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12, fontWeight: 800, color: '#0f172a' }}>{r.name}</td>
+                    <td style={{ padding: 12, fontWeight: 900, color: '#16a34a' }}>{formatGhs(r.baseRate)}</td>
+                    <td style={{ padding: 12, fontWeight: 700 }}>{formatGhs(r.perKmRate)} / km</td>
+                    <td style={{ padding: 12, color: '#64748b' }}>{r.estimatedHours}</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle(r.isActive ? '#166534' : '#991b1b', r.isActive ? '#dcfce7' : '#fee2e2')}>
+                        {r.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'tracking' ? (
 
-            <h2 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.4rem', fontWeight: 800, margin: '0 0 4px 0' }}>
-              Rider Application Audit
-            </h2>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.85rem', margin: '0 0 20px 0' }}>
-              Submitted on {selectedRider.applicationSubmittedAt ? new Date(selectedRider.applicationSubmittedAt).toLocaleString() : 'N/A'}
-            </p>
+        /* SUB-VIEW 5: LIVE TRACKING STREAM */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Live Order Tracking Stream ({trackingList.length})</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Tracking # & Order</th>
+                  <th style={{ padding: 10 }}>Customer & Phone</th>
+                  <th style={{ padding: 10 }}>Delivery Destination</th>
+                  <th style={{ padding: 10 }}>Assigned Rider</th>
+                  <th style={{ padding: 10 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trackingList.map(t => (
+                  <tr key={t.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{t.trackingNumber}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8' }}>Order: #{t.orderId}</div>
+                    </td>
+                    <td style={{ padding: 12, color: '#334155' }}>
+                      <div style={{ fontWeight: 700 }}>{t.customerName}</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>{t.customerPhone}</div>
+                    </td>
+                    <td style={{ padding: 12, color: '#475569' }}>{t.deliveryAddress}</td>
+                    <td style={{ padding: 12, fontWeight: 800, color: '#2563eb' }}>{t.assignedRider}</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle('#166534', '#dcfce7')}>{t.status.toUpperCase()}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
 
-            <div style={{ display: 'grid', gap: 20 }}>
-
-              {/* Applicant Info */}
-              <div style={{ background: 'var(--surface-container-low)', padding: 18, borderRadius: 14, border: '1px solid var(--outline)' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontFamily: 'var(--font-lexend)', fontSize: '0.95rem', color: 'var(--lime-400)' }}>Applicant Details</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: '0.875rem' }}>
-                  <div><strong>Full Name:</strong> {selectedRider.fullName}</div>
-                  <div><strong>Email:</strong> {selectedRider.email}</div>
-                  <div><strong>Phone:</strong> {selectedRider.phone}</div>
-                  <div><strong>Ghana Card:</strong> {selectedRider.nationalId || 'N/A'}</div>
-                  <div><strong>Emergency Contact:</strong> {selectedRider.emergencyContactName || 'N/A'} ({selectedRider.emergencyContactPhone || 'N/A'})</div>
-                </div>
-              </div>
-
-              {/* Vehicle & Payout */}
-              <div style={{ background: 'var(--surface-container-low)', padding: 18, borderRadius: 14, border: '1px solid var(--outline)' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontFamily: 'var(--font-lexend)', fontSize: '0.95rem', color: 'var(--lime-400)' }}>Vehicle & Mobile Money Payout</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: '0.875rem' }}>
-                  <div><strong>Vehicle Type:</strong> {selectedRider.vehicleType}</div>
-                  <div><strong>Plate Number:</strong> {selectedRider.vehicleRegistration || 'N/A'}</div>
-                  <div><strong>Model / Year:</strong> {selectedRider.vehicleModel || 'N/A'} ({selectedRider.vehicleYear || 'N/A'})</div>
-                  <div><strong>MoMo Payout:</strong> {selectedRider.momoNetwork} - {selectedRider.momoNumber}</div>
-                  <div style={{ gridColumn: '1 / -1' }}><strong>Preferred Hubs:</strong> {selectedRider.preferredZones.join(', ') || 'All zones'}</div>
-                </div>
-              </div>
-
-              {/* Documents Uploaded */}
-              <div style={{ background: 'var(--surface-container-low)', padding: 18, borderRadius: 14, border: '1px solid var(--outline)' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontFamily: 'var(--font-lexend)', fontSize: '0.95rem', color: 'var(--lime-400)' }}>Uploaded Verification Documents</h4>
-                {selectedRider.documents.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>No document photos uploaded yet.</p>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                    {selectedRider.documents.map((doc, idx) => (
-                      <div key={idx} style={{ background: 'var(--surface)', padding: 10, borderRadius: 10, border: '1px solid var(--outline)', textAlign: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--on-surface-variant)', display: 'block', marginBottom: 6 }}>
-                          {doc.type.replace('_', ' ')}
-                        </span>
-                        <a href={doc.url} target="_blank" rel="noreferrer">
-                          <img src={doc.url} alt={doc.type} style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--outline)' }} />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 10 }}>
-                {selectedRider.status !== 'approved' && (
-                  <button
-                    onClick={() => handleUpdateStatus(selectedRider.id, 'approved')}
-                    disabled={isUpdating}
-                    style={{
-                      padding: '12px 24px',
-                      borderRadius: 10,
-                      background: 'var(--lime-400)',
-                      color: '#000',
-                      fontFamily: 'var(--font-lexend)',
-                      fontWeight: 800,
-                      fontSize: 14,
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Approve Application
-                  </button>
-                )}
-
-                {selectedRider.status !== 'rejected' && (
-                  <button
-                    onClick={() => setShowRejectModal(true)}
-                    disabled={isUpdating}
-                    style={{
-                      padding: '12px 24px',
-                      borderRadius: 10,
-                      background: 'var(--error)',
-                      color: '#fff',
-                      fontFamily: 'var(--font-lexend)',
-                      fontWeight: 800,
-                      fontSize: 14,
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Reject Application
-                  </button>
-                )}
-              </div>
-
-            </div>
+        /* SUB-VIEW 6: PICKUP STATIONS & LOCKERS */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Self-Service Pickup Stations & Lockers ({stationsList.length})</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Station Name & ID</th>
+                  <th style={{ padding: 10 }}>Ghana Post GPS</th>
+                  <th style={{ padding: 10 }}>Address & City</th>
+                  <th style={{ padding: 10 }}>Operating Hours</th>
+                  <th style={{ padding: 10 }}>Status</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stationsList.map(s => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{s.name}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {s.stationId}</div>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle('#7c3aed', '#f3e8ff')}>{s.gpsCode}</span>
+                    </td>
+                    <td style={{ padding: 12, color: '#475569' }}>{s.address}, {s.city}</td>
+                    <td style={{ padding: 12, color: '#64748b' }}>{s.operatingHours}</td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle(s.isActive ? '#166534' : '#991b1b', s.isActive ? '#dcfce7' : '#fee2e2')}>
+                        {s.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => handleToggleActive(s.id, 'station')} style={{ border: 'none', background: '#f1f5f9', color: '#0f172a', padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                        {s.isActive ? 'Disable' : 'Enable'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* REJECT REASON MODAL */}
-      {showRejectModal && selectedRider && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="glass animate-scale-in" style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 20, maxWidth: 500, width: '100%', padding: 28 }}>
-            <h3 style={{ fontFamily: 'var(--font-lexend)', fontSize: '1.25rem', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--error)' }}>
-              Reject Rider Application
-            </h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--on-surface-variant)', margin: '0 0 18px 0' }}>
-              Please state the reason for rejecting {selectedRider.fullName}&apos;s application. This message will be displayed to the applicant.
-            </p>
+      {/* ── MODALS FOR CREATING LOGISTICS ITEMS ───────────────────────── */}
 
-            <textarea
-              rows={4}
-              value={rejectReasonInput}
-              onChange={e => setRejectReasonInput(e.target.value)}
-              placeholder="e.g. Ghana Card image is unreadable, or vehicle registration expired."
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: 10,
-                background: 'var(--surface-container)',
-                border: '1px solid var(--outline)',
-                color: 'var(--foreground)',
-                fontSize: '0.875rem',
-                outline: 'none',
-                marginBottom: 20
-              }}
-            />
+      {/* Modal: Create Partner */}
+      {modalType === 'create_partner' && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Add Logistics Delivery Partner</h3>
+            <form onSubmit={handleCreatePartner} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Company Partner Name *</label>
+                <input type="text" value={formPartnerName} onChange={e => setFormPartnerName(e.target.value)} placeholder="e.g. Speedaf Ghana Logistics" required style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Contact Email</label>
+                  <input type="email" value={formPartnerEmail} onChange={e => setFormPartnerEmail(e.target.value)} placeholder="dispatch@speedaf.com" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Contact Phone *</label>
+                  <input type="text" value={formPartnerPhone} onChange={e => setFormPartnerPhone(e.target.value)} required placeholder="0241234567" style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Save Partner</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowRejectModal(false)}
-                style={{ padding: '10px 18px', borderRadius: 8, background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: 'var(--foreground)', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleUpdateStatus(selectedRider.id, 'rejected', rejectReasonInput)}
-                disabled={isUpdating}
-                style={{ padding: '10px 18px', borderRadius: 8, background: 'var(--error)', border: 'none', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
-              >
-                {isUpdating ? 'Rejecting...' : 'Confirm Rejection'}
-              </button>
-            </div>
+      {/* Modal: Create Pickup Station */}
+      {modalType === 'create_station' && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Add Self-Service Pickup Station / Locker</h3>
+            <form onSubmit={handleCreateStation} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Station Name *</label>
+                <input type="text" value={formStationName} onChange={e => setFormStationName(e.target.value)} placeholder="e.g. Accra Mall Self-Service Locker" required style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>City *</label>
+                  <input type="text" value={formStationCity} onChange={e => setFormStationCity(e.target.value)} required style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Ghana Post GPS Code *</label>
+                  <input type="text" value={formStationGps} onChange={e => setFormStationGps(e.target.value)} required placeholder="GA-183-9021" style={inputStyle} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Street Address *</label>
+                <input type="text" value={formStationAddress} onChange={e => setFormStationAddress(e.target.value)} required placeholder="Tetteh Quarshie Interchange" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Save Station</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create Region */}
+      {modalType === 'create_region' && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Add Coverage Region & Shipping Rates</h3>
+            <form onSubmit={handleCreateRegion} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Region Name *</label>
+                <input type="text" value={formRegionName} onChange={e => setFormRegionName(e.target.value)} placeholder="e.g. Ashanti Region (Kumasi)" required style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Base Delivery Fee (GH₵) *</label>
+                  <input type="number" step="0.5" value={formBaseRate} onChange={e => setFormBaseRate(e.target.value)} required style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Per KM Distance Rate (GH₵) *</label>
+                  <input type="number" step="0.1" value={formPerKmRate} onChange={e => setFormPerKmRate(e.target.value)} required style={inputStyle} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Estimated Delivery Window</label>
+                <input type="text" value={formHours} onChange={e => setFormHours(e.target.value)} placeholder="24 - 48 Hours" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Save Region</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -618,3 +550,114 @@ export default function AdminRidersPage() {
     </div>
   );
 }
+
+// ── Reusable Component Styles ──────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const statCardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const toastStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 20,
+  right: 20,
+  zIndex: 9999,
+  background: '#0f172a',
+  color: '#38bdf8',
+  padding: '12px 20px',
+  borderRadius: 12,
+  boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+  fontSize: 13,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #0284c7',
+};
+
+const btnPrimaryStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#16a34a',
+  color: '#ffffff',
+  fontWeight: 800,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const btnSecondaryStyle: React.CSSProperties = {
+  border: '1px solid #cbd5e1',
+  background: '#ffffff',
+  color: '#475569',
+  fontWeight: 700,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const badgeStyle = (color: string, bg: string): React.CSSProperties => ({
+  background: bg,
+  color: color,
+  fontSize: 10,
+  fontWeight: 800,
+  padding: '2px 8px',
+  borderRadius: 6,
+  textTransform: 'uppercase',
+});
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  backdropFilter: 'blur(4px)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 20,
+};
+
+const modalContentStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  borderRadius: 20,
+  padding: 24,
+  width: '100%',
+  maxWidth: 520,
+  boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#334155',
+  marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: 13,
+  outline: 'none',
+};

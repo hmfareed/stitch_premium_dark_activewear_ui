@@ -88,6 +88,7 @@ const vendorNavSections: VendorNavSection[] = [
       { name: 'Delivery Locations', path: '/vendor/settings?tab=delivery' },
     ],
   },
+  { title: 'Subscription & Billing', icon: 'card_membership', path: '/vendor/billing' },
   { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
 ];
 

@@ -58,6 +58,10 @@ export interface ISubOrder extends Document {
   items: ISubOrderItem[];
   subtotal: number;
   deliveryFee: number;
+  /** Distance (km) from collection point to customer — snapshotted at checkout, immutable after */
+  deliveryDistanceKm?: number;
+  /** Delivery fee charged — snapshotted at checkout using the live DeliveryFeeConfig, immutable after */
+  deliveryFeeCharged?: number;
   commissionAmount: number; // 0 for now
   total: number;
 
@@ -124,6 +128,8 @@ const SubOrderSchema: Schema<ISubOrder> = new Schema({
   items: { type: [SubOrderItemSchema], required: true },
   subtotal: { type: Number, required: true },
   deliveryFee: { type: Number, required: true, default: 0 },
+  deliveryDistanceKm: { type: Number }, // km from collection point to customer, snapshot at checkout
+  deliveryFeeCharged: { type: Number }, // fee applied at checkout time, immutable after
   commissionAmount: { type: Number, default: 0 },
   total: { type: Number, required: true },
 

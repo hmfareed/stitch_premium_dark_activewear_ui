@@ -6,6 +6,8 @@ import { isSuperAdminEmail, resolveUserRole } from '@/lib/super-admin';
 
 /* ========== AUTH CONTEXT ========== */
 interface User {
+  id?: string;
+  _id?: string;
   email: string;
   name: string;
   phone?: string;

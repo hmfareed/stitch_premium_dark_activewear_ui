@@ -1,51 +1,52 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export type PromotionType = 'coupon' | 'promo_code' | 'flash_sale' | 'banner' | 'featured_product' | 'featured_vendor';
+
 export interface IPromotion extends Document {
-  code: string;
-  name?: string;
-  description?: string;
+  promoId: string;
+  type: PromotionType;
+  title: string;
+  code?: string;
+  discountValue?: number;
+  discountType?: 'percentage' | 'fixed';
+  bannerGradient?: string;
+  bannerImage?: string;
+  targetUrl?: string;
+  targetProductId?: string;
+  targetVendorEmail?: string;
   vendorEmail?: string;
-  type: 'platform' | 'vendor'; // platform-run vs vendor-run per spec §8.1
-  discountType: 'percentage' | 'fixed' | 'shipping';
-  discountValue: number;
-  uses: number;
-  limit: number;
-  maxUsesPerCustomer: number;
-  status: 'Active' | 'Expired';
   startDate?: Date;
   endDate?: Date;
-  expiresAt: Date;
-  featuredProductIds: string[];
-  featuredStoreIds: string[];
-  couponCode?: string;
+  expiresAt?: Date;
+  status?: string;
+  uses?: number;
+  limit?: number;
   isActive: boolean;
   createdAt: Date;
 }
 
 const PromotionSchema: Schema<IPromotion> = new Schema({
-  code: { type: String, required: true, uppercase: true, trim: true },
-  name: { type: String },
-  description: { type: String },
-  vendorEmail: { type: String },
-  type: { type: String, enum: ['platform', 'vendor'], default: 'vendor' },
-  discountType: { type: String, enum: ['percentage', 'fixed', 'shipping'], default: 'percentage' },
-  discountValue: { type: Number, required: true },
-  uses: { type: Number, default: 0 },
-  limit: { type: Number, required: true, default: 100 },
-  maxUsesPerCustomer: { type: Number, default: 1 },
-  status: { type: String, enum: ['Active', 'Expired'], default: 'Active' },
-  startDate: { type: Date },
-  endDate: { type: Date },
-  expiresAt: { type: Date, required: true },
-  featuredProductIds: { type: [String], default: [] },
-  featuredStoreIds: { type: [String], default: [] },
-  couponCode: { type: String },
-  isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now },
+  promoId:           { type: String, required: true, unique: true, index: true },
+  type:              { type: String, enum: ['coupon', 'promo_code', 'flash_sale', 'banner', 'featured_product', 'featured_vendor'], required: true },
+  title:             { type: String, required: true },
+  code:              { type: String, uppercase: true, trim: true },
+  discountValue:     { type: Number, default: 0 },
+  discountType:      { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
+  bannerGradient:    { type: String },
+  bannerImage:       { type: String },
+  targetUrl:         { type: String },
+  targetProductId:   { type: String },
+  targetVendorEmail: { type: String },
+  vendorEmail:       { type: String },
+  startDate:         { type: Date },
+  endDate:           { type: Date },
+  expiresAt:         { type: Date },
+  status:            { type: String, default: 'active' },
+  uses:              { type: Number, default: 0 },
+  limit:             { type: Number, default: 100 },
+  isActive:          { type: Boolean, default: true, index: true },
+  createdAt:         { type: Date, default: Date.now },
 });
 
-PromotionSchema.index({ code: 1 }, { unique: true });
-PromotionSchema.index({ type: 1 });
-PromotionSchema.index({ startDate: 1, endDate: 1 });
-
-export const Promotion: Model<IPromotion> = mongoose.models.Promotion || mongoose.model<IPromotion>('Promotion', PromotionSchema);
+export const Promotion: Model<IPromotion> =
+  mongoose.models.Promotion || mongoose.model<IPromotion>('Promotion', PromotionSchema);

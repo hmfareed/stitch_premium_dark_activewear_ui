@@ -40,6 +40,12 @@ export interface IOrder extends Document {
     description: string;
     timestamp: Date;
   }>;
+  assignedRiderName?: string;
+  assignedRiderPhone?: string;
+  trackingNumber?: string;
+  refundReason?: string;
+  refundAmount?: number;
+  invoiceNumber?: string;
 }
 
 const OrderSchema: Schema<IOrder> = new Schema({
@@ -77,6 +83,12 @@ const OrderSchema: Schema<IOrder> = new Schema({
     paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Held', 'Refunded'], default: 'Pending' },
     escrowStatus: { type: String, enum: ['Locked', 'Released', 'Disputed', 'NA'], default: 'NA' },
   },
+  assignedRiderName: { type: String },
+  assignedRiderPhone: { type: String },
+  trackingNumber: { type: String },
+  refundReason: { type: String },
+  refundAmount: { type: Number },
+  invoiceNumber: { type: String },
   timeline: [{
     status: { type: String, required: true },
     description: { type: String, required: true },

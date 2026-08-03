@@ -1,372 +1,542 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useToast } from '@/context/AppContext';
 
-interface Campaign {
-  id: string;
-  name: string;
-  description: string;
-  discountValue: number;
-  bannerGradient: string;
-  status: 'upcoming' | 'active' | 'completed';
-  startDate: string;
-  endDate: string;
-}
+type PromoTab = 'all' | 'coupon' | 'promo_code' | 'flash_sale' | 'banner' | 'featured_product' | 'featured_vendor';
 
 const PRESET_GRADIENTS = [
   { name: 'Sunset Fusion', css: 'linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%)' },
   { name: 'Neon Cyberpunk', css: 'linear-gradient(135deg, #f107a3 0%, #7b2ff7 100%)' },
   { name: 'Teal Surge', css: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' },
   { name: 'Oceanic Wave', css: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)' },
-  { name: 'Solar Lime', css: 'linear-gradient(135deg, var(--lime-400) 0%, #f9d423 100%)' },
+  { name: 'Solar Gold', css: 'linear-gradient(135deg, #f7b733 0%, #fc4a1a 100%)' },
 ];
 
-export default function AdminCampaignsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+export default function AdminPromotionsPage() {
+  const [activeTab, setActiveTab] = useState<PromoTab>('all');
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const { showToast } = useToast();
+  const [promotionsList, setPromotionsList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [vendorsList, setVendorsList] = useState<any[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Form State
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [discountValue, setDiscountValue] = useState('15');
-  const [bannerGradient, setBannerGradient] = useState(PRESET_GRADIENTS[0].css);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Modal Operation State
+  const [modalType, setModalType] = useState<PromoTab | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchCampaigns = useCallback(async () => {
+  // Form States
+  const [formTitle, setFormTitle] = useState('');
+  const [formCode, setFormCode] = useState('');
+  const [formDiscountValue, setFormDiscountValue] = useState('20');
+  const [formDiscountType, setFormDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [formBannerGradient, setFormBannerGradient] = useState(PRESET_GRADIENTS[0].css);
+  const [formTargetUrl, setFormTargetUrl] = useState('/');
+  const [formTargetProductId, setFormTargetProductId] = useState('');
+  const [formTargetVendorEmail, setFormTargetVendorEmail] = useState('');
+  const [formStartDate, setFormStartDate] = useState('');
+  const [formEndDate, setFormEndDate] = useState('');
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  // Fetch Promotions Data
+  const fetchPromotions = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/campaigns');
+      const res = await fetch(`/api/admin/promotions?type=${activeTab}`);
       const data = await res.json();
       if (data.success) {
-        setCampaigns(data.campaigns || []);
+        setPromotionsList(data.promotions || []);
+        setProductsList(data.products || []);
+        setVendorsList(data.vendors || []);
       }
     } catch (err) {
-      console.error('Failed to load campaigns:', err);
-      showToast('Error loading campaigns from database.', 'error');
+      console.error('Error fetching promotions:', err);
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [activeTab]);
 
   useEffect(() => {
-    fetchCampaigns();
-  }, [fetchCampaigns]);
+    fetchPromotions();
+  }, [fetchPromotions]);
 
-  const handleCreateCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !description || !discountValue || !startDate || !endDate) {
-      showToast('Please fill out all required fields.', 'error');
+  // Action: Create Promotion (Handles all 6 promo types)
+  const handleCreatePromotion = async (typeToCreate: PromoTab) => {
+    if (!formTitle) {
+      alert('Promotion title is required');
       return;
     }
-
-    setIsSubmitting(true);
+    setActionLoading(true);
     try {
-      const res = await fetch('/api/campaigns', {
+      const res = await fetch('/api/admin/promotions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          description,
-          discountValue: parseFloat(discountValue),
-          bannerGradient,
-          startDate,
-          endDate,
+          type: typeToCreate,
+          title: formTitle,
+          code: formCode,
+          discountValue: formDiscountValue,
+          discountType: formDiscountType,
+          bannerGradient: formBannerGradient,
+          targetUrl: formTargetUrl,
+          targetProductId: formTargetProductId,
+          targetVendorEmail: formTargetVendorEmail,
+          startDate: formStartDate,
+          endDate: formEndDate,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast('Platform campaign created successfully!', 'success');
-        setName('');
-        setDescription('');
-        setDiscountValue('15');
-        setStartDate('');
-        setEndDate('');
-        setShowAddModal(false);
-        fetchCampaigns();
+        showToast(data.message);
+        setModalType(null);
+        resetForm();
+        fetchPromotions();
       } else {
-        showToast(data.error || 'Failed to create campaign.', 'error');
+        alert(data.message || 'Creation failed');
       }
     } catch (err) {
-      showToast('Connection error occurred while saving campaign.', 'error');
+      console.error('Create promo error:', err);
     } finally {
-      setIsSubmitting(false);
+      setActionLoading(false);
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: 'upcoming' | 'active' | 'completed') => {
+  // Action: Toggle Active Status
+  const handleToggleActive = async (id: string) => {
     try {
-      const res = await fetch(`/api/campaigns/${id}`, {
+      const res = await fetch(`/api/admin/promotions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ action: 'toggle_active' }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Campaign status updated to ${newStatus}!`, 'success');
-        fetchCampaigns();
+        showToast(data.message);
+        fetchPromotions();
       }
-    } catch {
-      showToast('Failed to update status on server.', 'error');
+    } catch (err) {
+      console.error('Toggle active error:', err);
     }
   };
 
-  const handleDeleteCampaign = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this campaign? All participating products will be detached.')) return;
+  // Action: Delete Promotion
+  const handleDeletePromo = async (id: string) => {
     try {
-      const res = await fetch(`/api/campaigns/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/promotions/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        showToast('Campaign deleted.', 'success');
-        fetchCampaigns();
+        showToast(data.message);
+        fetchPromotions();
       }
-    } catch {
-      showToast('Failed to delete campaign.', 'error');
+    } catch (err) {
+      console.error('Delete promo error:', err);
     }
   };
 
-  const getStatusStyle = (status: Campaign['status']) => {
-    switch (status) {
-      case 'active':
-        return { backgroundColor: 'color-mix(in srgb, var(--lime-400) 15%, transparent)', color: 'var(--lime-400)', border: '1px solid var(--lime-400)' };
-      case 'upcoming':
-        return { backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: '1px solid #00e5ff' };
-      case 'completed':
-        return { backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: '1px solid var(--outline)' };
-    }
+  const resetForm = () => {
+    setFormTitle(''); setFormCode(''); setFormDiscountValue('20');
+    setFormTargetUrl('/'); setFormTargetProductId(''); setFormTargetVendorEmail('');
   };
+
+  const formatGhs = (val: number) => `GH₵ ${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={toastStyle}>
+          <span className="material-symbols-outlined" style={{ color: '#38bdf8' }}>check_circle</span>
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Header Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Platform Campaigns</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Coordinated platform-wide discount events for activewear sales campaigns</p>
+          <h1 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 900, color: '#0f172a', margin: 0, fontFamily: 'var(--font-lexend, sans-serif)' }}>
+            Promotions & Marketing Suite
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+            Coupons, promo codes, flash sales, homepage banners, featured products & featured vendor badges
+          </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'var(--on-lime-400)', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-          Create Campaign
-        </button>
-      </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', padding: '24px', borderRadius: '16px' }}>
-          <span style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>Total Campaigns</span>
-          <h3 className="font-lexend" style={{ fontSize: '2rem', margin: '8px 0 0' }}>{campaigns.length}</h3>
-        </div>
-        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', padding: '24px', borderRadius: '16px' }}>
-          <span style={{ color: 'var(--lime-400)', fontSize: '0.9rem' }}>Active Live Deals</span>
-          <h3 className="font-lexend" style={{ fontSize: '2rem', margin: '8px 0 0', color: 'var(--lime-400)' }}>{campaigns.filter(c => c.status === 'active').length}</h3>
-        </div>
-        <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', padding: '24px', borderRadius: '16px' }}>
-          <span style={{ color: '#00e5ff', fontSize: '0.9rem' }}>Upcoming Releases</span>
-          <h3 className="font-lexend" style={{ fontSize: '2rem', margin: '8px 0 0', color: '#00e5ff' }}>{campaigns.filter(c => c.status === 'upcoming').length}</h3>
+        {/* Global Action Menu */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => { resetForm(); setModalType('coupon'); }} style={btnPrimaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>confirmation_number</span>
+            <span>+ Coupon</span>
+          </button>
+          <button onClick={() => { resetForm(); setModalType('flash_sale'); }} style={btnSecondaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>bolt</span>
+            <span>+ Flash Sale</span>
+          </button>
+          <button onClick={() => { resetForm(); setModalType('banner'); }} style={btnSecondaryStyle}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>art_track</span>
+            <span>+ Banner</span>
+          </button>
         </div>
       </div>
 
-      {/* Campaigns list */}
-      <div style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: '16px', overflow: 'hidden' }}>
-        <div style={{ padding: '24px', borderBottom: '1px solid var(--outline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 className="font-lexend" style={{ margin: 0, fontSize: '1.2rem' }}>All Coordinated Sales Events</h3>
+      {/* Telemetry Summary Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Total Promotions</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', marginTop: 4 }}>{promotionsList.length} Campaigns</div>
         </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Active Hero Banners</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#7c3aed', marginTop: 4 }}>
+            {promotionsList.filter(p => p.type === 'banner' && p.isActive).length} Banners
+          </div>
+        </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Featured Products Spotlight</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#16a34a', marginTop: 4 }}>
+            {productsList.filter(p => p.isFeatured).length} Items Featured
+          </div>
+        </div>
+      </div>
 
-        {loading ? (
-          <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
-            <div className="animate-spin-glow" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '3px solid var(--outline)', borderTopColor: 'var(--lime-400)' }} />
-          </div>
-        ) : campaigns.length === 0 ? (
-          <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--on-surface-variant)', marginBottom: '16px' }}>campaign</span>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: '1.1rem', margin: 0 }}>No campaigns have been configured yet.</p>
-            <button onClick={() => setShowAddModal(true)} style={{ marginTop: '16px', background: 'none', border: 'none', color: 'var(--lime-400)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>Create your first campaign</button>
-          </div>
-        ) : (
-          <div className="responsive-table">
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>
-                  <th style={{ padding: '16px 24px' }}>Campaign Event</th>
-                  <th style={{ padding: '16px 24px' }}>Offer Rate</th>
-                  <th style={{ padding: '16px 24px' }}>Dates</th>
-                  <th style={{ padding: '16px 24px' }}>Status</th>
-                  <th style={{ padding: '16px 24px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c) => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid var(--outline)' }}>
-                    <td style={{ padding: '20px 24px' }} data-label="Campaign">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '56px', height: '36px', borderRadius: '8px', background: c.bannerGradient, flexShrink: 0 }} />
-                        <div>
-                          <span style={{ fontWeight: 600, display: 'block', fontSize: '1.05rem' }}>{c.name}</span>
-                          <span style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)' }}>{c.description}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '20px 24px', fontWeight: 600, color: 'var(--lime-400)' }} data-label="Offer Rate">
-                      {c.discountValue}% Off
-                    </td>
-                    <td style={{ padding: '20px 24px', fontSize: '0.88rem' }} data-label="Dates">
-                      <div>Start: {c.startDate}</div>
-                      <div style={{ color: 'var(--on-surface-variant)' }}>End: {c.endDate}</div>
-                    </td>
-                    <td style={{ padding: '20px 24px' }} data-label="Status">
-                      <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600, ...getStatusStyle(c.status) }}>
-                        {c.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '20px 24px', textAlign: 'right' }} data-label="Actions">
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        {c.status !== 'active' && (
-                          <button onClick={() => handleUpdateStatus(c.id, 'active')} style={{ background: 'none', border: '1px solid var(--lime-400)', color: 'var(--lime-400)', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                            Activate
-                          </button>
-                        )}
-                        {c.status !== 'completed' && (
-                          <button onClick={() => handleUpdateStatus(c.id, 'completed')} style={{ background: 'none', border: '1px solid var(--outline)', color: 'var(--on-surface-variant)', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                            Complete
-                          </button>
-                        )}
-                        <button onClick={() => handleDeleteCampaign(c.id)} style={{ padding: '6px', borderRadius: '6px', background: 'color-mix(in srgb, var(--error) 12%, transparent)', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+      {/* 6 Sub-View Navigation Tabs */}
+      <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { id: 'all', label: 'All Promotions', icon: 'auto_awesome' },
+          { id: 'coupon', label: 'Coupons', icon: 'confirmation_number' },
+          { id: 'promo_code', label: 'Promo Codes', icon: 'sell' },
+          { id: 'flash_sale', label: 'Flash Sales', icon: 'bolt' },
+          { id: 'banner', label: 'Banners', icon: 'art_track' },
+          { id: 'featured_product', label: 'Featured Products', icon: 'star' },
+          { id: 'featured_vendor', label: 'Featured Vendors', icon: 'workspace_premium' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as PromoTab)}
+            style={{
+              border: 'none',
+              background: activeTab === tab.id ? '#0f172a' : 'transparent',
+              color: activeTab === tab.id ? '#ffffff' : '#64748b',
+              fontWeight: activeTab === tab.id ? 800 : 600,
+              fontSize: 12,
+              padding: '8px 14px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '4px solid #16a34a', borderTopColor: 'transparent', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 12, fontWeight: 600, fontSize: 13 }}>Loading marketing telemetry...</p>
+        </div>
+      ) : (
+
+        /* Master Data Table & Cards Grid */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          
+          {/* Active Banner Carousel Cards Preview */}
+          {(activeTab === 'all' || activeTab === 'banner') && promotionsList.some(p => p.type === 'banner') && (
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Promotional Hero Banners</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+                {promotionsList.filter(p => p.type === 'banner').map(b => (
+                  <div key={b.id} style={{ background: b.bannerGradient, borderRadius: 16, padding: 20, color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 140 }}>
+                    <div>
+                      <span style={{ fontSize: 10, fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase' }}>PROMO BANNER</span>
+                      <h4 style={{ fontSize: 18, fontWeight: 900, margin: '8px 0 4px' }}>{b.title}</h4>
+                      <p style={{ fontSize: 12, opacity: 0.9, margin: 0 }}>Target URL: {b.targetUrl}</p>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700 }}>{b.isActive ? 'LIVE ON HOMEPAGE' : 'DISABLED'}</span>
+                      <button onClick={() => handleToggleActive(b.id)} style={{ border: 'none', background: '#fff', color: '#0f172a', padding: '4px 10px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                        {b.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Add Campaign Modal */}
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div className="animate-scale-up" style={{ backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline)', width: '100%', maxWidth: '520px', borderRadius: '16px', overflow: 'hidden' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid var(--outline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 className="font-lexend" style={{ margin: 0, fontSize: '1.25rem' }}>Create Coordinated Campaign</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex' }}>
-                <span className="material-symbols-outlined">close</span>
-              </button>
+              </div>
             </div>
+          )}
 
-            <form onSubmit={handleCreateCampaign} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Campaign Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Summer Fit Blast"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Short Description</label>
-                <textarea
-                  placeholder="Describe the campaign theme..."
-                  required
-                  rows={2}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', resize: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Flat Discount (%)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="90"
-                    required
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                    style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>End Date</label>
-                <input
-                  type="date"
-                  required
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Campaign Banner Theme</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
-                  {PRESET_GRADIENTS.map((g) => (
-                    <button
-                      key={g.name}
-                      type="button"
-                      onClick={() => setBannerGradient(g.css)}
-                      style={{ height: '40px', borderRadius: '8px', background: g.css, border: bannerGradient === g.css ? '2px solid white' : '2px solid transparent', cursor: 'pointer', transition: 'all 0.2s' }}
-                      title={g.name}
-                    />
+          {/* Data Table for Coupons, Flash Sales, Promo Codes & Spotlights */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>
+              Promotional Campaigns Directory ({promotionsList.length})
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                    <th style={{ padding: 10 }}>Title & Code</th>
+                    <th style={{ padding: 10 }}>Type</th>
+                    <th style={{ padding: 10 }}>Discount / Target</th>
+                    <th style={{ padding: 10 }}>Validity Dates</th>
+                    <th style={{ padding: 10 }}>Status</th>
+                    <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {promotionsList.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: 12 }}>
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.title}</div>
+                        {p.code !== 'N/A' && <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 800 }}>Code: {p.code}</div>}
+                      </td>
+                      <td style={{ padding: 12 }}>
+                        <span style={badgeStyle('#4338ca', '#e0e7ff')}>{p.type.replace('_', ' ').toUpperCase()}</span>
+                      </td>
+                      <td style={{ padding: 12, fontWeight: 900, color: '#16a34a' }}>
+                        {p.discountValue ? `${p.discountValue}% OFF` : 'Spotlight Flag'}
+                      </td>
+                      <td style={{ padding: 12, color: '#64748b' }}>
+                        {p.startDate} - {p.endDate}
+                      </td>
+                      <td style={{ padding: 12 }}>
+                        <span style={badgeStyle(p.isActive ? '#166534' : '#991b1b', p.isActive ? '#dcfce7' : '#fee2e2')}>
+                          {p.isActive ? 'ACTIVE' : 'DISABLED'}
+                        </span>
+                      </td>
+                      <td style={{ padding: 12, textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                          <button onClick={() => handleToggleActive(p.id)} style={{ border: 'none', background: '#f1f5f9', color: '#0f172a', padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                            {p.isActive ? 'Pause' : 'Activate'}
+                          </button>
+                          <button onClick={() => handleDeletePromo(p.id)} style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-              {/* Action Banner Preview */}
+        </div>
+      )}
+
+      {/* ── MODALS FOR CREATING ALL 6 PROMOTION TYPES ─────────────────── */}
+
+      {/* Modal: Create Coupon / Promo Code */}
+      {(modalType === 'coupon' || modalType === 'promo_code') && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Create {modalType === 'coupon' ? 'Coupon' : 'Promo Code'}</h3>
+            <form onSubmit={e => { e.preventDefault(); handleCreatePromotion(modalType); }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '8px', color: 'var(--on-surface-variant)' }}>Glow Banner Preview</label>
-                <div style={{ background: bannerGradient, padding: '16px', borderRadius: '12px', color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.72rem', letterSpacing: '1px', textTransform: 'uppercase', opacity: 0.9, fontWeight: 700 }}>AfriCart Mega Sale</span>
-                  <span style={{ fontSize: '1.15rem', fontWeight: 800 }}>{name || 'Campaign Name Preview'}</span>
-                  <span style={{ fontSize: '0.82rem', opacity: 0.8 }}>{description || 'Flash sales event details...'}</span>
-                  <div style={{ marginTop: '4px', fontSize: '1.25rem', fontWeight: 900 }}>FLAT {discountValue || '0'}% OFF</div>
+                <label style={labelStyle}>Title / Campaign Name *</label>
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} required placeholder="e.g. Welcome 20% Discount" style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Discount Code (Uppercase) *</label>
+                  <input type="text" value={formCode} onChange={e => setFormCode(e.target.value)} required placeholder="AFRICART20" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Discount Percentage (%) *</label>
+                  <input type="number" value={formDiscountValue} onChange={e => setFormDiscountValue(e.target.value)} required style={inputStyle} />
                 </div>
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px', borderTop: '1px solid var(--outline)', paddingTop: '20px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 500 }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{ padding: '10px 24px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'var(--on-lime-400)', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Campaign'}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Save Promotion</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Modal: Create Flash Sale */}
+      {modalType === 'flash_sale' && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Create Flash Sale Campaign</h3>
+            <form onSubmit={e => { e.preventDefault(); handleCreatePromotion('flash_sale'); }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Flash Sale Event Title *</label>
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} required placeholder="e.g. Midnight Kente Flash Sale" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Flash Sale Markdown (%) *</label>
+                <input type="number" value={formDiscountValue} onChange={e => setFormDiscountValue(e.target.value)} required style={inputStyle} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Start Date</label>
+                  <input type="date" value={formStartDate} onChange={e => setFormStartDate(e.target.value)} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>End Date</label>
+                  <input type="date" value={formEndDate} onChange={e => setFormEndDate(e.target.value)} style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Launch Flash Sale</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create Banner */}
+      {modalType === 'banner' && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Create Homepage Hero Banner</h3>
+            <form onSubmit={e => { e.preventDefault(); handleCreatePromotion('banner'); }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Banner Headline *</label>
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} required placeholder="e.g. 50% Off Authentic Ghanaian Crafts" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Target Destination Link *</label>
+                <input type="text" value={formTargetUrl} onChange={e => setFormTargetUrl(e.target.value)} required placeholder="/category/crafts" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Gradient Style Preset</label>
+                <select value={formBannerGradient} onChange={e => setFormBannerGradient(e.target.value)} style={inputStyle}>
+                  {PRESET_GRADIENTS.map((g, idx) => (
+                    <option key={idx} value={g.css}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Publish Banner</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
+// ── Reusable Component Styles ──────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const statCardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const toastStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 20,
+  right: 20,
+  zIndex: 9999,
+  background: '#0f172a',
+  color: '#38bdf8',
+  padding: '12px 20px',
+  borderRadius: 12,
+  boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+  fontSize: 13,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #0284c7',
+};
+
+const btnPrimaryStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#16a34a',
+  color: '#ffffff',
+  fontWeight: 800,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const btnSecondaryStyle: React.CSSProperties = {
+  border: '1px solid #cbd5e1',
+  background: '#ffffff',
+  color: '#475569',
+  fontWeight: 700,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const badgeStyle = (color: string, bg: string): React.CSSProperties => ({
+  background: bg,
+  color: color,
+  fontSize: 10,
+  fontWeight: 800,
+  padding: '2px 8px',
+  borderRadius: 6,
+  textTransform: 'uppercase',
+});
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  backdropFilter: 'blur(4px)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 20,
+};
+
+const modalContentStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  borderRadius: 20,
+  padding: 24,
+  width: '100%',
+  maxWidth: 520,
+  boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#334155',
+  marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: 13,
+  outline: 'none',
+};

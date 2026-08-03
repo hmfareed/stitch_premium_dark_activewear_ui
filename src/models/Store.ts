@@ -71,6 +71,10 @@ export interface IStore extends Document {
   featuredProductIds?: string[];
   storefrontDraft?: Record<string, any>; // staged preview before publish
 
+  /** Vendor store coordinates — required for vendor_direct_pickup delivery fee calc (Phase 11) */
+  latitude?: number;
+  longitude?: number;
+
   createdAt: Date;
   goLiveAt?: Date;
 }
@@ -133,6 +137,9 @@ const StoreSchema: Schema<IStore> = new Schema({
   aboutText:          { type: String, maxlength: 300 },
   featuredProductIds: { type: [String], default: [] },
   storefrontDraft:    { type: Schema.Types.Mixed, default: null },
+
+  latitude:  { type: Number },
+  longitude: { type: Number },
 
   createdAt: { type: Date, default: Date.now },
   goLiveAt:  { type: Date },

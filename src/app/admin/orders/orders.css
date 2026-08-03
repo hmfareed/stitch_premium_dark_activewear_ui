@@ -1,8 +1,12 @@
+/* Orders Page - Light System Theme Override */
 
 .orders-container {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .orders-header {
@@ -17,65 +21,62 @@
 
 .stat-card {
   padding: 20px;
-  background-color: var(--surface);
-  border-radius: 12px;
-  border: 1px solid var(--outline);
+  background-color: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   gap: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 
 .table-container {
-  background-color: var(--surface);
+  background-color: #ffffff;
   border-radius: 16px;
-  border: 1px solid var(--outline);
+  border: 1px solid #e2e8f0;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 
 .table-header {
   padding: 16px 24px;
-  border-bottom: 1px solid var(--outline);
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  background-color: #ffffff;
 }
 
 .tabs-container {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   overflow-x: auto;
-  overflow-y: hidden;
-  padding: 4px 0 12px;
-  margin-bottom: -8px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: var(--outline-variant) transparent;
+  padding: 4px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
   flex: 1;
   min-width: 0;
-  width: 100%;
-  max-width: 100vw;
-}
-
-.tabs-container::-webkit-scrollbar {
-  height: 6px;
-}
-.tabs-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-.tabs-container::-webkit-scrollbar-thumb {
-  background: var(--outline-variant);
-  border-radius: 6px;
-}
-.tabs-container::-webkit-scrollbar-thumb:hover {
-  background: var(--outline);
 }
 
 .tabs-container button {
-  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background-color: transparent;
+  color: #64748b;
+  transition: all 0.15s ease;
 }
 
+.tabs-container button.active {
+  background-color: #16a34a;
+  color: #ffffff;
+}
 
 .search-container {
   position: relative;
@@ -83,369 +84,102 @@
   max-width: 260px;
 }
 
+.search-container input {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 8px 12px 8px 34px;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+
 .order-table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  color: #334155;
 }
 
 .order-table th {
-  padding: 14px 24px;
-  font-weight: 500;
-  border-bottom: 1px solid var(--outline);
-  color: var(--on-surface-variant);
+  padding: 12px 20px;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
   font-size: 0.85rem;
+  background-color: #f8fafc;
 }
 
 .order-table td {
-  padding: 16px 24px;
+  padding: 14px 20px;
+  color: #0f172a;
 }
 
 .order-row {
-  border-bottom: 1px solid var(--outline-variant);
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.order-row:last-child {
-  border-bottom: none;
+.order-row:hover {
+  background-color: #f8fafc;
 }
 
-/* ===================== */
-/* ORDER DETAIL MODAL    */
-/* ===================== */
-
-/* Backdrop overlay - fixed fullscreen */
+/* Modal styling */
 .order-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.9);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  animation: backdrop-in 0.25s ease;
-  overscroll-behavior: none;
+  align-items: center;
+  justify: center;
+  padding: 16px;
 }
 
-/* The modal panel itself */
 .order-detail-modal {
-  background: var(--background);
+  background: #ffffff;
   max-width: 800px;
   width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  border-radius: 24px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
   overflow: hidden;
-  position: relative;
-  animation: modal-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Fixed header inside modal */
 .order-modal-header {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--outline);
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--surface);
-  z-index: 20;
-  flex-shrink: 0;
+  background-color: #ffffff;
 }
 
-/* Scrollable content area - this is the ONLY thing that scrolls */
 .order-modal-body {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 20px;
-  padding-bottom: 24px;
-  /* Allow scroll ONLY inside here */
-  touch-action: pan-y;
+  padding: 24px;
+  color: #0f172a;
 }
 
-/* Hide scrollbar but keep scrolling functional */
-.order-modal-body::-webkit-scrollbar {
-  width: 4px;
-}
-.order-modal-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-.order-modal-body::-webkit-scrollbar-thumb {
-  background: var(--outline);
-  border-radius: 4px;
-}
-
-/* Fixed footer inside modal */
 .order-modal-footer {
   padding: 16px 24px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--outline);
-  background: var(--surface);
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
   display: flex;
   gap: 12px;
-  flex-shrink: 0;
-  z-index: 20;
-}
-
-/* Quick info grid */
-.order-quick-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-/* Detail sections grid */
-.order-sections-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-/* Product item card */
-.order-product-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--surface-container-high);
-  border-radius: 16px;
-  border: 1px solid var(--outline);
-}
-
-/* ===================== */
-/* MOBILE STYLES         */
-/* ===================== */
-@media (max-width: 768px) {
-  .orders-container {
-    gap: 20px;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .table-header {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 16px;
-  }
-
-  .search-container {
-    max-width: none;
-  }
-
-  .order-table thead {
-    display: none;
-  }
-
-  .order-table, .order-table tbody, .order-table tr, .order-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .order-row {
-    padding: 16px;
-    border-bottom: 8px solid var(--surface-container);
-    position: relative;
-  }
-
-  .order-table td {
-    padding: 4px 0;
-    border: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-  }
-
-  .order-table td::before {
-    content: attr(data-label);
-    font-weight: 600;
-    color: var(--on-surface-variant);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-  }
-
-  .order-table td[data-label="Order ID"] {
-    font-size: 1.1rem;
-    font-weight: 800;
-    margin-bottom: 8px;
-    color: var(--lime-400);
-  }
-
-  .order-table td[data-label="Order ID"]::before {
-    display: none;
-  }
-
-  .order-table td[data-label="Actions"] {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--outline);
-    justify-content: flex-end;
-    gap: 12px;
-  }
-
-  .order-table td[data-label="Actions"]::before {
-    display: none;
-  }
-
-  .mobile-hide {
-    display: none !important;
-  }
-
-  /* Mobile modal: full-screen takeover */
-  .order-modal-backdrop {
-    align-items: stretch;
-    justify-content: stretch;
-  }
-
-  .order-detail-modal {
-    animation: modal-pop-mobile 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: 100%;
-    max-height: none;
-    height: 100%;
-    width: 100%;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-  }
-
-  .order-modal-header {
-    padding: 16px 20px;
-  }
-
-  .order-modal-body {
-    padding: 16px;
-    padding-bottom: 20px;
-  }
-
-  .order-modal-footer {
-    padding: 12px 20px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  }
-
-  .order-quick-info {
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .order-sections-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-}
-
-/* Very small screens */
-@media (max-width: 400px) {
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .stat-card {
-    padding: 14px;
-    gap: 10px;
-  }
-
-  .order-quick-info {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* ===================== */
-/* PREVENT BODY SCROLL   */
-/* ===================== */
-body.modal-open {
-  overflow: hidden !important;
-}
-
-body:has(.order-modal-backdrop) {
-  overflow: hidden !important;
-}
-
-/* ===================== */
-/* ANIMATIONS            */
-/* ===================== */
-@keyframes backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes modal-pop {
-  0% { opacity: 0; transform: translateY(-60px) scale(0.95); }
-  60% { opacity: 1; transform: translateY(8px) scale(1.01); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes modal-pop-mobile {
-  0% { opacity: 0; transform: translateY(-100%); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-/* ===================== */
-/* REUSABLE UTILITIES    */
-/* ===================== */
-.copy-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--on-surface-variant);
-  padding: 2px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  transition: all 0.2s;
-}
-
-.copy-btn:hover {
-  color: var(--lime-400);
-  background: var(--surface-container-high);
-}
-
-.detail-section {
-  margin-bottom: 24px;
-}
-
-.detail-section-title {
-  font-size: 0.75rem;
-  color: var(--on-surface-variant);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .detail-card {
   padding: 16px;
-  background: var(--surface-container);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.detail-label {
-  color: var(--on-surface-variant);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.detail-value {
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-align: right;
-  word-break: break-all;
 }

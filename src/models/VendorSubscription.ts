@@ -4,7 +4,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
  * Vendor subscription lifecycle tracking per spec §7.3–§7.5.
  * Tracks plan, start/end dates, status, and payment references.
  */
-export type SubscriptionStatus = 'active' | 'grace' | 'lapsed' | 'cancelled';
+export type SubscriptionStatus = 'active' | 'grace' | 'lapsed' | 'cancelled' | 'paused';
 
 export interface IVendorSubscription extends Document {
   vendorId: mongoose.Types.ObjectId;
@@ -35,7 +35,7 @@ const VendorSubscriptionSchema: Schema<IVendorSubscription> = new Schema({
   storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
   planTier: { type: String, enum: ['trial', 'basic', 'plus', 'pro'], required: true },
   planName: { type: String, required: true },
-  status: { type: String, enum: ['active', 'grace', 'lapsed', 'cancelled'], default: 'active', index: true },
+  status: { type: String, enum: ['active', 'grace', 'lapsed', 'cancelled', 'paused'], default: 'active', index: true },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true, index: true },
   gracePeriodEndDate: { type: Date },

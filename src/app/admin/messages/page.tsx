@@ -1,333 +1,511 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useAdmin } from '@/context/AdminContext';
+import React, { useState, useEffect, useCallback } from 'react';
 
-export default function AdminMessagesPage() {
-  const { allMessages, allAdmins, allCustomers, sendMessage, broadcastMessage } = useAdmin();
-  const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState('');
-  const [showBroadcast, setShowBroadcast] = useState(false);
-  const [broadcastText, setBroadcastText] = useState('');
-  const [broadcastTarget, setBroadcastTarget] = useState<'vendors' | 'all'>('vendors');
-  const [activeTab, setActiveTab] = useState('all');
-  const [isMobile, setIsMobile] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+type SubView = 'dispatch' | 'history' | 'messages';
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+export default function AdminNotificationsPage() {
+  const [subView, setSubView] = useState<SubView>('dispatch');
+  const [loading, setLoading] = useState(true);
+  const [dispatchesList, setDispatchesList] = useState<any[]>([]);
+  const [audienceCounts, setAudienceCounts] = useState<any>({ allVendors: 0, customers: 0, staff: 0 });
+  const [vendorsList, setVendorsList] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Dispatch Form States
+  const [formTitle, setFormTitle] = useState('');
+  const [formMessage, setFormMessage] = useState('');
+  
+  // 4 Channels Checkboxes State
+  const [channelInApp, setChannelInApp] = useState(true);
+  const [channelEmail, setChannelEmail] = useState(true);
+  const [channelSMS, setChannelSMS] = useState(false);
+  const [channelPush, setChannelPush] = useState(false);
+
+  // 4 Recipient Audiences State
+  const [recipientAudience, setRecipientAudience] = useState<'all_vendors' | 'selected_vendors' | 'customers' | 'staff'>('all_vendors');
+  const [selectedVendorEmails, setSelectedVendorEmails] = useState<string[]>([]);
+  
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  // Fetch Data
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/notifications');
+      const data = await res.json();
+      if (data.success) {
+        setDispatchesList(data.dispatches || []);
+        setAudienceCounts(data.audienceCounts || {});
+        setVendorsList(data.vendorsList || []);
+        setStaffList(data.staffList || []);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications data:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Identify admin emails for filtering
-  const adminEmails = new Set(allAdmins.map(a => a.email));
-  adminEmails.add('africartsadmin99@gmail.com');
-  adminEmails.add('system@africart.com');
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  // Super admin's own conversations (only messages TO/FROM super admin)
-  const getConversations = () => {
-    const convos: Record<string, { email: string; name: string; role: string; lastMsg: string; lastTime: string; unread: number }> = {};
+  // Action: Dispatch Multi-Channel Notification
+  const handleDispatchNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    allMessages.forEach(msg => {
-      if (msg.to === 'broadcast_vendors' || msg.to === 'broadcast_all') return;
-      // Only include messages where super admin is a participant
-      const isSuperAdminMsg = msg.fromRole === 'super_admin' || msg.from === 'africartsadmin99@gmail.com' || msg.from === 'system@africart.com' || msg.to === 'africartsadmin99@gmail.com';
-      if (!isSuperAdminMsg) return;
+    const selectedChannels: string[] = [];
+    if (channelInApp) selectedChannels.push('in_app');
+    if (channelEmail) selectedChannels.push('email');
+    if (channelSMS) selectedChannels.push('sms');
+    if (channelPush) selectedChannels.push('push');
 
-      const partnerEmail = (msg.fromRole === 'super_admin' || msg.from === 'africartsadmin99@gmail.com' || msg.from === 'system@africart.com') ? msg.to : msg.from;
-      const partnerName = (msg.fromRole === 'super_admin' || msg.from === 'africartsadmin99@gmail.com' || msg.from === 'system@africart.com') ? msg.toName : msg.fromName;
-      const partnerRole = adminEmails.has(partnerEmail) ? 'vendor' : 'customer';
-
-      if (!convos[partnerEmail]) convos[partnerEmail] = { email: partnerEmail, name: partnerName, role: partnerRole, lastMsg: '', lastTime: '', unread: 0 };
-      if (!convos[partnerEmail].lastTime || new Date(msg.timestamp) > new Date(convos[partnerEmail].lastTime)) {
-        convos[partnerEmail].lastMsg = msg.text;
-        convos[partnerEmail].lastTime = msg.timestamp;
-      }
-      if (!msg.read && msg.fromRole !== 'super_admin') convos[partnerEmail].unread++;
-    });
-
-    // Add all users without messages so admin can initiate
-    allCustomers.forEach(c => { if (!convos[c.email]) convos[c.email] = { email: c.email, name: c.name, role: adminEmails.has(c.email) ? 'vendor' : 'customer', lastMsg: '', lastTime: '', unread: 0 }; });
-    allAdmins.forEach(a => { if (!convos[a.email]) convos[a.email] = { email: a.email, name: a.name, role: 'vendor', lastMsg: '', lastTime: '', unread: 0 }; });
-
-    return Object.values(convos).sort((a, b) => (b.lastTime ? new Date(b.lastTime).getTime() : 0) - (a.lastTime ? new Date(a.lastTime).getTime() : 0));
-  };
-
-  // Vendor-customer conversations (messages between vendors and customers, NOT involving super admin)
-  const getVendorChats = () => {
-    const chats: Record<string, { vendorEmail: string; vendorName: string; customerEmail: string; customerName: string; lastMsg: string; lastTime: string; key: string }> = {};
-    allMessages.forEach(msg => {
-      if (msg.to === 'broadcast_vendors' || msg.to === 'broadcast_all') return;
-      if (msg.fromRole === 'super_admin' || msg.from === 'africartsadmin99@gmail.com' || msg.from === 'system@africart.com' || msg.to === 'africartsadmin99@gmail.com') return;
-      // One side must be admin (vendor)
-      const isFromVendor = msg.fromRole === 'vendor' || adminEmails.has(msg.from);
-      const isToVendor = adminEmails.has(msg.to);
-      if (!isFromVendor && !isToVendor) return;
-      const vEmail = isFromVendor ? msg.from : msg.to;
-      const vName = isFromVendor ? msg.fromName : msg.toName;
-      const cEmail = isFromVendor ? msg.to : msg.from;
-      const cName = isFromVendor ? msg.toName : msg.fromName;
-      const key = `${vEmail}::${cEmail}`;
-      if (!chats[key]) chats[key] = { vendorEmail: vEmail, vendorName: vName, customerEmail: cEmail, customerName: cName, lastMsg: '', lastTime: '', key };
-      if (!chats[key].lastTime || new Date(msg.timestamp) > new Date(chats[key].lastTime)) {
-        chats[key].lastMsg = msg.text;
-        chats[key].lastTime = msg.timestamp;
-      }
-    });
-    return Object.values(chats).sort((a, b) => (b.lastTime ? new Date(b.lastTime).getTime() : 0) - (a.lastTime ? new Date(a.lastTime).getTime() : 0));
-  };
-
-  const conversations = getConversations();
-  const vendorChats = getVendorChats();
-  const broadcasts = allMessages.filter(m => m.to === 'broadcast_vendors' || m.to === 'broadcast_all');
-
-  const filteredConvos = activeTab === 'all' ? conversations :
-    activeTab === 'broadcasts' || activeTab === 'vendor_chats' ? [] :
-      conversations.filter(c => c.role === (activeTab === 'vendors' ? 'vendor' : 'customer'));
-
-  // Messages for selected conversation — only super admin's own thread
-  const selectedMessages = selectedConvo ? allMessages.filter(m => {
-    if (m.to === 'broadcast_vendors' || m.to === 'broadcast_all') return false;
-    // If viewing a vendor chat thread (contains ::)
-    if (selectedConvo.includes('::')) {
-      const [vE, cE] = selectedConvo.split('::');
-      return (m.from === vE && m.to === cE) || (m.from === cE && m.to === vE);
+    if (selectedChannels.length === 0) {
+      alert('Please select at least one notification channel (In-app, Email, SMS, or Push)');
+      return;
     }
-    // Otherwise, super admin's own DM
-    const isSA = (e: string) => e === 'africartsadmin99@gmail.com' || e === 'system@africart.com';
-    return ((m.from === selectedConvo && (isSA(m.to) || m.to === selectedConvo)) || (m.to === selectedConvo && (isSA(m.from) || m.fromRole === 'super_admin')));
-  }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
 
-  const selectedPartner = conversations.find(c => c.email === selectedConvo);
+    if (recipientAudience === 'selected_vendors' && selectedVendorEmails.length === 0) {
+      alert('Please select at least one target vendor from the list');
+      return;
+    }
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [selectedMessages.length]);
-
-  const handleSend = () => {
-    if (!messageInput.trim() || !selectedConvo || !selectedPartner) return;
-    sendMessage({
-      from: 'africartsadmin99@gmail.com',
-      fromName: 'Super Admin',
-      fromRole: 'super_admin',
-      to: selectedConvo,
-      toName: selectedPartner.name,
-      text: messageInput.trim(),
-    });
-    setMessageInput('');
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formTitle,
+          message: formMessage,
+          channels: selectedChannels,
+          recipientAudience,
+          selectedVendorEmails,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setFormTitle('');
+        setFormMessage('');
+        setSelectedVendorEmails([]);
+        fetchData();
+      } else {
+        alert(data.message || 'Dispatch failed');
+      }
+    } catch (err) {
+      console.error('Dispatch error:', err);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleBroadcast = () => {
-    if (!broadcastText.trim()) return;
-    broadcastMessage(broadcastText.trim(), broadcastTarget);
-    setBroadcastText('');
-    setShowBroadcast(false);
+  // Action: Delete Dispatch Log
+  const handleDeleteDispatch = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Delete dispatch error:', err);
+    }
   };
 
-  const formatTime = (iso: string) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-  const formatDate = (iso: string) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const toggleVendorSelection = (email: string) => {
+    if (selectedVendorEmails.includes(email)) {
+      setSelectedVendorEmails(selectedVendorEmails.filter(e => e !== email));
+    } else {
+      setSelectedVendorEmails([...selectedVendorEmails, email]);
+    }
   };
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: isMobile ? 80 : 0 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h1 className="font-lexend" style={{ fontSize: isMobile ? '1.5rem' : '2rem', marginBottom: '8px', color: 'var(--foreground)' }}>Messaging Center</h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: isMobile ? '0.85rem' : '1rem' }}>Real-time messages — broadcast to vendors and customers</p>
-        </div>
-        <button onClick={() => setShowBroadcast(!showBroadcast)} style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: 'var(--lime-400)', color: 'black', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>campaign</span>
-          Broadcast
-        </button>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
 
-      {/* Broadcast Panel */}
-      {showBroadcast && (
-        <div className="animate-fade-in" style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', padding: isMobile ? '16px' : '24px', border: '1px solid var(--outline)' }}>
-          <h3 className="font-lexend" style={{ fontSize: '1.1rem', marginBottom: '16px', color: 'var(--foreground)' }}>Send Broadcast Message</h3>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-            <button onClick={() => setBroadcastTarget('vendors')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 600, cursor: 'pointer', backgroundColor: broadcastTarget === 'vendors' ? 'var(--lime-400)' : 'var(--surface-container)', color: broadcastTarget === 'vendors' ? 'black' : 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-              Vendors Only ({allAdmins.length})
-            </button>
-            <button onClick={() => setBroadcastTarget('all')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: 600, cursor: 'pointer', backgroundColor: broadcastTarget === 'all' ? 'var(--lime-400)' : 'var(--surface-container)', color: broadcastTarget === 'all' ? 'black' : 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-              Vendors + Customers ({allAdmins.length + allCustomers.length})
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', flexDirection: isMobile ? 'column' : 'row' }}>
-            <textarea value={broadcastText} onChange={e => setBroadcastText(e.target.value)} placeholder="Type your broadcast message..." rows={3} style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-            <button onClick={handleBroadcast} disabled={!broadcastText.trim()} style={{ alignSelf: isMobile ? 'stretch' : 'flex-end', padding: '12px 24px', borderRadius: '8px', backgroundColor: broadcastText.trim() ? 'var(--lime-400)' : 'var(--surface-container)', color: broadcastText.trim() ? 'black' : 'var(--on-surface-variant)', border: 'none', fontWeight: 600, cursor: broadcastText.trim() ? 'pointer' : 'default' }}>
-              Send Broadcast
-            </button>
-          </div>
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={toastStyle}>
+          <span className="material-symbols-outlined" style={{ color: '#38bdf8' }}>check_circle</span>
+          <span>{toastMsg}</span>
         </div>
       )}
 
-      <div style={{ 
-        display: 'flex', 
-        height: isMobile ? 'calc(100vh - 250px)' : 'calc(100vh - 300px)', 
-        minHeight: '400px', 
-        backgroundColor: 'var(--surface)', 
-        borderRadius: '16px', 
-        border: '1px solid var(--outline)', 
-        overflow: 'hidden',
-        position: 'relative'
-      }}>
-        {/* Conversation List */}
-        <div style={{ 
-          width: isMobile ? '100%' : '340px', 
-          borderRight: isMobile ? 'none' : '1px solid var(--outline)', 
-          display: isMobile && selectedConvo ? 'none' : 'flex', 
-          flexDirection: 'column',
-          backgroundColor: 'var(--surface)'
-        }}>
-          <div style={{ padding: '12px', borderBottom: '1px solid var(--outline)', display: 'flex', gap: '6px', overflowX: 'auto' }} className="no-scrollbar">
-            {['all', 'vendors', 'customers', 'vendor_chats', 'broadcasts'].map(tab => (
-              <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'broadcasts' || tab === 'vendor_chats') setSelectedConvo(null); }} style={{ flex: isMobile ? '0 0 auto' : 1, padding: '8px 12px', borderRadius: '8px', border: 'none', fontSize: '0.78rem', fontWeight: activeTab === tab ? 600 : 400, cursor: 'pointer', textTransform: 'capitalize', backgroundColor: activeTab === tab ? 'var(--lime-400)' : 'var(--surface-container)', color: activeTab === tab ? 'black' : 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>
-                {tab === 'vendor_chats' ? 'Vendor Chats' : tab === 'vendors' ? 'Vendors' : tab}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {activeTab === 'broadcasts' ? (
-              broadcasts.length === 0 ? (
-                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '40px', opacity: 0.4, marginBottom: '8px', display: 'block' }}>campaign</span>
-                  <p style={{ fontSize: '0.85rem' }}>No broadcasts sent yet</p>
-                </div>
-              ) : (
-                broadcasts.slice().reverse().map(b => (
-                  <div key={b.id} style={{ padding: '14px 16px', borderBottom: '1px solid var(--outline-variant)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--lime-400)' }}>{b.to === 'broadcast_vendors' ? '📢 To Vendors' : '📢 To Everyone'}</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)' }}>{formatDate(b.timestamp)}</span>
-                    </div>
-                    <p style={{ fontSize: '0.88rem', color: 'var(--on-surface)', margin: 0, lineHeight: 1.4 }}>{b.text}</p>
-                  </div>
-                ))
-              )
-            ) : activeTab === 'vendor_chats' ? (
-              vendorChats.length === 0 ? (
-                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '40px', opacity: 0.4, marginBottom: '8px', display: 'block' }}>forum</span>
-                  <p style={{ fontSize: '0.85rem' }}>No vendor-customer chats yet</p>
-                </div>
-              ) : (
-                vendorChats.map(vc => (
-                  <div key={vc.key} onClick={() => setSelectedConvo(vc.key)} style={{ display: 'flex', gap: '12px', padding: '14px 16px', cursor: 'pointer', borderBottom: '1px solid var(--outline-variant)', backgroundColor: selectedConvo === vc.key ? 'var(--surface-container-high)' : 'transparent', transition: 'background-color 0.15s' }}>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'color-mix(in srgb, #00e5ff 20%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.75rem', flexShrink: 0, color: '#00e5ff' }}>
-                      {vc.vendorName.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--foreground)' }}>{vc.vendorName}</span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)' }}>{formatTime(vc.lastTime)}</span>
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--secondary)', fontWeight: 500, display: 'block', marginBottom: 2 }}>↔ {vc.customerName}</span>
-                      <span className="line-clamp-1" style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)' }}>{vc.lastMsg}</span>
-                    </div>
-                  </div>
-                ))
-              )
-            ) : filteredConvos.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '40px', opacity: 0.4, marginBottom: '8px', display: 'block' }}>chat</span>
-                <p style={{ fontSize: '0.85rem' }}>No conversations yet</p>
-              </div>
-            ) : (
-              filteredConvos.map(c => (
-                <div key={c.email} onClick={() => setSelectedConvo(c.email)} style={{ display: 'flex', gap: '12px', padding: '14px 16px', cursor: 'pointer', borderBottom: '1px solid var(--outline-variant)', backgroundColor: selectedConvo === c.email ? 'var(--surface-container-high)' : 'transparent', transition: 'background-color 0.15s' }}>
-                  <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, color: 'var(--foreground)' }}>
-                    {c.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--foreground)' }}>{c.name}</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--on-surface-variant)' }}>{formatTime(c.lastTime)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="line-clamp-1" style={{ fontSize: '0.82rem', color: 'var(--on-surface-variant)', flex: 1 }}>{c.lastMsg}</span>
-                      {c.unread > 0 && <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'var(--lime-400)', color: 'var(--on-lime-400)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0, marginLeft: '8px' }}>{c.unread}</div>}
-                    </div>
-                    <span style={{ fontSize: '0.72rem', color: c.role === 'vendor' ? '#00e5ff' : 'var(--secondary)', fontWeight: 500 }}>{c.role === 'vendor' ? 'Vendor' : 'Customer'}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Chat Area */}
-        <div style={{ 
-          flex: 1, 
-          display: isMobile && !selectedConvo ? 'none' : 'flex', 
-          flexDirection: 'column',
-          backgroundColor: 'var(--surface)'
-        }}>
-          {selectedConvo && selectedPartner ? (
-            <>
-              <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--outline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {isMobile && (
-                    <button onClick={() => setSelectedConvo(null)} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', display: 'flex', padding: 0 }}>
-                      <span className="material-symbols-outlined">arrow_back</span>
-                    </button>
-                  )}
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', color: 'var(--foreground)' }}>
-                    {selectedPartner.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--foreground)' }}>{selectedPartner.name}</div>
-                    <div style={{ fontSize: '0.78rem', color: selectedPartner.role === 'vendor' ? '#00e5ff' : 'var(--secondary)' }}>{selectedPartner.role === 'vendor' ? 'Vendor' : 'Customer'}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {selectedMessages.length === 0 ? (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>
-                    <p style={{ fontSize: '0.9rem' }}>No messages in this conversation yet</p>
-                  </div>
-                ) : selectedMessages.map(m => (
-                  <div key={m.id} style={{ display: 'flex', justifyContent: (m.fromRole === 'super_admin' || (activeTab === 'vendor_chats' && adminEmails.has(m.from))) ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '80%', padding: '12px 16px', borderRadius: m.fromRole === 'super_admin' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      backgroundColor: (m.fromRole === 'super_admin' || (activeTab === 'vendor_chats' && adminEmails.has(m.from))) ? 'var(--lime-400)' : 'var(--surface-container-high)',
-                      color: (m.fromRole === 'super_admin' || (activeTab === 'vendor_chats' && adminEmails.has(m.from))) ? 'black' : 'var(--on-surface)',
-                    }}>
-                      <div style={{ fontSize: '0.95rem', lineHeight: 1.5 }}>{m.text}</div>
-                      <div style={{ fontSize: '0.72rem', marginTop: '6px', opacity: 0.7, textAlign: 'right' }}>{formatTime(m.timestamp)}</div>
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div style={{ padding: '16px 24px', borderTop: '1px solid var(--outline)', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <input type="text" value={messageInput} onChange={e => setMessageInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Type a message..." style={{ flex: 1, padding: '12px 16px', borderRadius: '24px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
-                <button onClick={handleSend} style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: messageInput.trim() ? 'var(--lime-400)' : 'var(--surface-container)', color: messageInput.trim() ? 'black' : 'var(--on-surface-variant)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>send</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ flex: 1, display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.3 }}>forum</span>
-                <p style={{ fontWeight: 500 }}>Select a conversation</p>
-                <p style={{ fontSize: '0.85rem', marginTop: '4px' }}>or broadcast a message to admins and customers</p>
-              </div>
-            </div>
-          )}
+      {/* Header Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 900, color: '#0f172a', margin: 0, fontFamily: 'var(--font-lexend, sans-serif)' }}>
+            Multi-Channel Notification Dispatch Hub
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+            Broadcast alerts across In-app, Email, SMS & Push Notifications to All Vendors, Selected Vendors, Customers & Staff
+          </p>
         </div>
       </div>
+
+      {/* Audience Target Telemetry Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>All Registered Vendors</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#2563eb', marginTop: 4 }}>{audienceCounts.allVendors} Partners</div>
+        </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Registered Customers</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#16a34a', marginTop: 4 }}>{audienceCounts.customers} Buyers</div>
+        </div>
+        <div style={statCardStyle}>
+          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>Internal Staff & Support</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#7c3aed', marginTop: 4 }}>{audienceCounts.staff} Accounts</div>
+        </div>
+      </div>
+
+      {/* Navigation Sub-View Tabs */}
+      <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+        {[
+          { id: 'dispatch', label: 'Multi-Channel Dispatcher', icon: 'campaign' },
+          { id: 'history', label: 'Broadcast Dispatch History', icon: 'history' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setSubView(tab.id as SubView)}
+            style={{
+              border: 'none',
+              background: subView === tab.id ? '#0f172a' : 'transparent',
+              color: subView === tab.id ? '#ffffff' : '#64748b',
+              fontWeight: subView === tab.id ? 800 : 600,
+              fontSize: 13,
+              padding: '8px 16px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content Area */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '4px solid #16a34a', borderTopColor: 'transparent', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 12, fontWeight: 600, fontSize: 13 }}>Loading notification engine telemetry...</p>
+        </div>
+      ) : subView === 'dispatch' ? (
+
+        /* SUB-VIEW 1: MULTI-CHANNEL DISPATCHER FORM */
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          
+          {/* Dispatch Form Card */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Create Broadcast Notification</h3>
+            <form onSubmit={handleDispatchNotification} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              
+              <div>
+                <label style={labelStyle}>Notification Title / Subject *</label>
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={e => setFormTitle(e.target.value)}
+                  placeholder="e.g. Platform Maintenance & Payout Schedule Update"
+                  required
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Notification Message Body *</label>
+                <textarea
+                  rows={4}
+                  value={formMessage}
+                  onChange={e => setFormMessage(e.target.value)}
+                  placeholder="Type message content delivered to selected channels..."
+                  required
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </div>
+
+              {/* 4 Delivery Channels Selector */}
+              <div>
+                <label style={labelStyle}>1. Delivery Channels (Select 1 or more) *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+                  <label style={channelCheckboxStyle(channelInApp)}>
+                    <input type="checkbox" checked={channelInApp} onChange={e => setChannelInApp(e.target.checked)} />
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2563eb' }}>notifications</span>
+                    <span>In-app Alert</span>
+                  </label>
+                  <label style={channelCheckboxStyle(channelEmail)}>
+                    <input type="checkbox" checked={channelEmail} onChange={e => setChannelEmail(e.target.checked)} />
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ea580c' }}>mail</span>
+                    <span>Email Broadcast</span>
+                  </label>
+                  <label style={channelCheckboxStyle(channelSMS)}>
+                    <input type="checkbox" checked={channelSMS} onChange={e => setChannelSMS(e.target.checked)} />
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#16a34a' }}>sms</span>
+                    <span>SMS Mobile Text</span>
+                  </label>
+                  <label style={channelCheckboxStyle(channelPush)}>
+                    <input type="checkbox" checked={channelPush} onChange={e => setChannelPush(e.target.checked)} />
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#7c3aed' }}>send_to_mobile</span>
+                    <span>Push Notification</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 4 Recipient Audiences Selector */}
+              <div>
+                <label style={labelStyle}>2. Recipient Audience Target *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+                  {[
+                    { id: 'all_vendors', label: 'All Vendors', count: audienceCounts.allVendors },
+                    { id: 'selected_vendors', label: 'Selected Vendors', count: selectedVendorEmails.length },
+                    { id: 'customers', label: 'Customers', count: audienceCounts.customers },
+                    { id: 'staff', label: 'Internal Staff', count: audienceCounts.staff },
+                  ].map(aud => (
+                    <button
+                      type="button"
+                      key={aud.id}
+                      onClick={() => setRecipientAudience(aud.id as any)}
+                      style={{
+                        background: recipientAudience === aud.id ? '#0f172a' : '#f8fafc',
+                        color: recipientAudience === aud.id ? '#ffffff' : '#475569',
+                        fontWeight: recipientAudience === aud.id ? 800 : 600,
+                        fontSize: 12,
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        border: recipientAudience === aud.id ? '1px solid #0f172a' : '1px solid #cbd5e1',
+                      }}
+                    >
+                      <span>{aud.label}</span>
+                      <span style={{ fontSize: 10, background: recipientAudience === aud.id ? '#334155' : '#e2e8f0', padding: '2px 6px', borderRadius: 4 }}>
+                        {aud.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" disabled={actionLoading} style={{ ...btnPrimaryStyle, width: '100%', justifyContent: 'center', padding: 12, marginTop: 6 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>send</span>
+                <span>Dispatch Broadcast Notification</span>
+              </button>
+
+            </form>
+          </div>
+
+          {/* Selected Vendor Picker Drawer (when Selected Vendors is targeted) */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>
+              {recipientAudience === 'selected_vendors' ? `Target Vendor Picker (${selectedVendorEmails.length} Selected)` : 'Audience Target Overview'}
+            </h3>
+            
+            {recipientAudience === 'selected_vendors' ? (
+              <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {vendorsList.map((v, idx) => {
+                  const isSelected = selectedVendorEmails.includes(v.vendorEmail);
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => toggleVendorSelection(v.vendorEmail)}
+                      style={{
+                        padding: 10,
+                        borderRadius: 10,
+                        background: isSelected ? '#dcfce7' : '#f8fafc',
+                        border: isSelected ? '1px solid #16a34a' : '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: 12,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>{v.storeName}</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>{v.vendorEmail}</div>
+                      </div>
+                      <span className="material-symbols-outlined" style={{ color: isSelected ? '#16a34a' : '#cbd5e1' }}>
+                        {isSelected ? 'check_box' : 'checkbox_outline_blank'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 20, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div><strong>Current Target Audience:</strong> <span style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase' }}>{recipientAudience.replace('_', ' ')}</span></div>
+                <div><strong>Estimated Recipients:</strong> {recipientAudience === 'all_vendors' ? audienceCounts.allVendors : recipientAudience === 'customers' ? audienceCounts.customers : audienceCounts.staff} Active Accounts</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 10 }}>
+                  Selecting <strong>Selected Vendors</strong> lets you check individual vendor stores from the list to target specific partners.
+                </div>
+              </div>
+            )}
+
+          </div>
+
+        </div>
+
+      ) : (
+
+        /* SUB-VIEW 2: BROADCAST DISPATCH HISTORY */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Broadcast Dispatch History Log ({dispatchesList.length})</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Notification Title & ID</th>
+                  <th style={{ padding: 10 }}>Channels</th>
+                  <th style={{ padding: 10 }}>Target Audience</th>
+                  <th style={{ padding: 10 }}>Recipients Delivered</th>
+                  <th style={{ padding: 10 }}>Dispatch Date</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dispatchesList.map(d => (
+                  <tr key={d.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{d.title}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {d.dispatchId}</div>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {d.channels?.map((ch: string, cIdx: number) => (
+                          <span key={cIdx} style={badgeStyle('#2563eb', '#dbeafe')}>
+                            {ch.toUpperCase().replace('_', '-')}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle('#7c3aed', '#f3e8ff')}>{d.recipientAudience.replace('_', ' ').toUpperCase()}</span>
+                    </td>
+                    <td style={{ padding: 12, fontWeight: 900, color: '#16a34a' }}>
+                      {d.sentCount} Recipients
+                    </td>
+                    <td style={{ padding: 12, color: '#64748b' }}>{d.createdAt}</td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => handleDeleteDispatch(d.id)} style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '4px 8px', borderRadius: 6, fontWeight: 800, fontSize: 10, cursor: 'pointer' }}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      )}
+
     </div>
   );
 }
+
+// Helpers
+const channelCheckboxStyle = (checked: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: checked ? '#f0f9ff' : '#ffffff',
+  border: checked ? '1px solid #0284c7' : '1px solid #cbd5e1',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 700,
+  color: checked ? '#0369a1' : '#475569',
+});
+
+// ── Reusable Component Styles ──────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const statCardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const toastStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 20,
+  right: 20,
+  zIndex: 9999,
+  background: '#0f172a',
+  color: '#38bdf8',
+  padding: '12px 20px',
+  borderRadius: 12,
+  boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+  fontSize: 13,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #0284c7',
+};
+
+const btnPrimaryStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#16a34a',
+  color: '#ffffff',
+  fontWeight: 800,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const badgeStyle = (color: string, bg: string): React.CSSProperties => ({
+  background: bg,
+  color: color,
+  fontSize: 10,
+  fontWeight: 800,
+  padding: '2px 8px',
+  borderRadius: 6,
+  textTransform: 'uppercase',
+});
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#334155',
+  marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: 13,
+  outline: 'none',
+};

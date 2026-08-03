@@ -3,6 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import { VendorApplication } from '@/models/VendorApplication';
 import { User } from '@/models/User';
 import { VendorProfile } from '@/models/VendorProfile';
+import { VendorSubscription } from '@/models/VendorSubscription';
 import { sendSMS } from '@/lib/sms';
 import { sendEmail } from '@/lib/email';
 
@@ -56,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       // Synchronize VendorProfile status to approved
       if (user) {
-        await VendorProfile.findOneAndUpdate(
+        const vendorProfile = await VendorProfile.findOneAndUpdate(
           { userId: user._id },
           {
             status: 'approved',
@@ -67,6 +68,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           },
           { upsert: true, new: true }
         );
+
+        // ── Auto-enroll in 30-day free trial (Phase 9.2 step 4) ─────────────
+        // Check no active subscription already exists
+        const existingSub = await VendorSubscription.findOne({
+          vendorId: user._id,
+          status: 'active',
+        });
+        if (!existingSub) {
+          const trialStart = new Date();
+          const trialEnd = new Date(trialStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const gracePeriodEnd = new Date(trialEnd.getTime() + 3 * 24 * 60 * 60 * 1000);
+          await VendorSubscription.create({
+            vendorId: user._id,
+            vendorEmail: user.email?.toLowerCase() || application.email.toLowerCase(),
+            storeId: vendorProfile?._id, // may be null until store is created
+            planTier: 'trial',
+            planName: 'Free Trial',
+            status: 'active',
+            startDate: trialStart,
+            endDate: trialEnd,
+            gracePeriodEndDate: gracePeriodEnd,
+            amountPaid: 0,
+            currency: 'GHS',
+            autoRenew: false,
+            remindersSent: [],
+          });
+          console.log(`[vendor-approval] Trial subscription auto-created for ${user.email} — expires ${trialEnd.toISOString()}`);
+        }
       }
 
       // SMS

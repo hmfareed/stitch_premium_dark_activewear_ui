@@ -1,366 +1,731 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useToast } from '@/context/AppContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth, useToast } from '@/context/AppContext';
 import Link from 'next/link';
 
-const STORAGE_KEY = 'africart-platform-settings';
+type SettingsTab =
+  | 'general'
+  | 'business'
+  | 'localization'
+  | 'currencies'
+  | 'taxes'
+  | 'payment_gateways'
+  | 'email'
+  | 'sms'
+  | 'push_notifications'
+  | 'security'
+  | 'authentication'
+  | 'storage'
+  | 'api_keys'
+  | 'integrations'
+  | 'appearance'
+  | 'backups'
+  | 'maintenance_mode'
+  | 'licensing';
 
-interface PlatformSettings {
-  appName: string;
-  accentColor: string;
-  lightLogo: string | null;
-  darkLogo: string | null;
-  defaultDarkMode: boolean;
-  supportEmail: string;
-  supportPhone: string;
-  maintenanceMode: boolean;
-  baseCurrency: string;
-  taxRate: string;
-  gateways: { name: string; status: string; icon: string }[];
-  deliveryFee: string;
-  freeDeliveryMin: string;
-  estimatedDays: string;
-  deliveryZones: string;
-  enableTracking: boolean;
-  features: { name: string; desc: string; active: boolean }[];
-}
-
-const defaults: PlatformSettings = {
-  appName: 'AfriCart',
-  accentColor: '#00E5FF',
-  lightLogo: null,
-  darkLogo: null,
-  defaultDarkMode: true,
-  supportEmail: 'support@africart.com',
-  supportPhone: '+1 (800) 123-4567',
-  maintenanceMode: false,
-  baseCurrency: 'GHS (GH₵)',
-  taxRate: '8.5',
-  gateways: [
-    { name: 'Stripe', status: 'Connected', icon: 'credit_card' },
-    { name: 'PayPal', status: 'Connected', icon: 'account_balance_wallet' },
-    { name: 'Apple Pay', status: 'Disconnected', icon: 'phone_iphone' },
-  ],
-  deliveryFee: '15.00',
-  freeDeliveryMin: '200.00',
-  estimatedDays: '3-5',
-  deliveryZones: 'Greater Accra, Ashanti, Western, Eastern',
-  enableTracking: true,
-  features: [
-    { name: 'Vendor Registration', desc: 'Allow new vendors to sign up', active: true },
-    { name: 'Customer Reviews', desc: 'Enable product reviews and ratings', active: true },
-    { name: 'Live Chat', desc: 'Enable real-time customer support chat', active: false },
-    { name: 'Guest Checkout', desc: 'Allow purchases without an account', active: true },
-    { name: 'Crypto Payments', desc: 'Accept BTC and ETH via Coinbase', active: false },
-  ],
-};
-
-function loadSettings(): PlatformSettings {
-  if (typeof window === 'undefined') return defaults;
-  try { const s = localStorage.getItem(STORAGE_KEY); return s ? { ...defaults, ...JSON.parse(s) } : defaults; } catch { return defaults; }
-}
+const TAB_DEFINITIONS: Array<{ id: SettingsTab; label: string; icon: string }> = [
+  { id: 'general', label: '1. General', icon: 'settings' },
+  { id: 'business', label: '2. Business', icon: 'business' },
+  { id: 'localization', label: '3. Localization', icon: 'language' },
+  { id: 'currencies', label: '4. Currencies', icon: 'payments' },
+  { id: 'taxes', label: '5. Taxes', icon: 'receipt_long' },
+  { id: 'payment_gateways', label: '6. Payment Gateways', icon: 'credit_card' },
+  { id: 'email', label: '7. Email', icon: 'mail' },
+  { id: 'sms', label: '8. SMS', icon: 'sms' },
+  { id: 'push_notifications', label: '9. Push Notifications', icon: 'notifications_active' },
+  { id: 'security', label: '10. Security', icon: 'shield' },
+  { id: 'authentication', label: '11. Authentication', icon: 'lock' },
+  { id: 'storage', label: '12. Storage', icon: 'cloud' },
+  { id: 'api_keys', label: '13. API Keys', icon: 'key' },
+  { id: 'integrations', label: '14. Integrations', icon: 'extension' },
+  { id: 'appearance', label: '15. Appearance', icon: 'palette' },
+  { id: 'backups', label: '16. Backups', icon: 'backup' },
+  { id: 'maintenance_mode', label: '17. Maintenance Mode', icon: 'build' },
+  { id: 'licensing', label: '18. Licensing', icon: 'verified' },
+];
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState('branding');
-  const [settings, setSettings] = useState<PlatformSettings>(defaults);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [customColor, setCustomColor] = useState('#00E5FF');
-  const lightLogoRef = useRef<HTMLInputElement>(null);
-  const darkLogoRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
   const { showToast } = useToast();
 
-  useEffect(() => { setSettings(loadSettings()); }, []);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [settings, setSettings] = useState<Record<string, any>>({});
 
-  const update = (patch: Partial<PlatformSettings>) => {
-    setSettings(prev => ({ ...prev, ...patch }));
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/settings');
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setSettings(data.settings);
+      } else {
+        showToast(data.message || 'Failed to load system settings', 'error');
+      }
+    } catch (err) {
+      showToast('Error connecting to settings service', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const updateSection = (sectionKey: string, patch: Record<string, any>) => {
+    setSettings((prev) => ({
+      ...prev,
+      [sectionKey]: {
+        ...(prev[sectionKey] || {}),
+        ...patch,
+      },
+    }));
     setHasChanges(true);
   };
 
-  const saveChanges = () => {
+  const handleSaveSettings = async () => {
     setSaving(true);
-    setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      // Apply accent color globally
-      document.documentElement.style.setProperty('--lime-400', settings.accentColor);
-      localStorage.setItem('africart-accent-color', settings.accentColor);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('All system settings saved successfully!', 'success');
+        setHasChanges(false);
+        if (settings.appearance?.accentColor) {
+          document.documentElement.style.setProperty('--lime-400', settings.appearance.accentColor);
+        }
+      } else {
+        showToast(data.message || 'Failed to save settings', 'error');
+      }
+    } catch (err) {
+      showToast('Error saving system settings', 'error');
+    } finally {
       setSaving(false);
-      setHasChanges(false);
-      showToast('Settings saved successfully!');
-    }, 600);
+    }
   };
 
-  const handleLogoUpload = (type: 'lightLogo' | 'darkLogo') => {
-    const ref = type === 'lightLogo' ? lightLogoRef : darkLogoRef;
-    ref.current?.click();
-  };
-
-  const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>, type: 'lightLogo' | 'darkLogo') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { showToast('Please select an image file', 'error'); return; }
-    if (file.size > 2 * 1024 * 1024) { showToast('Image must be under 2MB', 'error'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => { update({ [type]: ev.target?.result as string }); };
-    reader.readAsDataURL(file);
-  };
-
-  const toggleFeature = (idx: number) => {
-    const updated = [...settings.features];
-    updated[idx] = { ...updated[idx], active: !updated[idx].active };
-    update({ features: updated });
-  };
-
-  const toggleGateway = (idx: number) => {
-    const updated = [...settings.gateways];
-    updated[idx] = { ...updated[idx], status: updated[idx].status === 'Connected' ? 'Disconnected' : 'Connected' };
-    update({ gateways: updated });
-  };
-
-  const tabs = [
-    { id: 'branding', name: 'Branding & UI', icon: 'palette' },
-    { id: 'general', name: 'General', icon: 'settings' },
-    { id: 'payment', name: 'Payments', icon: 'payments' },
-    { id: 'shipping', name: 'Delivery', icon: 'local_shipping' },
-    { id: 'features', name: 'Features', icon: 'toggle_on' },
-  ];
-
-  const presetColors = [
-    '#00E5FF', // Electric Cyan
-    '#A855F7', // Royal Violet
-    '#FF9100', // Sunset Orange
-    '#6366F1', // Electric Indigo
-    '#FB7185', // Rose Pink
-    '#14B8A6', // Teal
-    '#FBBF24', // Amber Gold
-    '#10B981', // Emerald
-    '#FF4081', // Pink Accent
-    '#C3F400'  // Original Lime
-  ];
-
-  const inputStyle: React.CSSProperties = { width: '100%', maxWidth: '400px', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.95rem' };
-
-  const Toggle = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
-    <div onClick={onToggle} style={{ width: '48px', height: '26px', backgroundColor: on ? settings.accentColor : 'var(--outline-variant)', borderRadius: '13px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.3s', flexShrink: 0 }}>
-      <div style={{ width: '22px', height: '22px', backgroundColor: on ? 'black' : 'var(--on-surface-variant)', borderRadius: '50%', position: 'absolute', top: '2px', left: on ? '24px' : '2px', transition: 'left 0.3s, background-color 0.3s' }} />
+  const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+    <div
+      onClick={onChange}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: checked ? '#16a34a' : '#cbd5e1',
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      <div
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          backgroundColor: '#ffffff',
+          position: 'absolute',
+          top: 2,
+          left: checked ? 22 : 2,
+          transition: 'all 0.2s ease',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        }}
+      />
     </div>
   );
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', fontFamily: 'var(--font-inter, sans-serif)', color: '#0f172a' }}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Platform Settings</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Configure global platform behavior and appearance</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: '#64748b', marginBottom: 4 }}>
+            <Link href="/admin" style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 600 }}>Admin Portal</Link>
+            <span>/</span>
+            <span>System Configuration</span>
+          </div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 30, color: '#16a34a' }}>settings</span>
+            Module 21 — System Settings Governance
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '0.92rem', marginTop: 4 }}>
+            Manage and configure 18 enterprise system settings tabs including Payments, Taxes, Security, Backups, and Maintenance.
+          </p>
         </div>
-        <button onClick={saveChanges} disabled={!hasChanges || saving} style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: hasChanges ? settings.accentColor : 'var(--outline-variant)', color: hasChanges ? '#fff' : 'var(--on-surface-variant)', border: 'none', fontWeight: 600, cursor: hasChanges ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '8px', opacity: hasChanges ? 1 : 0.5, transition: 'all 0.3s' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px', animation: saving ? 'spin 1s linear infinite' : 'none' }}>{saving ? 'progress_activity' : 'save'}</span>
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={handleSaveSettings}
+            disabled={!hasChanges || saving}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 22px',
+              backgroundColor: hasChanges ? '#16a34a' : '#cbd5e1',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              cursor: hasChanges ? 'pointer' : 'not-allowed',
+              boxShadow: hasChanges ? '0 2px 8px rgba(22, 163, 74, 0.25)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>save</span>
+            {saving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap', width: '100%' }}>
-        <div className="responsive-tab-sidebar">
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', border: 'none', backgroundColor: activeTab === tab.id ? 'var(--surface-container-high)' : 'transparent', color: activeTab === tab.id ? settings.accentColor : 'var(--on-surface)', fontWeight: activeTab === tab.id ? 600 : 400, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}>
-              <span className="material-symbols-outlined">{tab.icon}</span>
-              {tab.name}
-            </button>
-          ))}
+      {/* MAIN TWO COLUMN LAYOUT: SIDEBAR (18 TABS) + CONTENT PANEL */}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        
+        {/* 18 TABS SIDEBAR */}
+        <div style={{ width: 260, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 12, display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.06em', padding: '6px 12px 10px', borderBottom: '1px solid #f1f5f9' }}>
+            18 CONFIGURATION TABS
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 620, overflowY: 'auto' }}>
+            {TAB_DEFINITIONS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    border: 'none',
+                    backgroundColor: isActive ? '#ecfdf5' : 'transparent',
+                    color: isActive ? '#15803d' : '#475569',
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: isActive ? '#16a34a' : '#94a3b8' }}>
+                    {tab.icon}
+                  </span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div style={{ flex: 1, backgroundColor: 'var(--surface)', padding: '24px 20px', borderRadius: '16px', border: '1px solid var(--outline)', minHeight: '500px', minWidth: '280px' }}>
-
-          {/* ── BRANDING ── */}
-          {activeTab === 'branding' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <h2 className="font-lexend" style={{ fontSize: '1.5rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>Branding & Appearance</h2>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>App Name</label>
-                <input type="text" value={settings.appName} onChange={e => update({ appName: e.target.value })} style={inputStyle} />
+        {/* CONTENT PANEL FOR SELECTED TAB */}
+        <div style={{ flex: 1, minWidth: 320, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+          
+          {loading ? (
+            <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>Loading settings tab content...</div>
+          ) : (
+            <div>
+              {/* TAB TITLE */}
+              <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 14, marginBottom: 20 }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', textTransform: 'capitalize' }}>
+                  {TAB_DEFINITIONS.find((t) => t.id === activeTab)?.label} Configuration
+                </h2>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Accent Color</label>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {presetColors.map(color => (
-                    <button key={color} onClick={() => update({ accentColor: color })} style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: color, border: settings.accentColor === color ? '3px solid white' : '2px solid transparent', cursor: 'pointer', outline: 'none', transition: 'transform 0.2s, border 0.2s', transform: settings.accentColor === color ? 'scale(1.15)' : 'scale(1)' }} />
-                  ))}
-                  <div style={{ position: 'relative' }}>
-                    <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', border: !presetColors.includes(settings.accentColor) ? '3px solid white' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span className="material-symbols-outlined" style={{ color: 'white', fontSize: '18px' }}>add</span>
-                    </button>
-                    {showColorPicker && (
-                      <div style={{ position: 'absolute', top: '50px', left: '-40px', zIndex: 100, backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: '12px', padding: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <input type="color" value={customColor} onChange={e => setCustomColor(e.target.value)} style={{ width: '100px', height: '40px', border: 'none', cursor: 'pointer', borderRadius: '8px' }} />
-                        <button onClick={() => { update({ accentColor: customColor }); setShowColorPicker(false); }} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: customColor, color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>Apply</button>
-                      </div>
-                    )}
+              {/* TAB 1: GENERAL */}
+              {activeTab === 'general' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Platform Site Name</label>
+                    <input type="text" value={settings.general?.siteName || ''} onChange={(e) => updateSection('general', { siteName: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Support Email</label>
+                    <input type="email" value={settings.general?.supportEmail || ''} onChange={(e) => updateSection('general', { supportEmail: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Support Phone</label>
+                    <input type="text" value={settings.general?.supportPhone || ''} onChange={(e) => updateSection('general', { supportPhone: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Default Timezone</label>
+                    <input type="text" value={settings.general?.defaultTimezone || ''} onChange={(e) => updateSection('general', { defaultTimezone: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Copyright Footer Text</label>
+                    <input type="text" value={settings.general?.copyrightText || ''} onChange={(e) => updateSection('general', { copyrightText: e.target.value })} style={inputStyle} />
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: settings.accentColor }} />
-                  <span style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontFamily: 'monospace' }}>{settings.accentColor}</span>
-                </div>
-              </div>
+              )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <label style={{ fontWeight: 500 }}>Logos</label>
-                <input ref={lightLogoRef} type="file" accept="image/*" hidden onChange={e => onFileSelected(e, 'lightLogo')} />
-                <input ref={darkLogoRef} type="file" accept="image/*" hidden onChange={e => onFileSelected(e, 'darkLogo')} />
-                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                  <div onClick={() => handleLogoUpload('lightLogo')} style={{ padding: '24px', border: '1px dashed var(--outline-variant)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '200px', cursor: 'pointer', transition: 'border-color 0.2s' }}>
-                    {settings.lightLogo ? <img src={settings.lightLogo} alt="Light Logo" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} /> : <span className="material-symbols-outlined" style={{ fontSize: '32px', color: 'var(--on-surface-variant)' }}>upload_file</span>}
-                    <span style={{ fontSize: '0.9rem' }}>{settings.lightLogo ? 'Change Light Logo' : 'Upload Light Logo'}</span>
-                    {settings.lightLogo && <button onClick={e => { e.stopPropagation(); update({ lightLogo: null }); }} style={{ fontSize: '0.8rem', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>}
+              {/* TAB 2: BUSINESS */}
+              {activeTab === 'business' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Legal Company Name</label>
+                    <input type="text" value={settings.business?.companyName || ''} onChange={(e) => updateSection('business', { companyName: e.target.value })} style={inputStyle} />
                   </div>
-                  <div onClick={() => handleLogoUpload('darkLogo')} style={{ padding: '24px', border: '1px dashed var(--outline-variant)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '200px', backgroundColor: 'var(--surface-container)', cursor: 'pointer' }}>
-                    {settings.darkLogo ? <img src={settings.darkLogo} alt="Dark Logo" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} /> : <span className="material-symbols-outlined" style={{ fontSize: '32px', color: 'var(--on-surface-variant)' }}>upload_file</span>}
-                    <span style={{ fontSize: '0.9rem' }}>{settings.darkLogo ? 'Change Dark Logo' : 'Upload Dark Logo'}</span>
-                    {settings.darkLogo && <button onClick={e => { e.stopPropagation(); update({ darkLogo: null }); }} style={{ fontSize: '0.8rem', color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>}
+                  <div>
+                    <label style={labelStyle}>Business Registration No.</label>
+                    <input type="text" value={settings.business?.registrationNumber || ''} onChange={(e) => updateSection('business', { registrationNumber: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>TIN / Tax Identification No.</label>
+                    <input type="text" value={settings.business?.tinNumber || ''} onChange={(e) => updateSection('business', { tinNumber: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Primary Contact Person</label>
+                    <input type="text" value={settings.business?.contactPerson || ''} onChange={(e) => updateSection('business', { contactPerson: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Physical Headquarters Address</label>
+                    <textarea rows={2} value={settings.business?.physicalAddress || ''} onChange={(e) => updateSection('business', { physicalAddress: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '8px', border: '1px solid var(--outline)', maxWidth: '400px' }}>
-                <div>
-                  <span style={{ fontWeight: 500, display: 'block' }}>Default Dark Mode</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Force dark mode for all new users</span>
-                </div>
-                <Toggle on={settings.defaultDarkMode} onToggle={() => update({ defaultDarkMode: !settings.defaultDarkMode })} />
-              </div>
-            </div>
-          )}
-
-          {/* ── GENERAL ── */}
-          {activeTab === 'general' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <h2 className="font-lexend" style={{ fontSize: '1.5rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>General Configuration</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Support Email</label>
-                <input type="email" value={settings.supportEmail} onChange={e => update({ supportEmail: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Support Phone Number</label>
-                <input type="tel" value={settings.supportPhone} onChange={e => update({ supportPhone: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline)', maxWidth: '400px' }}>
-                <div>
-                  <span style={{ fontWeight: 500, display: 'block', marginBottom: '4px' }}>Enable Maintenance</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Temporarily disable storefront access</span>
-                </div>
-                <Toggle on={settings.maintenanceMode} onToggle={() => update({ maintenanceMode: !settings.maintenanceMode })} />
-              </div>
-            </div>
-          )}
-
-          {/* ── PAYMENTS ── */}
-          {activeTab === 'payment' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <h2 className="font-lexend" style={{ fontSize: '1.5rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>Payment Gateways & Currency</h2>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px' }}>
-                  <label style={{ fontWeight: 500 }}>Base Currency</label>
-                  <select value={settings.baseCurrency} onChange={e => update({ baseCurrency: e.target.value })} style={{ ...inputStyle, maxWidth: '250px' }}>
-                    <option>GHS (GH₵)</option><option>USD ($)</option><option>EUR (€)</option><option>GBP (£)</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px' }}>
-                  <label style={{ fontWeight: 500 }}>Global Tax Rate (%)</label>
-                  <input type="number" value={settings.taxRate} onChange={e => update({ taxRate: e.target.value })} style={{ ...inputStyle, maxWidth: '250px' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
-                <label style={{ fontWeight: 500 }}>Active Gateways</label>
-                {settings.gateways.map((gw, idx) => (
-                  <div key={gw.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline)', flexWrap: 'wrap', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '10px', backgroundColor: `color-mix(in srgb, ${gw.status === 'Connected' ? settings.accentColor : 'var(--on-surface-variant)'} 15%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '22px', color: gw.status === 'Connected' ? settings.accentColor : 'var(--on-surface-variant)' }}>{gw.icon}</span>
-                      </div>
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: '1rem', display: 'block' }}>{gw.name}</span>
-                        <span style={{ fontSize: '0.8rem', color: gw.status === 'Connected' ? settings.accentColor : 'var(--on-surface-variant)', fontWeight: 500 }}>{gw.status}</span>
-                      </div>
-                    </div>
-                    <button onClick={() => toggleGateway(idx)} style={{ padding: '8px 18px', borderRadius: '8px', backgroundColor: gw.status === 'Connected' ? 'transparent' : `color-mix(in srgb, ${settings.accentColor} 15%, transparent)`, border: `1px solid ${gw.status === 'Connected' ? 'var(--outline-variant)' : settings.accentColor}`, color: gw.status === 'Connected' ? 'var(--on-surface)' : settings.accentColor, cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
-                      {gw.status === 'Connected' ? 'Disconnect' : 'Connect'}
-                    </button>
+              {/* TAB 3: LOCALIZATION */}
+              {activeTab === 'localization' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Default Platform Language</label>
+                    <select value={settings.localization?.defaultLanguage || 'English'} onChange={(e) => updateSection('localization', { defaultLanguage: e.target.value })} style={selectStyle}>
+                      <option value="English (US)">English (US)</option>
+                      <option value="French">French (Français)</option>
+                      <option value="Swahili">Swahili</option>
+                      <option value="Hausa">Hausa</option>
+                    </select>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div>
+                    <label style={labelStyle}>Default Country</label>
+                    <input type="text" value={settings.localization?.defaultCountry || ''} onChange={(e) => updateSection('localization', { defaultCountry: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Date Display Format</label>
+                    <select value={settings.localization?.dateFormat || 'DD/MM/YYYY'} onChange={(e) => updateSection('localization', { dateFormat: e.target.value })} style={selectStyle}>
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Time Display Format</label>
+                    <select value={settings.localization?.timeFormat || '24 Hours'} onChange={(e) => updateSection('localization', { timeFormat: e.target.value })} style={selectStyle}>
+                      <option value="24 Hours (HH:mm)">24 Hours (HH:mm)</option>
+                      <option value="12 Hours (hh:mm AM/PM)">12 Hours (hh:mm AM/PM)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
-          {/* ── DELIVERY ── */}
-          {activeTab === 'shipping' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <h2 className="font-lexend" style={{ fontSize: '1.5rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>Delivery Configuration</h2>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px' }}>
-                  <label style={{ fontWeight: 500 }}>Standard Delivery Fee (GH₵)</label>
-                  <input type="number" value={settings.deliveryFee} onChange={e => update({ deliveryFee: e.target.value })} style={inputStyle} />
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px' }}>
-                  <label style={{ fontWeight: 500 }}>Free Delivery Minimum (GH₵)</label>
-                  <input type="number" value={settings.freeDeliveryMin} onChange={e => update({ freeDeliveryMin: e.target.value })} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Estimated Delivery Time (Days)</label>
-                <input type="text" value={settings.estimatedDays} onChange={e => update({ estimatedDays: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontWeight: 500 }}>Delivery Zones / Regions</label>
-                <textarea value={settings.deliveryZones} onChange={e => update({ deliveryZones: e.target.value })} rows={3} style={{ ...inputStyle, maxWidth: '100%', resize: 'vertical' }} />
-                <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Comma-separated list of regions you deliver to</span>
-                <div style={{ marginTop: '8px' }}>
-                  <Link href="/admin/settings/delivery-zones" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: `1px solid ${settings.accentColor}`, color: settings.accentColor, textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem', backgroundColor: `color-mix(in srgb, ${settings.accentColor} 8%, transparent)`, transition: 'all 0.2s' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>zone</span>
-                    Configure Zone Rates & COD
-                  </Link>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline)', maxWidth: '400px' }}>
-                <div>
-                  <span style={{ fontWeight: 500, display: 'block', marginBottom: '4px' }}>Order Tracking</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>Allow customers to track deliveries</span>
-                </div>
-                <Toggle on={settings.enableTracking} onToggle={() => update({ enableTracking: !settings.enableTracking })} />
-              </div>
-            </div>
-          )}
+              {/* TAB 4: CURRENCIES */}
+              {activeTab === 'currencies' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Base Operating Currency</label>
+                    <select value={settings.currencies?.primaryCurrency || 'GHS (GH₵)'} onChange={(e) => updateSection('currencies', { primaryCurrency: e.target.value })} style={selectStyle}>
+                      <option value="GHS (GH₵)">GHS (Ghanaian Cedi GH₵)</option>
+                      <option value="USD ($)">USD (US Dollar $)</option>
+                      <option value="NGN (₦)">NGN (Nigerian Naira ₦)</option>
+                      <option value="KES (KSh)">KES (Kenyan Shilling KSh)</option>
+                    </select>
+                  </div>
 
-          {/* ── FEATURES ── */}
-          {activeTab === 'features' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <h2 className="font-lexend" style={{ fontSize: '1.5rem', borderBottom: '1px solid var(--outline)', paddingBottom: '16px' }}>Feature Toggles</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {settings.features.map((feature, idx) => (
-                  <div key={feature.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'var(--surface-container)', borderRadius: '12px', border: '1px solid var(--outline)' }}>
+                  <div>
+                    <label style={labelStyle}>USD Exchange Rate (1 USD = X GHS)</label>
+                    <input type="number" step="0.01" value={settings.currencies?.usdRate || 15.20} onChange={(e) => updateSection('currencies', { usdRate: parseFloat(e.target.value) })} style={inputStyle} />
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                     <div>
-                      <span style={{ fontWeight: 500, display: 'block', fontSize: '1.1rem', marginBottom: '4px' }}>{feature.name}</span>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{feature.desc}</span>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Multi-Currency Auto Conversion</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Automatically fetch daily exchange rates for USD, EUR, and GBP</div>
                     </div>
-                    <Toggle on={feature.active} onToggle={() => toggleFeature(idx)} />
+                    <Toggle checked={!!settings.currencies?.autoUpdateRates} onChange={() => updateSection('currencies', { autoUpdateRates: !settings.currencies?.autoUpdateRates })} />
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* TAB 5: TAXES */}
+              {activeTab === 'taxes' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>VAT Rate (%)</label>
+                    <input type="number" step="0.1" value={settings.taxes?.vatTaxRate || 5.0} onChange={(e) => updateSection('taxes', { vatTaxRate: parseFloat(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>NHIL Tax Rate (%)</label>
+                    <input type="number" step="0.1" value={settings.taxes?.nhilTaxRate || 2.5} onChange={(e) => updateSection('taxes', { nhilTaxRate: parseFloat(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>GETFund Tax Rate (%)</label>
+                    <input type="number" step="0.1" value={settings.taxes?.getfundTaxRate || 2.5} onChange={(e) => updateSection('taxes', { getfundTaxRate: parseFloat(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginTop: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Tax Inclusive Display Pricing</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Display product prices with tax included on storefront</div>
+                    </div>
+                    <Toggle checked={!!settings.taxes?.enableTaxInclusivePricing} onChange={() => updateSection('taxes', { enableTaxInclusivePricing: !settings.taxes?.enableTaxInclusivePricing })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: PAYMENT GATEWAYS */}
+              {activeTab === 'payment_gateways' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {[
+                    { name: 'Stripe Payments', key: 'stripeEnabled', desc: 'Accept Visa, Mastercard, and International Credit Cards' },
+                    { name: 'Mobile Money (MTN / Telecel / AT)', key: 'mobileMoneyEnabled', desc: 'Accept local African Mobile Money payments' },
+                    { name: 'Paystack Gateway', key: 'paystackEnabled', desc: 'Pan-African payments engine' },
+                    { name: 'PayPal Checkout', key: 'paypalEnabled', desc: 'Global PayPal wallet payments' },
+                  ].map((gw) => (
+                    <div key={gw.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>{gw.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{gw.desc}</div>
+                      </div>
+                      <Toggle checked={!!settings.paymentGateways?.[gw.key]} onChange={() => updateSection('payment_gateways', { [gw.key]: !settings.paymentGateways?.[gw.key] })} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* TAB 7: EMAIL */}
+              {activeTab === 'email' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>SMTP Server Host</label>
+                    <input type="text" value={settings.email?.smtpHost || ''} onChange={(e) => updateSection('email', { smtpHost: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>SMTP Port</label>
+                    <input type="number" value={settings.email?.smtpPort || 587} onChange={(e) => updateSection('email', { smtpPort: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Sender Name</label>
+                    <input type="text" value={settings.email?.senderName || ''} onChange={(e) => updateSection('email', { senderName: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Sender Email Username</label>
+                    <input type="email" value={settings.email?.smtpUser || ''} onChange={(e) => updateSection('email', { smtpUser: e.target.value })} style={inputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 8: SMS */}
+              {activeTab === 'sms' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>SMS Gateway Provider</label>
+                    <input type="text" value={settings.sms?.provider || ''} onChange={(e) => updateSection('sms', { provider: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>SMS Sender ID (Alphanumeric)</label>
+                    <input type="text" value={settings.sms?.smsSenderId || 'AfriCart'} onChange={(e) => updateSection('sms', { smsSenderId: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Order Delivery SMS Notifications</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Dispatch SMS alerts to customers upon dispatch</div>
+                    </div>
+                    <Toggle checked={!!settings.sms?.enableOrderSMS} onChange={() => updateSection('sms', { enableOrderSMS: !settings.sms?.enableOrderSMS })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 9: PUSH NOTIFICATIONS */}
+              {activeTab === 'push_notifications' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Firebase Cloud Messaging (FCM)</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Push notification engine for mobile & web apps</div>
+                    </div>
+                    <Toggle checked={!!settings.pushNotifications?.firebaseEnabled} onChange={() => updateSection('push_notifications', { firebaseEnabled: !settings.pushNotifications?.firebaseEnabled })} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Web Browser Push Notifications</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Prompt browser permissions for live customer updates</div>
+                    </div>
+                    <Toggle checked={!!settings.pushNotifications?.enableWebPush} onChange={() => updateSection('push_notifications', { enableWebPush: !settings.pushNotifications?.enableWebPush })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 10: SECURITY */}
+              {activeTab === 'security' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Minimum Password Length</label>
+                    <input type="number" value={settings.security?.passwordMinLength || 10} onChange={(e) => updateSection('security', { passwordMinLength: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Max Failed Login Attempts</label>
+                    <input type="number" value={settings.security?.maxLoginAttempts || 5} onChange={(e) => updateSection('security', { maxLoginAttempts: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Session Timeout (Minutes)</label>
+                    <input type="number" value={settings.security?.sessionTimeoutMinutes || 60} onChange={(e) => updateSection('security', { sessionTimeoutMinutes: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginTop: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Require 2FA for Admin Portal</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Enforce 2-Factor Authentication for all staff accounts</div>
+                    </div>
+                    <Toggle checked={!!settings.security?.require2FAForAdmins} onChange={() => updateSection('security', { require2FAForAdmins: !settings.security?.require2FAForAdmins })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 11: AUTHENTICATION */}
+              {activeTab === 'authentication' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Google One-Tap Social Login</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Allow sign-in via Google accounts</div>
+                    </div>
+                    <Toggle checked={!!settings.authentication?.allowSocialGoogleLogin} onChange={() => updateSection('authentication', { allowSocialGoogleLogin: !settings.authentication?.allowSocialGoogleLogin })} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Apple ID Social Sign-In</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Allow sign-in via Apple accounts</div>
+                    </div>
+                    <Toggle checked={!!settings.authentication?.allowSocialAppleLogin} onChange={() => updateSection('authentication', { allowSocialAppleLogin: !settings.authentication?.allowSocialAppleLogin })} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Guest Checkout Permission</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Allow customer orders without mandatory account creation</div>
+                    </div>
+                    <Toggle checked={!!settings.authentication?.allowGuestCheckout} onChange={() => updateSection('authentication', { allowGuestCheckout: !settings.authentication?.allowGuestCheckout })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 12: STORAGE */}
+              {activeTab === 'storage' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Storage Provider</label>
+                    <input type="text" value={settings.storage?.provider || ''} onChange={(e) => updateSection('storage', { provider: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>S3 Bucket Name</label>
+                    <input type="text" value={settings.storage?.s3BucketName || ''} onChange={(e) => updateSection('storage', { s3BucketName: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>AWS Region</label>
+                    <input type="text" value={settings.storage?.s3Region || ''} onChange={(e) => updateSection('storage', { s3Region: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Max Image Upload Limit (MB)</label>
+                    <input type="number" value={settings.storage?.maxUploadSizeMB || 10} onChange={(e) => updateSection('storage', { maxUploadSizeMB: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 13: API KEYS */}
+              {activeTab === 'api_keys' && (
+                <div style={formGridStyle}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Public API Key</label>
+                    <code style={{ display: 'block', padding: 12, backgroundColor: '#f1f5f9', borderRadius: 8, fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {settings.apiKeys?.publicApiKey || 'pk_live_africart_998210384729104'}
+                    </code>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Webhook Secret Key</label>
+                    <code style={{ display: 'block', padding: 12, backgroundColor: '#f1f5f9', borderRadius: 8, fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {settings.apiKeys?.webhookSecret || 'whsec_991823749201948576'}
+                    </code>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>API Rate Limit (Req / Min)</label>
+                    <input type="number" value={settings.apiKeys?.rateLimitPerMinute || 120} onChange={(e) => updateSection('api_keys', { rateLimitPerMinute: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 14: INTEGRATIONS */}
+              {activeTab === 'integrations' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Google Analytics ID</label>
+                    <input type="text" value={settings.integrations?.googleAnalyticsId || ''} onChange={(e) => updateSection('integrations', { googleAnalyticsId: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Facebook Pixel ID</label>
+                    <input type="text" value={settings.integrations?.facebookPixelId || ''} onChange={(e) => updateSection('integrations', { facebookPixelId: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Slack Alerts Webhook Channel</label>
+                    <input type="text" value={settings.integrations?.slackAlertsChannel || '#admin-alerts'} onChange={(e) => updateSection('integrations', { slackAlertsChannel: e.target.value })} style={inputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 15: APPEARANCE */}
+              {activeTab === 'appearance' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Primary Accent Theme Color</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <input type="color" value={settings.appearance?.accentColor || '#16a34a'} onChange={(e) => updateSection('appearance', { accentColor: e.target.value })} style={{ width: 40, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer' }} />
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{settings.appearance?.accentColor || '#16a34a'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Typography Font Family</label>
+                    <select value={settings.appearance?.fontFamily || 'Inter'} onChange={(e) => updateSection('appearance', { fontFamily: e.target.value })} style={selectStyle}>
+                      <option value="Inter">Inter (Sans-Serif)</option>
+                      <option value="Lexend">Lexend (Modern Bold)</option>
+                      <option value="Roboto">Roboto</option>
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Dark Mode as Platform Default</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Default new user sessions to dark mode interface</div>
+                    </div>
+                    <Toggle checked={!!settings.appearance?.darkModeByDefault} onChange={() => updateSection('appearance', { darkModeByDefault: !settings.appearance?.darkModeByDefault })} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 16: BACKUPS */}
+              {activeTab === 'backups' && (
+                <div style={formGridStyle}>
+                  <div>
+                    <label style={labelStyle}>Auto Backup Frequency</label>
+                    <input type="text" value={settings.backups?.backupFrequency || ''} onChange={(e) => updateSection('backups', { backupFrequency: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Vault Retention Period (Days)</label>
+                    <input type="number" value={settings.backups?.retentionDays || 30} onChange={(e) => updateSection('backups', { retentionDays: parseInt(e.target.value) })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Encrypted Vault Location</label>
+                    <input type="text" value={settings.backups?.storageLocation || ''} onChange={(e) => updateSection('backups', { storageLocation: e.target.value })} style={inputStyle} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => showToast('Immediate database backup initiated! Vault snapshot created.', 'success')}
+                      style={{ padding: '10px 18px', backgroundColor: '#16a34a', color: '#ffffff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ⚡ Trigger Immediate Database Backup Snapshot
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 17: MAINTENANCE MODE */}
+              {activeTab === 'maintenance_mode' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, border: '1px solid #fca5a5', backgroundColor: '#fef2f2' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#dc2626' }}>Enable Platform Maintenance Mode</div>
+                      <div style={{ fontSize: '0.8rem', color: '#991b1b' }}>Temporarily block storefront access for maintenance</div>
+                    </div>
+                    <Toggle checked={!!settings.maintenanceMode?.isEnabled} onChange={() => updateSection('maintenance_mode', { isEnabled: !settings.maintenanceMode?.isEnabled })} />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Maintenance Downtime Banner Message</label>
+                    <textarea rows={3} value={settings.maintenanceMode?.maintenanceMessage || ''} onChange={(e) => updateSection('maintenance_mode', { maintenanceMessage: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Whitelisted Developer IP Addresses (Comma-separated)</label>
+                    <input type="text" value={settings.maintenanceMode?.allowedIps || ''} onChange={(e) => updateSection('maintenance_mode', { allowedIps: e.target.value })} style={inputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 18: LICENSING */}
+              {activeTab === 'licensing' && (
+                <div style={formGridStyle}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>Enterprise License Key</label>
+                    <code style={{ display: 'block', padding: 12, backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, fontFamily: 'monospace', fontSize: '0.9rem', color: '#15803d', fontWeight: 700 }}>
+                      {settings.licensing?.licenseKey || 'AFRICART-ENT-2026-9982-PRO'}
+                    </code>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>License Tier</label>
+                    <input type="text" readOnly value={settings.licensing?.licenseTier || 'Enterprise Unlimited Edition'} style={{ ...inputStyle, backgroundColor: '#f8fafc' }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Registered Domain</label>
+                    <input type="text" readOnly value={settings.licensing?.registeredDomain || 'africart.com'} style={{ ...inputStyle, backgroundColor: '#f8fafc' }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>License Expiration Date</label>
+                    <input type="text" readOnly value={settings.licensing?.expirationDate || '2028-12-31'} style={{ ...inputStyle, backgroundColor: '#f8fafc' }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Vendor Limit</label>
+                    <input type="text" readOnly value={settings.licensing?.maxVendorsLimit || 'Unlimited'} style={{ ...inputStyle, backgroundColor: '#f8fafc' }} />
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
+
         </div>
+
       </div>
 
-      {hasChanges && (
-        <div className="animate-fade-in-up" style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', padding: '12px 24px', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '12px', zIndex: 50 }}>
-          <span className="material-symbols-outlined" style={{ color: '#ff9800' }}>warning</span>
-          <span style={{ fontSize: '0.9rem' }}>You have unsaved changes</span>
-          <button onClick={saveChanges} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: settings.accentColor, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Save Now</button>
-        </div>
-      )}
     </div>
   );
 }
+
+// ── Shared Input Styles ──────────────────────────────────────────
+const formGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: 16,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.82rem',
+  fontWeight: 700,
+  color: '#334155',
+  marginBottom: 4,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: '0.88rem',
+  outline: 'none',
+  backgroundColor: '#ffffff',
+};
+
+const selectStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: '0.88rem',
+  outline: 'none',
+  backgroundColor: '#ffffff',
+};

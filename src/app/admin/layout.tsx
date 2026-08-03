@@ -6,217 +6,64 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AppContext';
 
-interface NavSubItem {
-  name: string;
+interface NavItem {
+  title: string;
+  icon: string;
   path: string;
 }
 
-interface NavSection {
-  title: string;
-  icon: string;
-  path?: string;
-  subItems?: NavSubItem[];
+interface NavGroup {
+  group: string;
+  items: NavItem[];
 }
 
-const navSections: NavSection[] = [
-  { title: 'Dashboard', icon: 'grid_view', path: '/admin' },
+const navGroups: NavGroup[] = [
   {
-    title: 'Orders',
-    icon: 'shopping_bag',
-    path: '/admin/orders',
-    subItems: [
-      { name: 'All Orders', path: '/admin/orders' },
-      { name: 'Pending', path: '/admin/orders' },
-      { name: 'Processing', path: '/admin/orders' },
-      { name: 'Ready for Pickup', path: '/admin/orders' },
-      { name: 'Picked Up', path: '/admin/orders' },
-      { name: 'In Transit', path: '/admin/orders' },
-      { name: 'Delivered', path: '/admin/orders' },
-      { name: 'Cancelled', path: '/admin/orders' },
-      { name: 'Returned', path: '/admin/orders' },
-      { name: 'Refunded', path: '/admin/orders' },
+    group: 'MANAGEMENT',
+    items: [
+      { title: 'Dashboard', icon: 'grid_view', path: '/admin' },
+      { title: 'Vendors', icon: 'storefront', path: '/admin/vendors' },
+      { title: 'Customer Management', icon: 'group', path: '/admin/customers' },
+      { title: 'Stores', icon: 'store', path: '/admin/stores' },
+      { title: 'Cashiers', icon: 'badge', path: '/admin/admins' },
+      { title: 'Roles & Permissions', icon: 'admin_panel_settings', path: '/admin/admins' },
+      { title: 'Subscriptions', icon: 'card_membership', path: '/admin/subscriptions' },
+      { title: 'KYC Verifications', icon: 'verified_user', path: '/admin/vendors' },
     ],
   },
   {
-    title: 'Products',
-    icon: 'inventory_2',
-    path: '/admin/products',
-    subItems: [
-      { name: 'All Products', path: '/admin/products' },
-      { name: 'Pending Approval', path: '/admin/products' },
-      { name: 'Categories', path: '/admin/products' },
-      { name: 'Brands', path: '/admin/products' },
-      { name: 'Attributes', path: '/admin/products' },
-      { name: 'Reviews', path: '/admin/products' },
-      { name: 'Inventory', path: '/admin/products' },
+    group: 'BUSINESS',
+    items: [
+      { title: 'Products', icon: 'inventory_2', path: '/admin/products' },
+      { title: 'Inventory', icon: 'warehouse', path: '/admin/inventory' },
+      { title: 'Categories', icon: 'category', path: '/admin/products' },
+      { title: 'Brands', icon: 'branding_watermark', path: '/admin/products' },
+      { title: 'Orders', icon: 'shopping_bag', path: '/admin/orders' },
+      { title: 'Transactions', icon: 'payments', path: '/admin/finance' },
+      { title: 'Commissions & Fees', icon: 'account_balance_wallet', path: '/admin/fees' },
+      { title: 'Payouts', icon: 'account_balance', path: '/admin/payouts' },
+      { title: 'Promotions', icon: 'campaign', path: '/admin/campaigns' },
     ],
   },
   {
-    title: 'Vendors',
-    icon: 'storefront',
-    path: '/admin/vendors',
-    subItems: [
-      { name: 'Pending Applications', path: '/admin/vendors' },
-      { name: 'Approved', path: '/admin/vendors' },
-      { name: 'Suspended', path: '/admin/vendors' },
-      { name: 'Performance', path: '/admin/vendors' },
-      { name: 'Reviews', path: '/admin/vendors' },
-      { name: 'KYC', path: '/admin/vendors' },
+    group: 'REPORTS',
+    items: [
+      { title: 'Reports & Analytics', icon: 'analytics', path: '/admin/reports' },
+      { title: 'Sales Report', icon: 'description', path: '/admin/reports' },
+      { title: 'Vendors Report', icon: 'summarize', path: '/admin/reports' },
+      { title: 'Financial Report', icon: 'request_quote', path: '/admin/reports' },
     ],
   },
   {
-    title: 'Riders',
-    icon: 'two_wheeler',
-    path: '/admin/riders',
-    subItems: [
-      { name: 'Applications', path: '/admin/riders' },
-      { name: 'Active', path: '/admin/riders' },
-      { name: 'Performance', path: '/admin/riders' },
-      { name: 'Delivery Stats', path: '/admin/riders' },
-      { name: 'Earnings', path: '/admin/riders' },
-      { name: 'Verification', path: '/admin/riders' },
+    group: 'SYSTEM',
+    items: [
+      { title: 'System Settings', icon: 'settings', path: '/admin/settings' },
+      { title: 'Notifications', icon: 'notifications', path: '/admin/settings' },
+      { title: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
+      { title: 'Support Tickets', icon: 'support_agent', path: '/admin/tickets' },
+      { title: 'CMS Content', icon: 'wysiwyg', path: '/admin/cms' },
     ],
   },
-  { title: 'Customers', icon: 'group', path: '/admin/customers' },
-  {
-    title: 'Admin Staff',
-    icon: 'admin_panel_settings',
-    path: '/admin/admins',
-    subItems: [
-      { name: 'All Admins', path: '/admin/admins' },
-      { name: 'Role Applications', path: '/admin/admins' },
-    ],
-  },
-  {
-    title: 'Finance',
-    icon: 'account_balance_wallet',
-    path: '/admin/finance',
-    subItems: [
-      { name: 'Transactions', path: '/admin/finance' },
-      { name: 'Vendor Payouts', path: '/admin/finance' },
-      { name: 'Rider Payments', path: '/admin/finance' },
-      { name: 'Revenue', path: '/admin/finance' },
-      { name: 'Commission', path: '/admin/finance' },
-      { name: 'Wallets', path: '/admin/finance' },
-      { name: 'Refunds', path: '/admin/finance' },
-      { name: 'Taxes', path: '/admin/finance' },
-    ],
-  },
-  {
-    title: 'Marketing',
-    icon: 'campaign',
-    path: '/admin/campaigns',
-    subItems: [
-      { name: 'Coupons', path: '/admin/campaigns' },
-      { name: 'Promo Codes', path: '/admin/campaigns' },
-      { name: 'Flash Sales', path: '/admin/campaigns' },
-      { name: 'Featured Products', path: '/admin/campaigns' },
-      { name: 'Banners', path: '/admin/campaigns' },
-      { name: 'Push/Email/SMS Campaigns', path: '/admin/campaigns' },
-    ],
-  },
-  {
-    title: 'Reports',
-    icon: 'description',
-    path: '/admin/compliance',
-    subItems: [
-      { name: 'Sales', path: '/admin/compliance' },
-      { name: 'Customer', path: '/admin/compliance' },
-      { name: 'Vendor', path: '/admin/compliance' },
-      { name: 'Rider', path: '/admin/compliance' },
-      { name: 'Product', path: '/admin/compliance' },
-      { name: 'Financial', path: '/admin/compliance' },
-    ],
-  },
-  {
-    title: 'Logistics',
-    icon: 'local_shipping',
-    path: '/admin/hub',
-    subItems: [
-      { name: 'Delivery Zones', path: '/admin/hub' },
-      { name: 'Shipping Methods', path: '/admin/hub' },
-      { name: 'Rates', path: '/admin/hub' },
-      { name: 'Warehouses', path: '/admin/hub' },
-      { name: 'Pickup Stations', path: '/admin/hub' },
-    ],
-  },
-  {
-    title: 'Reviews',
-    icon: 'rate_review',
-    path: '/admin/compliance',
-    subItems: [
-      { name: 'Product Reviews', path: '/admin/compliance' },
-      { name: 'Vendor Reviews', path: '/admin/compliance' },
-      { name: 'Rider Reviews', path: '/admin/compliance' },
-      { name: 'Reported Reviews', path: '/admin/compliance' },
-    ],
-  },
-  {
-    title: 'Communication',
-    icon: 'chat',
-    path: '/admin/messages',
-    subItems: [
-      { name: 'Customer Support', path: '/admin/messages' },
-      { name: 'Live Chat', path: '/admin/messages' },
-      { name: 'Vendor/Rider Chat', path: '/admin/messages' },
-      { name: 'Announcements', path: '/admin/messages' },
-    ],
-  },
-  {
-    title: 'Payments',
-    icon: 'credit_card',
-    path: '/admin/finance',
-    subItems: [
-      { name: 'Gateways', path: '/admin/finance' },
-      { name: 'History', path: '/admin/finance' },
-      { name: 'Failed', path: '/admin/finance' },
-      { name: 'Withdrawals', path: '/admin/finance' },
-    ],
-  },
-  {
-    title: 'Content',
-    icon: 'article',
-    path: '/admin/tickets',
-    subItems: [
-      { name: 'Blog', path: '/admin/tickets' },
-      { name: 'FAQs', path: '/admin/tickets' },
-      { name: 'Terms', path: '/admin/tickets' },
-      { name: 'Privacy Policy', path: '/admin/tickets' },
-      { name: 'Help Center', path: '/admin/tickets' },
-    ],
-  },
-  {
-    title: 'Settings',
-    icon: 'settings_suggest',
-    path: '/admin/settings',
-    subItems: [
-      { name: 'General', path: '/admin/settings' },
-      { name: 'Branding', path: '/admin/settings' },
-      { name: 'Currency', path: '/admin/settings' },
-      { name: 'Language', path: '/admin/settings' },
-      { name: 'Tax', path: '/admin/settings' },
-      { name: 'Commission', path: '/admin/settings' },
-      { name: 'Email', path: '/admin/settings' },
-      { name: 'SMS', path: '/admin/settings' },
-      { name: 'AI', path: '/admin/settings' },
-      { name: 'API Keys', path: '/admin/settings' },
-      { name: 'Security', path: '/admin/settings' },
-      { name: 'Backup', path: '/admin/settings' },
-    ],
-  },
-  { title: 'Audit Logs', icon: 'history', path: '/admin/audit-logs' },
-  {
-    title: 'Security',
-    icon: 'shield',
-    path: '/admin/security',
-    subItems: [
-      { name: 'Login Logs', path: '/admin/security' },
-      { name: 'Access Logs', path: '/admin/security' },
-      { name: 'Fraud Detection', path: '/admin/security' },
-      { name: 'Sessions', path: '/admin/security' },
-    ],
-  },
-  { title: 'Profile', icon: 'person', path: '/admin/settings' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -224,8 +71,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
-
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isLoading) {
@@ -239,252 +84,243 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user, isLoading, router]);
 
-  useEffect(() => {
-    // Auto expand active section
-    navSections.forEach((section) => {
-      if (section.path && pathname?.startsWith(section.path) && section.path !== '/admin') {
-        setExpandedSections((prev) => ({ ...prev, [section.title]: true }));
-      }
-    });
-  }, [pathname]);
-
   if (isLoading || !user || user.role !== 'super_admin') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
-        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: 'var(--lime-400)' }} />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '4px solid #16a34a', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
-  const toggleSection = (title: string) => {
-    setExpandedSections((prev) => ({ ...prev, [title]: !prev[title] }));
-  };
-
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)', color: 'var(--on-surface)', fontFamily: 'var(--font-inter)', width: '100%', overflowX: 'hidden' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f1f5f9', color: '#1e293b', fontFamily: 'var(--font-inter, sans-serif)', width: '100%' }}>
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 40 }}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 40 }}
         />
       )}
 
-      {/* Dark Sidebar */}
-      <aside style={{
-        position: 'fixed', top: 0, bottom: 0, left: 0, width: '260px',
-        backgroundColor: '#131127', color: '#FFFFFF',
-        display: 'flex', flexDirection: 'column', zIndex: 50,
-        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
-        overflowY: 'auto',
-      }} className="md:translate-x-0">
-        {/* Brand Header */}
-        <div style={{ padding: '24px 20px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
-              <Image src="/icon.svg" alt="AfriCart Logo" width={40} height={40} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                <span style={{ color: 'var(--lime-400)' }}>Afri</span><span style={{ color: '#FFFFFF' }}>Cart</span>
-              </div>
-              <div style={{ fontSize: '0.72rem', color: '#9B96BE', fontWeight: 500 }}>Super Admin</div>
-            </div>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="md:hidden"
-            style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '50%', width: '32px', height: '32px', border: 'none', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-          </button>
-        </div>
-
-        {/* Menu Navigation */}
-        <nav style={{ flex: 1, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {navSections.map((section) => {
-            const hasSub = section.subItems && section.subItems.length > 0;
-            const isExpanded = !!expandedSections[section.title];
-            const isSectionActive = section.path === '/admin'
-              ? pathname === '/admin'
-              : section.path && pathname?.startsWith(section.path);
-
-            if (!hasSub) {
-              return (
-                <Link
-                  key={section.title}
-                  href={section.path || '/admin'}
-                  onClick={() => setSidebarOpen(false)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    color: isSectionActive ? '#FFFFFF' : '#9B96BE',
-                    backgroundColor: isSectionActive ? 'var(--lime-400)' : 'transparent',
-                    fontWeight: isSectionActive ? 600 : 400,
-                    fontSize: '0.88rem',
-                    textDecoration: 'none',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ marginRight: '12px', fontSize: '20px', color: isSectionActive ? '#FFF' : '#8580AA' }}>
-                    {section.icon}
-                  </span>
-                  <span>{section.title}</span>
-                </Link>
-              );
-            }
-
-            return (
-              <div key={section.title} style={{ display: 'flex', flexDirection: 'column' }}>
-                <button
-                  onClick={() => toggleSection(section.title)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    color: isSectionActive ? '#FFFFFF' : '#9B96BE',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: isSectionActive ? 600 : 400,
-                    fontSize: '0.88rem',
-                    width: '100%',
-                    textAlign: 'left',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isSectionActive ? 'var(--lime-400)' : '#8580AA' }}>
-                      {section.icon}
-                    </span>
-                    <span>{section.title}</span>
-                  </div>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#8580AA', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                    expand_more
-                  </span>
-                </button>
-
-                {isExpanded && (
-                  <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '24px', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginTop: '2px', marginBottom: '4px', gap: '2px' }}>
-                    {section.subItems!.map((sub, idx) => (
-                      <Link
-                        key={idx}
-                        href={sub.path}
-                        onClick={() => setSidebarOpen(false)}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: '8px',
-                          color: '#B0AACD',
-                          fontSize: '0.8rem',
-                          textDecoration: 'none',
-                          fontWeight: 400,
-                          transition: 'color 0.15s ease',
-                        }}
-                      >
-                        {sub.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-
-
-        {/* Footer actions: View storefront & Logout Section */}
-        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Link
-            href="/"
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              color: '#FFFFFF',
-              backgroundColor: 'rgba(255,255,255,0.08)',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              textDecoration: 'none',
-              boxSizing: 'border-box',
-              transition: 'background-color 0.2s ease',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: 'var(--lime-400)' }}>storefront</span>
-            <span>View storefront</span>
-          </Link>
-          <button
-            onClick={() => { logout(); window.location.href = '/'; }}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              color: '#FF6B6B',
-              backgroundColor: 'rgba(255,107,107,0.08)',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              boxSizing: 'border-box',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px' }}>logout</span>
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Viewport Container */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, marginLeft: '0px' }} className="md:ml-[260px]">
-        {/* Header Bar: Hamburger inline with Super Admin title, Notification bell on right */}
-        <header style={{
-          height: '64px',
-          backgroundColor: 'var(--surface)',
-          borderBottom: '1px solid var(--outline)',
+      {/* Sidebar Navigation */}
+      <aside
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: '260px',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid #e2e8f0',
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 50,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease-in-out',
+          boxShadow: '2px 0 12px rgba(0,0,0,0.03)',
+        }}
+        className="md:translate-x-0"
+      >
+        {/* Dark Emerald Header Box */}
+        <div style={{
+          backgroundColor: '#043729',
+          padding: '18px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 16px',
+        }}>
+          <Link href="/admin" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M 38,15 C 48,13 62,11 72,18 C 76,21 75,27 79,31 C 82,34 86,36 86,41 C 86,47 80,51 77,55 C 73,60 70,66 65,72 C 60,78 57,85 52,91 C 51,93 49,93 48,91 C 45,84 44,77 42,71 C 40,66 38,62 33,59 C 28,56 22,55 18,50 C 13,44 11,36 15,29 C 18,22 27,17 38,15 Z"
+                stroke="#c3f400"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path d="M 33,40 L 39,46 L 68,46" stroke="#D4AF37" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 39,46 L 43,62 L 63,62 L 68,46 Z" fill="rgba(212, 175, 55, 0.2)" stroke="#D4AF37" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="43" cy="74" r="5" fill="#D4AF37" />
+              <circle cx="59" cy="74" r="5" fill="#D4AF37" />
+            </svg>
+            <div>
+              <div style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontWeight: 900, fontSize: '1.2rem', color: '#ffffff', lineHeight: 1 }}>
+                <span style={{ color: '#c3f400' }}>Afri</span>Cart
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#a7f3d0', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#c3f400' }}>verified</span>
+                Super Admin
+              </div>
+            </div>
+          </Link>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden"
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 28, height: 28, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+          </button>
+        </div>
+
+        {/* Sidebar Nav Groups */}
+        <nav style={{ flex: 1, padding: '16px 14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {navGroups.map((group) => (
+            <div key={group.group}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.08em', marginBottom: 8, paddingLeft: 10 }}>
+                {group.group}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {group.items.map((item) => {
+                  const isActive = item.path === '/admin' ? pathname === '/admin' : pathname?.startsWith(item.path);
+                  return (
+                    <Link
+                      key={item.title}
+                      href={item.path}
+                      onClick={() => setSidebarOpen(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '9px 12px',
+                        borderRadius: 10,
+                        textDecoration: 'none',
+                        fontSize: '0.85rem',
+                        fontWeight: isActive ? 700 : 500,
+                        color: isActive ? '#15803d' : '#475569',
+                        backgroundColor: isActive ? '#ecfdf5' : 'transparent',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span
+                        className="material-symbols-outlined"
+                        style={{ fontSize: 20, color: isActive ? '#16a34a' : '#64748b' }}
+                      >
+                        {item.icon}
+                      </span>
+                      <span>{item.title}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Bottom Profile Section */}
+        <div style={{ padding: '14px 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#15803d', color: '#fff', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+                SA
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  Super Admin
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {user?.email || 'superadmin@africart.com'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => { logout(); window.location.href = '/'; }}
+              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 4 }}
+              title="Sign Out"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }} className="md:ml-[260px]">
+        {/* Top Header Bar */}
+        <header style={{
+          height: '64px',
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
           position: 'sticky',
           top: 0,
           zIndex: 30,
         }}>
-          {/* Left: Hamburger + Super Admin inline */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Left: Mobile Toggle & Page Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => setSidebarOpen(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', padding: '4px' }}
+              className="md:hidden"
+              style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', display: 'flex', padding: 4 }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>menu</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>menu</span>
             </button>
-            <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--on-surface)' }}>
+            <div style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontWeight: 800, fontSize: '1.1rem', color: '#0f172a' }}>
               Super Admin
             </div>
           </div>
 
-          {/* Right: Notification Bell only */}
-          <button style={{ background: 'none', border: 'none', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', padding: '4px', position: 'relative' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>notifications</span>
-            <span style={{ position: 'absolute', top: '4px', right: '4px', width: '7px', height: '7px', backgroundColor: 'var(--error)', borderRadius: '50%' }} />
-          </button>
+          {/* Right: Search, Notifications, Language, Profile */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} className="hidden md:flex">
+              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, fontSize: 18, color: '#94a3b8', pointerEvents: 'none' }}>
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search anything..."
+                style={{
+                  padding: '7px 32px 7px 34px',
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 20,
+                  fontSize: 13,
+                  color: '#1e293b',
+                  outline: 'none',
+                  width: 220,
+                }}
+              />
+              <span style={{ position: 'absolute', right: 10, fontSize: 10, color: '#94a3b8', background: '#e2e8f0', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                ⌘K
+              </span>
+            </div>
+
+            {/* Notification Bell with Badge */}
+            <button style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', color: '#475569' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>notifications</span>
+              <span style={{ position: 'absolute', top: 2, right: 2, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 900, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                12
+              </span>
+            </button>
+
+            {/* Language Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: 20 }} className="hidden sm:flex">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>language</span>
+              <span>English</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#94a3b8' }}>expand_more</span>
+            </div>
+
+            {/* User Avatar Icon */}
+            <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 }}>
+              SA
+            </div>
+          </div>
         </header>
 
-        {/* Page Content Container */}
-        <main style={{ flex: 1, padding: '16px', overflowY: 'auto', width: '100%' }}>
+        {/* Page Content */}
+        <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           {children}
         </main>
+
+        {/* Footer matching screenshot */}
+        <footer style={{ padding: '16px 24px', backgroundColor: '#ffffff', borderTop: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#64748b', gap: 12 }}>
+          <div>© 2025 AfriCart. All rights reserved.</div>
+          <div>Made with ❤️ in Africa</div>
+        </footer>
       </div>
     </div>
   );

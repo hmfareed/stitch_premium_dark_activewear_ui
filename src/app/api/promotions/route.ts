@@ -18,8 +18,9 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     let updated = false;
     for (const promo of promotions) {
-      if (promo.status === 'Active' && (new Date(promo.expiresAt) < now || promo.uses >= promo.limit)) {
-        promo.status = 'Expired';
+      const p = promo as any;
+      if (p.status === 'Active' && ((p.expiresAt && new Date(p.expiresAt) < now) || (p.uses !== undefined && p.limit !== undefined && p.uses >= p.limit))) {
+        p.status = 'Expired';
         await promo.save();
         updated = true;
       }

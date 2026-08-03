@@ -17,21 +17,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid promo code' }, { status: 404 });
     }
 
-    if (promotion.status !== 'Active') {
+    const p = promotion as any;
+    if (p.status !== 'Active' && p.isActive === false) {
       return NextResponse.json({ error: 'This promo code has expired or is inactive' }, { status: 400 });
     }
 
-    if (new Date(promotion.expiresAt) < new Date()) {
+    if (p.expiresAt && new Date(p.expiresAt) < new Date()) {
       return NextResponse.json({ error: 'This promo code has expired' }, { status: 400 });
     }
 
-    if (promotion.uses >= promotion.limit) {
+    if (p.uses !== undefined && p.limit !== undefined && p.uses >= p.limit) {
       return NextResponse.json({ error: 'This promo code has reached its usage limit' }, { status: 400 });
     }
 
-    // Check if the cart contains products from the vendor who created the promo code
-    // If vendorEmails array is provided, ensure the promo vendor is in it
-    if (vendorEmails && vendorEmails.length > 0 && !vendorEmails.includes(promotion.vendorEmail)) {
+    if (vendorEmails && vendorEmails.length > 0 && p.vendorEmail && !vendorEmails.includes(p.vendorEmail)) {
       return NextResponse.json({ error: 'This promo code is not valid for the items in your cart' }, { status: 400 });
     }
 

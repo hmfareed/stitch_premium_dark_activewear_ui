@@ -69,14 +69,75 @@ export async function POST(req: NextRequest) {
     const transactionData = payload.data;
     const reference = transactionData.reference;
     const metadata = transactionData.metadata;
+
+    await connectToDatabase();
+
+    // ── Handle Vendor Subscription Payment ──────────────────────────────────
+    if (metadata?.type === 'vendor_subscription') {
+      const { vendorEmail, planTier, billingCycle, planName, price } = metadata;
+      if (vendorEmail && planTier) {
+        try {
+          const { VendorSubscription } = await import('@/models/VendorSubscription');
+          const { User } = await import('@/models/User');
+          const { VendorProfile } = await import('@/models/VendorProfile');
+          const { Store } = await import('@/models/Store');
+
+          const user = await User.findOne({ email: vendorEmail.toLowerCase() });
+          const durationDays = billingCycle === 'monthly' ? 30 : 365;
+          const startDate = new Date();
+          const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+          const gracePeriodEndDate = new Date(endDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+          // Update existing active subscription or create new
+          const sub = await VendorSubscription.findOneAndUpdate(
+            { vendorEmail: vendorEmail.toLowerCase(), status: { $in: ['active', 'grace', 'lapsed'] } },
+            {
+              vendorId: user?._id,
+              vendorEmail: vendorEmail.toLowerCase(),
+              planTier,
+              planName: planName || planTier.toUpperCase(),
+              status: 'active',
+              startDate,
+              endDate,
+              gracePeriodEndDate,
+              paymentReference: reference,
+              paymentMethod: transactionData.channel === 'card' ? 'card' : 'mobile_money',
+              amountPaid: price || transactionData.amount / 100,
+              currency: transactionData.currency || 'GHS',
+              autoRenew: false,
+              remindersSent: [],
+            },
+            { upsert: true, new: true }
+          );
+
+          // Update VendorProfile
+          if (user) {
+            await VendorProfile.findOneAndUpdate(
+              { userId: user._id },
+              { subscriptionTier: planTier }
+            );
+          }
+
+          // Reactivate store if it was lapsed (setup state)
+          await Store.updateMany(
+            { vendorEmail: vendorEmail.toLowerCase(), status: 'setup' },
+            { status: 'active' }
+          );
+
+          console.log(`[webhook] Vendor subscription activated for ${vendorEmail}: ${planTier} until ${endDate.toISOString()}`);
+          return NextResponse.json({ success: true, message: 'Vendor subscription activated', subscription: sub });
+        } catch (subErr) {
+          console.error('[webhook] Failed to activate vendor subscription:', subErr);
+        }
+      }
+    }
+
     const orderData = metadata?.orderData;
 
     if (!orderData) {
       console.warn('Webhook received but no orderData found in metadata');
-      return NextResponse.json({ success: true, message: 'No orderData in metadata' });
+      return NextResponse.json({ success: true, message: 'No orderData or vendor_subscription in metadata' });
     }
-
-    await connectToDatabase();
 
     // Check if the order has already been created (e.g. by the frontend callback)
     const existingOrder = await Order.findOne({ orderId: orderData.orderId });

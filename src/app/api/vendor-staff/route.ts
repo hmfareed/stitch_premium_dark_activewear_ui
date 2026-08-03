@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import { VendorStaff } from '@/models/VendorStaff';
+import { checkStaffCap } from '@/lib/subscription-gate';
 
 /**
  * GET  /api/vendor-staff?ownerEmail=xxx   — list staff for a vendor
@@ -33,6 +34,15 @@ export async function POST(req: NextRequest) {
 
     if (!ownerEmail || !staffEmail) {
       return NextResponse.json({ success: false, error: 'ownerEmail and staffEmail are required' }, { status: 400 });
+    }
+
+    // ── Subscription staff-seat cap check (Phase 9.8 step 4) ──────────────────
+    const seatGate = await checkStaffCap(ownerEmail);
+    if (!seatGate.allowed) {
+      return NextResponse.json(
+        { success: false, error: seatGate.reason, upgradeRequired: true, tier: seatGate.tier },
+        { status: 403 }
+      );
     }
 
     const existing = await VendorStaff.findOne({ ownerEmail, staffEmail });

@@ -11,7 +11,7 @@ export interface ISavedAddress {
   isDefault: boolean;
 }
 
-export type UserRole = 'customer' | 'vendor' | 'super_admin' | 'rider' | 'staff';
+export type UserRole = 'customer' | 'vendor' | 'super_admin' | 'admin' | 'manager' | 'support_staff' | 'auditor' | 'developer' | 'rider' | 'staff';
 
 export interface IUser extends Document {
   name: string;
@@ -26,8 +26,16 @@ export interface IUser extends Document {
   isVerified?: boolean;
   storeName?: string;
   points?: number;
+  walletBalance?: number;
+  isBlacklisted?: boolean;
+  blacklistReason?: string;
   referralCode?: string;
   referredBy?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
+  invitedBy?: string;
+  invitedAt?: Date;
+  lastLoginAt?: Date;
   savedAddresses?: ISavedAddress[];
   resetToken?: string;
   resetTokenExpiry?: Date;
@@ -49,19 +57,27 @@ const UserSchema: Schema<IUser> = new Schema({
   phone: { type: String, required: true, unique: true, index: true },
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   password: { type: String },
-  role: { type: String, enum: ['customer', 'vendor', 'super_admin', 'rider', 'staff'], default: 'customer' },
+  role: { type: String, enum: ['customer', 'vendor', 'super_admin', 'admin', 'manager', 'support_staff', 'auditor', 'developer', 'rider', 'staff'], default: 'customer' },
   roles: {
-    type: [{ type: String, enum: ['customer', 'vendor', 'super_admin', 'rider', 'staff'] }],
+    type: [{ type: String, enum: ['customer', 'vendor', 'super_admin', 'admin', 'manager', 'support_staff', 'auditor', 'developer', 'rider', 'staff'] }],
     default: ['customer'],
   },
-  activeRole: { type: String, default: 'customer' },
+  activeRole: { type: String, enum: ['customer', 'vendor', 'super_admin', 'admin', 'manager', 'support_staff', 'auditor', 'developer', 'rider', 'staff'] },
   isActive: { type: Boolean, default: true },
   profilePic: { type: String },
   isVerified: { type: Boolean, default: false },
   storeName: { type: String },
   points: { type: Number, default: 0 },
+  walletBalance: { type: Number, default: 0 },
+  isBlacklisted: { type: Boolean, default: false, index: true },
+  blacklistReason: { type: String },
   referralCode: { type: String, unique: true, sparse: true },
   referredBy: { type: String },
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorSecret: { type: String },
+  invitedBy: { type: String },
+  invitedAt: { type: Date },
+  lastLoginAt: { type: Date },
   savedAddresses: { type: [SavedAddressSchema], default: [] },
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },

@@ -4,6 +4,7 @@ import { Product } from '@/models/Product';
 import { Follower } from '@/models/Follower';
 import { Notification } from '@/models/Notification';
 import { products as defaultProducts } from '@/data/products';
+import { checkProductCap } from '@/lib/subscription-gate';
 
 export async function GET() {
   try {
@@ -75,6 +76,20 @@ export async function POST(req: Request) {
     await connectToDatabase();
     const productData = await req.json();
     const { isNew, ...restData } = productData;
+
+    // ── Subscription product-cap check (Phase 9.8 step 4) ─────────────────────
+    if (productData.vendorEmail) {
+      const gate = await checkProductCap(
+        productData.vendorEmail,
+        productData.storeId
+      );
+      if (!gate.allowed) {
+        return NextResponse.json(
+          { error: gate.reason, upgradeRequired: true, tier: gate.tier },
+          { status: 403 }
+        );
+      }
+    }
 
     const newProduct = await Product.create({
       ...restData,

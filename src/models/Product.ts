@@ -34,11 +34,31 @@ export interface IProduct extends Document {
   vendorStoreName?: string;
   stock?: number;
   reservedStock?: number;
-  moderationStatus?: ProductModerationStatus; // Product moderation queue per spec §5.5a
+  moderationStatus?: ProductModerationStatus;
+  isFeatured?: boolean;
+  brand?: string;
+  unit?: string;
+  barcode?: string;
+  qrCode?: string;
+  attributes?: Array<{ name: string; values: string[] }>;
+  variants?: Array<{ sku: string; name: string; price: number; stock: number; barcode?: string }>;
   wholesaleTiers?: Array<{ minQuantity: number; discountPercent: number }>;
   campaignId?: string;
   createdAt: Date;
 }
+
+const AttributeSchema = new Schema({
+  name: { type: String, required: true },
+  values: { type: [String], default: [] },
+}, { _id: false });
+
+const VariantSchema = new Schema({
+  sku: { type: String, required: true },
+  name: { type: String, required: true },
+  price: { type: Number, required: true },
+  stock: { type: Number, default: 0 },
+  barcode: { type: String },
+}, { _id: false });
 
 const ProductSchema: Schema<IProduct> = new Schema({
   id: { type: String, required: true, unique: true },
@@ -73,6 +93,13 @@ const ProductSchema: Schema<IProduct> = new Schema({
   stock: { type: Number, default: 0 },
   reservedStock: { type: Number, default: 0 },
   moderationStatus: { type: String, enum: ['pending_review', 'approved', 'flagged'], default: 'approved' },
+  isFeatured: { type: Boolean, default: false },
+  brand: { type: String, default: 'AfriCart Genuine' },
+  unit: { type: String, default: 'pcs' },
+  barcode: { type: String },
+  qrCode: { type: String },
+  attributes: { type: [AttributeSchema], default: [] },
+  variants: { type: [VariantSchema], default: [] },
   wholesaleTiers: [{
     minQuantity: { type: Number, required: true },
     discountPercent: { type: Number, required: true }

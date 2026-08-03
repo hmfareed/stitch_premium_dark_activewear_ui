@@ -1,8 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block');
+@import "tailwindcss";
 
 :root {
   color-scheme: dark;
+
+  /* ── AfriCart design tokens ── */
   --background: #0a0a0a;
   --foreground: #e2e2e2;
   --primary: #ffffff;
@@ -27,10 +30,43 @@
   --glass-bg: rgba(17, 17, 17, 0.75);
   --font-inter: 'Inter', sans-serif;
   --price-color: var(--lime-400);
+
+  /* ── Shadcn/ui CSS variables (dark mode defaults) ── */
+  --card: #111111;
+  --card-foreground: #e2e2e2;
+  --popover: #1a1a1a;
+  --popover-foreground: #e2e2e2;
+  --primary-foreground: #0a0a0a;
+  --secondary-foreground: #e2e2e2;
+  --muted: #1a1a1a;
+  --muted-foreground: #a0a0a0;
+  --accent: #00E5FF;
+  --accent-foreground: #0a0a0a;
+  --destructive: #ff4444;
+  --destructive-foreground: #ffffff;
+  --border: #333333;
+  --input: #222222;
+  --ring: #00E5FF;
+  --radius: 0.5rem;
+  --chart-1: #00E5FF;
+  --chart-2: #c3f400;
+  --chart-3: #ffb59a;
+  --chart-4: #ff5e07;
+  --chart-5: #ffffff;
+  --sidebar: #111111;
+  --sidebar-foreground: #e2e2e2;
+  --sidebar-primary: #00E5FF;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #e2e2e2;
+  --sidebar-border: #333333;
+  --sidebar-ring: #00E5FF;
 }
 
 [data-theme="light"] {
   color-scheme: light;
+
+  /* ── AfriCart design tokens (light) ── */
   --background: #f5f5f5;
   --foreground: #1a1a1a;
   --primary: #000000;
@@ -51,6 +87,36 @@
   --lime-400: #00B4D8; /* Slightly deeper Cyan for light mode readability */
   --on-lime-400: #ffffff;
   --price-color: #000000;
+
+  /* ── Shadcn/ui CSS variables (light mode) ── */
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary-foreground: #ffffff;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f0f0f0;
+  --muted-foreground: #666666;
+  --accent: #00B4D8;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e0e0e0;
+  --input: #e5e5e5;
+  --ring: #00B4D8;
+  --chart-1: #00B4D8;
+  --chart-2: #a2cc00;
+  --chart-3: #ffb59a;
+  --chart-4: #ff5e07;
+  --chart-5: #000000;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #00B4D8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f0f0;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e0e0e0;
+  --sidebar-ring: #00B4D8;
 }
 
 * { box-sizing: border-box; padding: 0; margin: 0; }

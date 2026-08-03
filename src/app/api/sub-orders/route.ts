@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
-import { SubOrder, SubOrderStatus } from '@/models/SubOrder';
+import { SubOrder, SubOrderStatus, FulfillmentSource } from '@/models/SubOrder';
+import { calculateSubOrderDeliveryFee } from '@/lib/delivery-fee';
 
 // GET sub-orders list with optional filters
 export async function GET(req: NextRequest) {
@@ -55,12 +56,47 @@ export async function POST(req: NextRequest) {
       customerPhone,
       items,
       subtotal,
-      deliveryFee = 0,
-      total,
+      deliveryFee: clientDeliveryFee = 0,
+      total: clientTotal,
       fulfillmentMethod = 'home_delivery',
       fulfillmentSource = 'vendor_dropoff_pending',
       shippingAddress,
+      /**
+       * Customer GPS coordinates — passed from checkout (Phase 11).
+       * If not provided, delivery fee falls back to the client-provided flat fee.
+       */
+      customerLat,
+      customerLon,
     } = body;
+
+    // ── Distance-based delivery fee (Phase 11) ──────────────────────────────
+    let deliveryFee = clientDeliveryFee;
+    let deliveryDistanceKm: number | undefined;
+    let deliveryFeeCharged: number | undefined;
+
+    if (
+      fulfillmentMethod === 'home_delivery' &&
+      typeof customerLat === 'number' &&
+      typeof customerLon === 'number'
+    ) {
+      try {
+        const feeResult = await calculateSubOrderDeliveryFee(
+          fulfillmentSource as FulfillmentSource,
+          storeId,
+          customerLat,
+          customerLon
+        );
+        deliveryFee = feeResult.fee;
+        deliveryDistanceKm = feeResult.distanceKm;
+        deliveryFeeCharged = feeResult.fee;
+      } catch (feeErr) {
+        // Non-fatal — log and fall back to client-provided fee
+        console.error('[sub-orders POST] delivery fee calc failed, using client value:', feeErr);
+      }
+    }
+
+    // Recalculate total with computed delivery fee
+    const total = subtotal + deliveryFee;
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const subOrderId = `SUB-${orderId}-${storeId.substring(0, 4)}-${randomSuffix}`;
@@ -79,6 +115,8 @@ export async function POST(req: NextRequest) {
       items,
       subtotal,
       deliveryFee,
+      deliveryDistanceKm,
+      deliveryFeeCharged,
       total,
       fulfillmentMethod,
       fulfillmentSource,

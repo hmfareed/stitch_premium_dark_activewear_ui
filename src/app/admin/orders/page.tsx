@@ -1,510 +1,721 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useAdmin, PlatformOrder } from '@/context/AdminContext';
-import { useAuth, useToast } from '@/context/AppContext';
-import './orders.css';
+import React, { useState, useEffect, useCallback } from 'react';
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const colorMap: Record<string, string> = {
-    Delivered: 'var(--lime-400)', Processing: '#00e5ff', Shipped: 'var(--secondary)',
-    Pending: '#ff9800', Cancelled: 'var(--error)', Ongoing: '#00e5ff',
-  };
-  const c = colorMap[status] || 'var(--on-surface-variant)';
-  return (
-    <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600,
-      backgroundColor: `color-mix(in srgb, ${c} 20%, transparent)`, color: c
-    }}>{status}</span>
-  );
-};
+type StatusTab = 'all' | 'pending' | 'confirmed' | 'processing' | 'packed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'refunded';
 
 export default function AdminOrdersPage() {
-  const { allOrders, pendingOrders, shippedOrders, deliveredOrders, cancelledOrders, totalOrderCount, updateOrderStatus, refreshData } = useAdmin();
-  const { user } = useAuth();
-  const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState<StatusTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<PlatformOrder | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [statusUpdateModal, setStatusUpdateModal] = useState<{ orderId: string, newStatus: string, currentStatus: string, note: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const handleDeleteAllOrders = async () => {
-    if (!user || user.role !== 'super_admin') {
-      showToast('Only Super Admins can clear all orders', 'error');
-      return;
-    }
+  // Selected Order Drawer / Modal States
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [orderDetailData, setOrderDetailData] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [modalType, setModalType] = useState<'update_status' | 'assign_delivery' | 'print_invoice' | 'refund' | 'cancel' | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-    if (!confirm('WARNING: This will permanently delete ALL orders from the database. This action cannot be undone. Proceed?')) {
-      return;
-    }
+  // Form States
+  const [formStatus, setFormStatus] = useState('Confirmed');
+  const [formNote, setFormNote] = useState('');
+  const [formRiderName, setFormRiderName] = useState('');
+  const [formRiderPhone, setFormRiderPhone] = useState('');
+  const [formTracking, setFormTracking] = useState('');
+  const [formRefundReason, setFormRefundReason] = useState('');
+  const [formRefundAmount, setFormRefundAmount] = useState('');
 
-    setIsDeletingAll(true);
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  // Fetch Orders List by Status Tab
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/orders', { method: 'DELETE' });
+      const res = await fetch(`/api/admin/orders?status=${activeTab}&q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
       if (data.success) {
-        showToast('All orders have been deleted.', 'success');
-        refreshData();
-      } else {
-        showToast(`Failed: ${data.error}`, 'error');
-      }
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`, 'error');
-    } finally {
-      setIsDeletingAll(false);
-    }
-  };
-
-  useEffect(() => {
-    if (selectedOrder || statusUpdateModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [selectedOrder, statusUpdateModal]);
-
-  const tabs = ['all', 'processing', 'shipped', 'delivered', 'cancelled', 'disputed'];
-
-  const filtered = allOrders.filter(o => {
-    const status = o.status.toLowerCase();
-    const escrowStatus = o.paymentInfo?.escrowStatus?.toLowerCase();
-    const matchesTab = activeTab === 'all' || 
-                      (activeTab === 'disputed' && escrowStatus === 'disputed') ||
-                      (activeTab !== 'disputed' && status === activeTab) || 
-                      (activeTab === 'processing' && (status === 'ongoing' || status === 'pending'));
-    const matchesSearch = !searchQuery ||
-      (o.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ((o as any).orderId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.customerEmail || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
-
-  const handleStatusUpdate = (orderId: string, newStatus: string) => {
-    updateOrderStatus(orderId, newStatus);
-  };
-
-  const handleResolveDispute = async (orderId: string, resolution: 'Release' | 'Refund') => {
-    if (!confirm(`Are you sure you want to resolve this dispute by ${resolution === 'Release' ? 'releasing funds to the vendor' : 'refunding the customer'}?`)) return;
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: resolution === 'Refund' ? 'Cancelled' : 'Delivered',
-          // Admin-authorized dispute resolution — bypasses customer confirmation guard
-          customerConfirmed: resolution === 'Release' ? true : undefined,
-          'paymentInfo.escrowStatus': resolution === 'Release' ? 'Released' : 'Refunded' 
-        })
-      });
-      if (res.ok) {
-        showToast(`Dispute resolved. Funds ${resolution === 'Release' ? 'released' : 'refunded'}.`, 'success');
-        setSelectedOrder(null);
-        refreshData();
-      } else {
-        showToast('Failed to resolve dispute.', 'error');
+        setOrdersList(data.orders || []);
       }
     } catch (err) {
-      showToast('Network error.', 'error');
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, searchQuery]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Fetch Full Order Details & Invoice Metadata
+  const fetchOrderDetail = async (id: string) => {
+    setSelectedOrderId(id);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setOrderDetailData(data.order);
+      }
+    } catch (err) {
+      console.error('Error fetching order detail:', err);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  // Action: Update Status
+  const handleUpdateStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_status', status: formStatus, note: formNote }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        setFormNote('');
+        fetchOrders();
+        if (selectedOrderId) fetchOrderDetail(selectedOrderId);
+      }
+    } catch (err) {
+      console.error('Update status error:', err);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
+  // Action: Assign Delivery Rider
+  const handleAssignDelivery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderId || !formRiderName || !formRiderPhone) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign_delivery',
+          riderName: formRiderName,
+          riderPhone: formRiderPhone,
+          trackingNumber: formTracking,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        fetchOrders();
+        if (selectedOrderId) fetchOrderDetail(selectedOrderId);
+      }
+    } catch (err) {
+      console.error('Assign delivery error:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Issue Refund
+  const handleRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'refund',
+          refundReason: formRefundReason,
+          refundAmount: formRefundAmount,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        fetchOrders();
+        if (selectedOrderId) fetchOrderDetail(selectedOrderId);
+      }
+    } catch (err) {
+      console.error('Refund error:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Action: Cancel Order
+  const handleCancelOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', note: formNote }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+        setModalType(null);
+        setFormNote('');
+        fetchOrders();
+        if (selectedOrderId) fetchOrderDetail(selectedOrderId);
+      }
+    } catch (err) {
+      console.error('Cancel order error:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const formatGhs = (val: number) => `GH₵ ${(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
-    <div className="orders-container animate-fade-in-up">
-      <div className="orders-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div style={toastStyle}>
+          <span className="material-symbols-outlined" style={{ color: '#38bdf8' }}>check_circle</span>
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Header Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Order Control Center</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Real-time orders from customers across the platform</p>
+          <h1 style={{ fontSize: 'clamp(22px, 3vw, 26px)', fontWeight: 900, color: '#0f172a', margin: 0, fontFamily: 'var(--font-lexend, sans-serif)' }}>
+            Order Processing & Fulfillment Hub
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+            Lifecycle order tracking, status advancement, rider assignments, invoices & customer refunds
+          </p>
         </div>
-        {user?.role === 'super_admin' && (
-          <button 
-            onClick={handleDeleteAllOrders} 
-            disabled={isDeletingAll}
-            style={{ 
-              padding: '10px 20px', borderRadius: '8px', background: 'var(--error)', border: 'none', 
-              color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: isDeletingAll ? 'not-allowed' : 'pointer',
-              opacity: isDeletingAll ? 0.6 : 1, transition: 'all 0.2s', fontFamily: 'var(--font-lexend)',
-              display: 'flex', alignItems: 'center', gap: '8px'
+      </div>
+
+      {/* 9 Status Navigation Sub-View Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: 12, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'All Orders', icon: 'list_alt' },
+            { id: 'pending', label: 'Pending', icon: 'hourglass_empty' },
+            { id: 'confirmed', label: 'Confirmed', icon: 'check_circle' },
+            { id: 'processing', label: 'Processing', icon: 'sync' },
+            { id: 'packed', label: 'Packed', icon: 'package_2' },
+            { id: 'shipped', label: 'Shipped', icon: 'local_shipping' },
+            { id: 'delivered', label: 'Delivered', icon: 'task_alt' },
+            { id: 'cancelled', label: 'Cancelled', icon: 'cancel' },
+            { id: 'returned', label: 'Returned', icon: 'keyboard_return' },
+            { id: 'refunded', label: 'Refunded', icon: 'payments' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as StatusTab)}
+              style={{
+                border: 'none',
+                background: activeTab === tab.id ? '#0f172a' : 'transparent',
+                color: activeTab === tab.id ? '#ffffff' : '#64748b',
+                fontWeight: activeTab === tab.id ? 800 : 600,
+                fontSize: 12,
+                padding: '8px 12px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Search Input */}
+        <div style={{ position: 'relative', width: 240 }}>
+          <input
+            type="text"
+            placeholder="Search order ID, customer..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 34px',
+              borderRadius: 10,
+              border: '1px solid #cbd5e1',
+              fontSize: 12,
+              outline: 'none',
             }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
-            {isDeletingAll ? 'CLEARING...' : 'CLEAR ALL ORDERS'}
-          </button>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="stats-grid">
-        {[
-          { label: 'Total Orders', val: totalOrderCount, icon: 'receipt_long', color: 'var(--lime-400)' },
-          { label: 'Processing', val: pendingOrders, icon: 'pending', color: '#ff9800' },
-          { label: 'Shipped', val: shippedOrders, icon: 'local_shipping', color: 'var(--secondary)' },
-          { label: 'Delivered', val: deliveredOrders, icon: 'check_circle', color: 'var(--lime-400)' },
-          { label: 'Cancelled', val: cancelledOrders, icon: 'cancel', color: 'var(--error)' },
-        ].map(stat => (
-          <div key={stat.label} className="stat-card">
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: `color-mix(in srgb, ${stat.color} 15%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.color }}>
-              <span className="material-symbols-outlined">{stat.icon}</span>
-            </div>
-            <div>
-              <div className="font-lexend" style={{ fontSize: '1.5rem', fontWeight: 600 }}>{stat.val}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{stat.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Orders Table */}
-      <div className="table-container">
-        {/* Tabs & Search */}
-        <div className="table-header">
-          <div className="tabs-container">
-            {tabs.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: activeTab === tab ? 600 : 400, fontSize: '0.9rem', cursor: 'pointer', textTransform: 'capitalize',
-                  backgroundColor: activeTab === tab ? 'var(--lime-400)' : 'var(--surface-container)',
-                  color: activeTab === tab ? 'black' : 'var(--on-surface-variant)', transition: 'all 0.2s ease',
-                  whiteSpace: 'nowrap'
-                }}>
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="search-container">
-            <span className="material-symbols-outlined" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--on-surface-variant)', fontSize: '20px' }}>search</span>
-            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search ID, name, email..." style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
-          </div>
+          />
+          <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: 9, fontSize: 18, color: '#94a3b8' }}>
+            search
+          </span>
         </div>
-
-        {filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--on-surface-variant)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '56px', marginBottom: '16px', opacity: 0.4 }}>receipt_long</span>
-            <p style={{ fontSize: '1rem', marginBottom: '4px', fontWeight: 500 }}>No orders found</p>
-            <p style={{ fontSize: '0.85rem' }}>Orders placed by customers will appear here in real time.</p>
-          </div>
-        ) : (
-          <>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="order-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Customer</th>
-                    <th className="mobile-hide">Vendors</th>
-                    <th>Products</th>
-                    <th className="mobile-hide">Items</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th className="mobile-hide">Date</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((order, idx) => (
-                    <tr key={order.id + idx} className="order-row">
-                      <td data-label="Order ID" style={{ fontWeight: 600 }}>{order.id || (order as any).orderId}</td>
-                      <td data-label="Customer">
-                        <div style={{ textAlign: 'inherit' }}>
-                          <span style={{ fontWeight: 500 }}>{order.customerName || 'Unknown'}</span>
-                          <br />
-                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>{order.customerEmail || ''}</span>
-                        </div>
-                      </td>
-                      <td data-label="Vendors" className="mobile-hide">
-                        <div style={{ fontSize: '0.85rem', color: 'var(--on-surface)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          {Array.from(new Set((order.products || []).map(p => p.vendorStoreName || p.vendorEmail || 'Platform'))).map((vendor, i) => (
-                            <span key={i} style={{ background: 'var(--surface-container-high)', padding: '2px 8px', borderRadius: '4px', whiteSpace: 'nowrap', width: 'fit-content' }}>{vendor}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td data-label="Products">
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'inherit' }}>
-                          {(order.products || []).slice(0, 3).map((p, i) => (
-                            <div key={i} style={{ width: '32px', height: '32px', borderRadius: '6px', overflow: 'hidden', backgroundColor: 'var(--surface-container-highest)' }}>
-                              {p.image && <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                            </div>
-                          ))}
-                          {(order.products || []).length > 3 && <div style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: 'var(--surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 600 }}>+{order.products.length - 3}</div>}
-                        </div>
-                      </td>
-                      <td data-label="Items" className="mobile-hide">{order.items || (order as any).itemsCount}</td>
-                      <td data-label="Amount" style={{ fontWeight: 600 }}>GH₵{(order.total || 0).toFixed(2)}</td>
-                      <td data-label="Status">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                          <StatusBadge status={order.status} />
-                          {order.paymentInfo?.escrowStatus === 'Disputed' && (
-                            <span style={{ 
-                              padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, 
-                              backgroundColor: 'var(--error)', color: 'white', textTransform: 'uppercase' 
-                            }}>
-                              DISPUTED
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td data-label="Date" className="mobile-hide" style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>{order.date}</td>
-                      <td data-label="Actions" style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'inherit' }}>
-                          <button onClick={() => setSelectedOrder(order)} style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="View Details">
-                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>visibility</span>
-                          </button>
-                          <select 
-                            value={order.status} 
-                            onChange={e => setStatusUpdateModal({
-                              orderId: order.id || (order as any).orderId || (order as any)._id,
-                              newStatus: e.target.value,
-                              currentStatus: order.status,
-                              note: ''
-                            })}
-                            disabled={order.status === 'Cancelled'}
-                            style={{ 
-                              padding: '8px 12px', borderRadius: '10px', backgroundColor: 'var(--surface-container)', 
-                              border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', 
-                              fontSize: '0.85rem', cursor: (order.status === 'Cancelled') ? 'not-allowed' : 'pointer',
-                              opacity: (order.status === 'Cancelled') ? 0.6 : 1
-                            }}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--outline)', fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
-              Showing {filtered.length} of {totalOrderCount} orders
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Order Detail Modal */}
-      {selectedOrder && (
-        <div 
-          className="order-modal-backdrop"
-          onClick={() => setSelectedOrder(null)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()} 
-            className="order-detail-modal"
-          >
-            {/* Modal Header - Fixed */}
-            <div className="order-modal-header">
-              <div>
-                <h3 className="font-lexend" style={{ fontSize: '1.2rem', margin: 0 }}>Order Detail</h3>
-                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>ID: {selectedOrder.id || (selectedOrder as any).orderId}</p>
-              </div>
-              <button onClick={() => setSelectedOrder(null)} style={{ background: 'var(--surface-container-high)', border: 'none', cursor: 'pointer', color: 'var(--on-surface)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
+      {/* Main Content Area */}
+      {loading ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '4px solid #16a34a', borderTopColor: 'transparent', margin: '0 auto', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 12, fontWeight: 600, fontSize: 13 }}>Loading order telemetry...</p>
+        </div>
+      ) : (
 
-            {/* Scrollable Content - ONLY this area scrolls */}
-            <div className="order-modal-body">
-              {/* Quick Info Grid */}
-              <div className="order-quick-info">
-                <div style={{ padding: '16px', background: 'var(--surface-container)', borderRadius: '20px', border: '1px solid var(--outline)' }}>
-                  <span className="detail-label" style={{ fontSize: '0.7rem' }}>Status</span>
-                  <div style={{ marginTop: '8px' }}>
-                    <StatusBadge status={selectedOrder.status} />
-                  </div>
-                </div>
-                <div style={{ padding: '16px', background: 'color-mix(in srgb, var(--price-color) 8%, var(--surface-container))', borderRadius: '20px', border: '1px solid color-mix(in srgb, var(--price-color) 20%, var(--outline))' }}>
-                  <span className="detail-label" style={{ fontSize: '0.7rem', color: 'var(--price-color)' }}>Total</span>
-                  <div className="font-lexend" style={{ fontWeight: 800, fontSize: '1.2rem', marginTop: '4px', color: 'var(--price-color)' }}>GH₵{(selectedOrder.total || 0).toFixed(2)}</div>
-                </div>
-              </div>
-
-              <div className="order-sections-grid">
-                {/* Customer */}
-                <section className="detail-section">
-                  <h4 className="detail-section-title">
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>person</span>
-                    Customer
-                  </h4>
-                  <div className="detail-card">
-                    <div className="detail-row">
-                      <span className="detail-label">Name</span>
-                      <span className="detail-value">{selectedOrder.customerName}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">Email</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="detail-value" style={{ fontSize: '0.8rem' }}>{selectedOrder.customerEmail}</span>
-                        <button className="copy-btn" onClick={() => copyToClipboard(selectedOrder.customerEmail, 'custemail')}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{copiedId === 'custemail' ? 'check' : 'content_copy'}</span>
+        /* Master Orders Data Table */
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>
+            Orders ({ordersList.length})
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Order ID & Date</th>
+                  <th style={{ padding: 10 }}>Customer</th>
+                  <th style={{ padding: 10 }}>Items</th>
+                  <th style={{ padding: 10 }}>Total Amount</th>
+                  <th style={{ padding: 10 }}>Order Status</th>
+                  <th style={{ padding: 10 }}>Payment & Escrow</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersList.map(o => (
+                  <tr key={o.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontWeight: 800, color: '#0f172a' }}>#{o.orderId}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>{o.date}</div>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontWeight: 700, color: '#334155' }}>{o.customerName}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>{o.customerEmail}</div>
+                    </td>
+                    <td style={{ padding: 12, fontWeight: 700, color: '#475569' }}>
+                      {o.itemsCount} item(s)
+                    </td>
+                    <td style={{ padding: 12, fontWeight: 900, color: '#16a34a' }}>
+                      {formatGhs(o.total)}
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <span style={badgeStyle(getStatusColor(o.status), getStatusBg(o.status))}>
+                        {o.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>
+                        Payment: <span style={{ color: '#16a34a' }}>{o.paymentInfo?.paymentStatus || 'Paid'}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>
+                        Escrow: {o.paymentInfo?.escrowStatus || 'Locked'}
+                      </div>
+                    </td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        {/* View Order Drawer */}
+                        <button onClick={() => fetchOrderDetail(o.orderId)} style={{ border: 'none', background: '#dbeafe', color: '#2563eb', padding: '4px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                          View Order
+                        </button>
+                        {/* Update Status */}
+                        <button onClick={() => { setSelectedOrderId(o.orderId); setFormStatus(o.status); setModalType('update_status'); }} style={{ border: 'none', background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                          Update Status
+                        </button>
+                        {/* Assign Delivery */}
+                        <button onClick={() => { setSelectedOrderId(o.orderId); setFormRiderName(o.assignedRiderName || ''); setFormRiderPhone(o.assignedRiderPhone || ''); setFormTracking(o.trackingNumber || ''); setModalType('assign_delivery'); }} style={{ border: 'none', background: '#f3e8ff', color: '#7c3aed', padding: '4px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                          Assign Rider
+                        </button>
+                        {/* Print Invoice */}
+                        <button onClick={() => { setSelectedOrderId(o.orderId); setModalType('print_invoice'); }} style={{ border: 'none', background: '#e0e7ff', color: '#4338ca', padding: '4px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                          Invoice
+                        </button>
+                        {/* Refund */}
+                        <button onClick={() => { setSelectedOrderId(o.orderId); setFormRefundAmount(o.total.toString()); setModalType('refund'); }} style={{ border: 'none', background: '#fef3c7', color: '#b45309', padding: '4px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+                          Refund
                         </button>
                       </div>
-                    </div>
-                  </div>
-                </section>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-                {/* Shipping */}
-                <section className="detail-section">
-                  <h4 className="detail-section-title">
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>local_shipping</span>
-                    Shipping
-                  </h4>
-                  <div className="detail-card">
-                    <div className="detail-row">
-                      <span className="detail-label">Recipient</span>
-                      <span className="detail-value">{selectedOrder.shippingAddress?.fullName || selectedOrder.customerName}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">Phone</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="detail-value">{selectedOrder.shippingAddress?.phone || 'N/A'}</span>
-                        {selectedOrder.shippingAddress?.phone && (
-                          <button className="copy-btn" onClick={() => copyToClipboard(selectedOrder.shippingAddress!.phone, 'shipphone')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{copiedId === 'shipphone' ? 'check' : 'content_copy'}</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">Address</span>
-                      <span className="detail-value">{selectedOrder.shippingAddress?.address || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">City</span>
-                      <span className="detail-value">{selectedOrder.shippingAddress?.city}</span>
-                    </div>
-                  </div>
-                </section>
+      {/* ── ORDER DETAILS & TIMELINE TRACKING DRAWER ─────────────────────── */}
+      {selectedOrderId && orderDetailData && !modalType && (
+        <div style={modalBackdropStyle} onClick={() => setSelectedOrderId(null)}>
+          <div style={drawerContentStyle} onClick={e => e.stopPropagation()}>
 
-                {/* Payment */}
-                <section className="detail-section">
-                  <h4 className="detail-section-title">
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>payments</span>
-                    Payment
-                  </h4>
-                  <div className="detail-card">
-                    <div className="detail-row">
-                      <span className="detail-label">Method</span>
-                      <span className="detail-value" style={{ color: 'var(--lime-400)' }}>{selectedOrder.paymentInfo?.method || 'Momo'}</span>
-                    </div>
-                    {selectedOrder.paymentInfo?.momoPhone && (
-                      <div className="detail-row">
-                        <span className="detail-label">MoMo No.</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="detail-value">{selectedOrder.paymentInfo.momoPhone}</span>
-                          <button className="copy-btn" onClick={() => copyToClipboard(selectedOrder.paymentInfo!.momoPhone!, 'momophone')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{copiedId === 'momophone' ? 'check' : 'content_copy'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </section>
+            {/* Drawer Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: 16 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                    Order #{orderDetailData.orderId}
+                  </h2>
+                  <span style={badgeStyle(getStatusColor(orderDetailData.status), getStatusBg(orderDetailData.status))}>
+                    {orderDetailData.status.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                  Date: {orderDetailData.date} • Customer: {orderDetailData.customerName} ({orderDetailData.customerEmail})
+                </div>
               </div>
 
-              {/* Products List */}
-              <section className="detail-section" style={{ marginTop: '12px' }}>
-                <h4 className="detail-section-title">
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>inventory_2</span>
-                  Items ({selectedOrder.products?.length || 0})
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {(selectedOrder.products || []).map((p, i) => (
-                    <div key={i} className="order-product-item">
-                      <img src={p.image} alt={p.name} style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.9rem', display: 'block', color: 'var(--on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Qty: {p.quantity}</span>
-                          {p.selectedSize && <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>Size: {p.selectedSize}</span>}
-                        </div>
+              {/* Drawer Controls */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setFormStatus(orderDetailData.status); setModalType('update_status'); }} style={btnPrimaryStyle}>
+                  Update Status
+                </button>
+                <button onClick={() => setModalType('print_invoice')} style={btnSecondaryStyle}>
+                  Print Invoice
+                </button>
+                <button onClick={() => setSelectedOrderId(null)} style={closeBtnStyle}>×</button>
+              </div>
+            </div>
+
+            {/* Drawer Body Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, paddingTop: 16 }}>
+              
+              {/* Left Column: Order Items & Delivery Address */}
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Purchased Items ({orderDetailData.products?.length || 0})</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                  {orderDetailData.products?.map((item: any, idx: number) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 10 }}>
+                      <img src={item.image || '/images/placeholder.png'} alt={item.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: '#0f172a' }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>Store: {item.vendorStoreName || 'AfriCart Store'} • Qty: {item.quantity}</div>
                       </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <span className="font-lexend" style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--on-surface)' }}>GH₵{(p.price * p.quantity).toFixed(2)}</span>
+                      <div style={{ fontWeight: 900, color: '#16a34a', fontSize: 13 }}>
+                        {formatGhs(item.price * (item.quantity || 1))}
                       </div>
                     </div>
                   ))}
                 </div>
-              </section>
-            </div>
 
-            {/* Action Footer - Fixed at bottom */}
-            <div className="order-modal-footer">
-              <button onClick={() => setSelectedOrder(null)} style={{ flex: 1, padding: '14px', borderRadius: '16px', border: '1px solid var(--outline)', background: 'var(--surface-container-high)', color: 'var(--on-surface)', fontWeight: 600, cursor: 'pointer' }}>
-                Close
-              </button>
-              {selectedOrder.paymentInfo?.escrowStatus === 'Disputed' ? (
-                <div style={{ display: 'flex', gap: '8px', flex: 2 }}>
-                  <button onClick={() => handleResolveDispute(selectedOrder.id || (selectedOrder as any).orderId || (selectedOrder as any)._id, 'Release')} style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: 'var(--lime-400)', color: 'black', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                    Release Funds
-                  </button>
-                  <button onClick={() => handleResolveDispute(selectedOrder.id || (selectedOrder as any).orderId || (selectedOrder as any)._id, 'Refund')} style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: 'var(--error)', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                    Refund
-                  </button>
+                <h4 style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Shipping Address & Rider</h4>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, fontSize: 12 }}>
+                  <div><strong>Full Name:</strong> {orderDetailData.shippingAddress?.fullName || orderDetailData.customerName}</div>
+                  <div><strong>Address:</strong> {orderDetailData.shippingAddress?.address || 'Independence Ave'}, {orderDetailData.shippingAddress?.city || 'Accra'}</div>
+                  <div><strong>Phone:</strong> {orderDetailData.shippingAddress?.phone || '+233 24 000 0000'}</div>
+                  {orderDetailData.assignedRiderName && (
+                    <div style={{ marginTop: 8, borderTop: '1px solid #e2e8f0', paddingTop: 6, color: '#7c3aed', fontWeight: 800 }}>
+                      Assigned Rider: {orderDetailData.assignedRiderName} ({orderDetailData.assignedRiderPhone}) • Tracking: {orderDetailData.trackingNumber}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <button onClick={() => window.print()} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', borderRadius: '16px', border: 'none', background: 'var(--lime-400)', color: 'var(--on-lime-400)', fontWeight: 700, cursor: 'pointer' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>print</span>
-                  Invoice
-                </button>
-              )}
+              </div>
+
+              {/* Right Column: Timeline Tracking Visual Stream */}
+              <div>
+                <h4 style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Timeline Tracking Stream</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative', paddingLeft: 16 }}>
+                  {orderDetailData.timeline?.map((t: any, idx: number) => (
+                    <div key={idx} style={{ position: 'relative', borderLeft: '2px solid #2563eb', paddingLeft: 14 }}>
+                      <div style={{ position: 'absolute', left: -7, top: 0, width: 12, height: 12, borderRadius: '50%', background: '#2563eb' }} />
+                      <div style={{ fontWeight: 800, fontSize: 13, color: '#0f172a' }}>{t.status.toUpperCase()}</div>
+                      <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{t.description}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{new Date(t.timestamp).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── MODALS FOR ACTIONS ────────────────────────────────────────── */}
+
+      {/* Modal: Update Status */}
+      {modalType === 'update_status' && selectedOrderId && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Update Order Lifecycle Status</h3>
+            <form onSubmit={handleUpdateStatus} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Select New Status *</label>
+                <select value={formStatus} onChange={e => setFormStatus(e.target.value)} style={inputStyle}>
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Processing">Processing</option>
+                  <option value="Packed">Packed</option>
+                  <option value="Shipped">Shipped</option>
+                  <option value="Delivered">Delivered</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Returned">Returned</option>
+                  <option value="Refunded">Refunded</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Status Note / Audit Reason</label>
+                <input type="text" value={formNote} onChange={e => setFormNote(e.target.value)} placeholder="e.g. Items verified at warehouse" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Save Status</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Assign Delivery Rider */}
+      {modalType === 'assign_delivery' && selectedOrderId && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Assign Delivery Rider & Tracking</h3>
+            <form onSubmit={handleAssignDelivery} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Rider / Driver Name *</label>
+                <input type="text" value={formRiderName} onChange={e => setFormRiderName(e.target.value)} placeholder="e.g. Kwame Asante" required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Rider Phone Number *</label>
+                <input type="text" value={formRiderPhone} onChange={e => setFormRiderPhone(e.target.value)} placeholder="+233 24 555 0192" required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Courier Tracking Code</label>
+                <input type="text" value={formTracking} onChange={e => setFormTracking(e.target.value)} placeholder="TRK-983210" style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={btnPrimaryStyle}>Assign & Ship</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Print Invoice */}
+      {modalType === 'print_invoice' && selectedOrderId && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={{ ...modalContentStyle, maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>Tax Invoice #{selectedOrderId}</h3>
+              <button onClick={() => window.print()} style={btnPrimaryStyle}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>print</span>
+                <span>Print Invoice</span>
+              </button>
+            </div>
+            <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 12, padding: 20, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 16, color: '#16a34a' }}>AfriCart Platforms Ltd</div>
+                  <div>Ridge, Accra, Ghana</div>
+                  <div>Tax ID: GHA-TIN-893201948</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800 }}>Invoice: INV-{selectedOrderId}</div>
+                  <div>Date: {new Date().toLocaleDateString()}</div>
+                </div>
+              </div>
+              <div style={{ padding: '12px 0' }}>
+                <div><strong>Bill To:</strong> {orderDetailData?.customerName || 'Customer'} ({orderDetailData?.customerEmail})</div>
+                <div><strong>Delivery Address:</strong> {orderDetailData?.shippingAddress?.address || 'Independence Ave, Accra'}</div>
+              </div>
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>
+                  <span>Item Description</span>
+                  <span>Total (GH₵)</span>
+                </div>
+                {orderDetailData?.products?.map((item: any, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+                    <span>{item.name} x{item.quantity}</span>
+                    <span>{formatGhs(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 14, borderTop: '2px solid #0f172a', paddingTop: 8, marginTop: 8 }}>
+                  <span>Grand Total</span>
+                  <span style={{ color: '#16a34a' }}>{formatGhs(orderDetailData?.total || 0)}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button onClick={() => setModalType(null)} style={btnSecondaryStyle}>Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {statusUpdateModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="animate-fade-in-up" style={{ width: '100%', maxWidth: 420, background: 'var(--surface)', borderRadius: 24, padding: 24, border: '1px solid var(--outline)', position: 'relative' }}>
-            <h3 className="font-lexend" style={{ fontSize: '1.2rem', fontWeight: 900, marginBottom: 12, color: 'var(--foreground)' }}>Update Order Status</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: 20 }}>
-              You are changing the status of order <strong style={{ color: 'var(--foreground)' }}>#{statusUpdateModal.orderId}</strong> from <span style={{ color: 'var(--secondary)' }}>{statusUpdateModal.currentStatus}</span> to <span style={{ color: 'var(--lime-400)', fontWeight: 700 }}>{statusUpdateModal.newStatus}</span>.
-            </p>
-            
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--on-surface-variant)', textTransform: 'uppercase', marginBottom: 8 }}>Custom Timeline Note (Optional)</label>
-              <textarea 
-                placeholder="e.g. Items packed and handed over to courier."
-                value={statusUpdateModal.note}
-                onChange={e => setStatusUpdateModal({ ...statusUpdateModal, note: e.target.value })}
-                style={{ width: '100%', padding: '12px', background: 'var(--surface-container)', border: '1px solid var(--outline)', borderRadius: 12, color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none', minHeight: 80, resize: 'vertical', fontFamily: 'var(--font-inter)' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button 
-                type="button" 
-                onClick={() => setStatusUpdateModal(null)} 
-                style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: 'var(--foreground)', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
-              >
-                CANCEL
-              </button>
-              <button 
-                type="button" 
-                onClick={() => {
-                  updateOrderStatus(statusUpdateModal.orderId, statusUpdateModal.newStatus, statusUpdateModal.note);
-                  setStatusUpdateModal(null);
-                }} 
-                style={{ flex: 1, padding: '14px', borderRadius: 12, background: 'var(--lime-400)', color: '#000', border: 'none', fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
-              >
-                CONFIRM
-              </button>
-            </div>
+      {/* Modal: Refund */}
+      {modalType === 'refund' && selectedOrderId && (
+        <div style={modalBackdropStyle} onClick={() => setModalType(null)}>
+          <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 16 }}>Issue Customer Refund</h3>
+            <form onSubmit={handleRefund} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Refund Amount (GH₵) *</label>
+                <input type="number" step="0.01" value={formRefundAmount} onChange={e => setFormRefundAmount(e.target.value)} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Refund Reason *</label>
+                <input type="text" value={formRefundReason} onChange={e => setFormRefundReason(e.target.value)} placeholder="e.g. Returned item in good condition" required style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setModalType(null)} style={btnSecondaryStyle}>Cancel</button>
+                <button type="submit" disabled={actionLoading} style={{ ...btnPrimaryStyle, background: '#ea580c' }}>Process Refund</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
     </div>
   );
 }
+
+// Helper Color functions
+const getStatusColor = (status: string) => {
+  const map: Record<string, string> = {
+    Pending: '#b45309', Confirmed: '#2563eb', Processing: '#0284c7', Packed: '#4338ca',
+    Shipped: '#7c3aed', Delivered: '#166534', Cancelled: '#991b1b', Returned: '#dc2626', Refunded: '#ea580c',
+  };
+  return map[status] || '#475569';
+};
+
+const getStatusBg = (status: string) => {
+  const map: Record<string, string> = {
+    Pending: '#fef3c7', Confirmed: '#dbeafe', Processing: '#e0f2fe', Packed: '#e0e7ff',
+    Shipped: '#f3e8ff', Delivered: '#dcfce7', Cancelled: '#fee2e2', Returned: '#fee2e2', Refunded: '#ffedd5',
+  };
+  return map[status] || '#f1f5f9';
+};
+
+// ── Reusable Component Styles ──────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 16,
+  padding: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+};
+
+const toastStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 20,
+  right: 20,
+  zIndex: 9999,
+  background: '#0f172a',
+  color: '#38bdf8',
+  padding: '12px 20px',
+  borderRadius: 12,
+  boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+  fontSize: 13,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #0284c7',
+};
+
+const btnPrimaryStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#16a34a',
+  color: '#ffffff',
+  fontWeight: 800,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const btnSecondaryStyle: React.CSSProperties = {
+  border: '1px solid #cbd5e1',
+  background: '#ffffff',
+  color: '#475569',
+  fontWeight: 700,
+  fontSize: 13,
+  padding: '8px 16px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const badgeStyle = (color: string, bg: string): React.CSSProperties => ({
+  background: bg,
+  color: color,
+  fontSize: 10,
+  fontWeight: 800,
+  padding: '2px 8px',
+  borderRadius: 6,
+  textTransform: 'uppercase',
+});
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  backdropFilter: 'blur(4px)',
+  zIndex: 1000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 20,
+};
+
+const modalContentStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  borderRadius: 20,
+  padding: 24,
+  width: '100%',
+  maxWidth: 520,
+  boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+};
+
+const drawerContentStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  borderRadius: 24,
+  padding: 28,
+  width: '100%',
+  maxWidth: 960,
+  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+};
+
+const closeBtnStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  fontSize: 24,
+  fontWeight: 700,
+  color: '#64748b',
+  cursor: 'pointer',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#334155',
+  marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  fontSize: 13,
+  outline: 'none',
+};

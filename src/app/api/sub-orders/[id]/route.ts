@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { SubOrder, SubOrderStatus } from '@/models/SubOrder';
+import { sendSMS } from '@/lib/sms';
 
 // GET single sub-order by subOrderId or MongoDB _id
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -92,7 +93,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Update fields
     subOrder.status = status as SubOrderStatus;
-    if (status === 'delivered') {
+
+    // Generate and send delivery OTP on transition to out_for_delivery
+    if (status === 'out_for_delivery') {
+      if (!subOrder.deliveryOtp) {
+        subOrder.deliveryOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      }
+      const customerPhone = subOrder.shippingAddress?.phone || subOrder.customerPhone;
+      if (customerPhone) {
+        try {
+          await sendSMS(
+            customerPhone,
+            `AfriCart: Your order #${subOrder.subOrderId} is out for delivery! Give this code to your rider to confirm receipt: ${subOrder.deliveryOtp}`
+          );
+        } catch (smsErr) {
+          console.error('[sub-order PATCH] Delivery OTP SMS dispatch failed:', smsErr);
+        }
+      }
+    } else if (status === 'delivered') {
       subOrder.deliveredAt = new Date();
       // Set 48 hour confirmation window
       subOrder.confirmationDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
