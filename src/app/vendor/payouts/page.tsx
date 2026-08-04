@@ -28,10 +28,13 @@ export default function VendorPayoutsPage() {
   let vendorReleasedGross = 0;
   let vendorLockedGross = 0;
 
-  allOrders.filter(o => o.status !== 'Cancelled').forEach(order => {
+  const safeOrders = Array.isArray(allOrders) ? allOrders : [];
+  const safePayouts = Array.isArray(allPayouts) ? allPayouts : [];
+
+  safeOrders.filter(o => o && o.status !== 'Cancelled').forEach(order => {
     const vendorItemsTotal = (order.products || [])
-      .filter(p => p.vendorEmail === vendorEmail)
-      .reduce((sum, p) => sum + (p.price * (p.quantity || 1)), 0);
+      .filter(p => p && p.vendorEmail === vendorEmail)
+      .reduce((sum, p) => sum + ((p.price || 0) * (p.quantity || 1)), 0);
 
     vendorTotalGross += vendorItemsTotal;
     
@@ -46,11 +49,11 @@ export default function VendorPayoutsPage() {
   const heldFunds = vendorLockedGross * (1 - commissionRate);
   const allTimeEarnings = vendorTotalGross * (1 - commissionRate);
 
-  const vendorPayoutRequests = allPayouts.filter(p => p.vendorEmail === vendorEmail);
+  const vendorPayoutRequests = safePayouts.filter(p => p && p.vendorEmail === vendorEmail);
   const totalRequested = vendorPayoutRequests
-    .filter(p => p.status !== 'Rejected')
-    .reduce((sum, p) => sum + p.amount, 0);
-  const totalPaid = vendorPayoutRequests.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.amount, 0);
+    .filter(p => p && p.status !== 'Rejected')
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+  const totalPaid = vendorPayoutRequests.filter(p => p && p.status === 'Paid').reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const currentBalance = availableFunds - totalRequested;
 

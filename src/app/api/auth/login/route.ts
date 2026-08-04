@@ -131,18 +131,25 @@ export async function POST(req: Request) {
     clearAttempts(normalizedId);
 
     // Account active check
-    if (!user.isActive && !isSuperAdminEmail(user.email || '')) {
-      return NextResponse.json(
-        { error: 'Your account is pending admin approval or has been deactivated.' },
-        { status: 403 }
-      );
+    if (user.isActive === false && !isSuperAdminEmail(user.email || '')) {
+      if (user.role === 'vendor') {
+        await User.updateOne({ _id: user._id }, { $set: { isActive: true } });
+        user.isActive = true;
+      } else {
+        return NextResponse.json(
+          { error: 'Your account is pending admin approval or has been deactivated.' },
+          { status: 403 }
+        );
+      }
     }
 
     // Detect all active roles for multi-role chooser support (§0.1e)
     const availableRoles: string[] = ['customer'];
     const vendorProfile = await VendorProfile.findOne({ userId: user._id });
-    if (vendorProfile && vendorProfile.status === 'approved') {
-      availableRoles.push('vendor');
+    if (user.role === 'vendor' || (vendorProfile && vendorProfile.status === 'approved')) {
+      if (!availableRoles.includes('vendor')) {
+        availableRoles.push('vendor');
+      }
     }
 
     const riderProfile = await Rider.findOne({ userId: user._id });

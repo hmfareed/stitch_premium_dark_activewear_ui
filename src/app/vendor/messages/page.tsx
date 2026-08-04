@@ -22,7 +22,8 @@ export default function VendorMessagesPage() {
   // Get unique customers who have messaged or been messaged by this vendor
   const vendorMessages = useMemo(() => {
     if (!user) return [];
-    return allMessages.filter(m => m.from === user.email || m.to === user.email);
+    const safeMsgs = Array.isArray(allMessages) ? allMessages : [];
+    return safeMsgs.filter(m => m && (m.from === user.email || m.to === user.email));
   }, [allMessages, user]);
 
   const conversationPartners = useMemo(() => {
@@ -32,17 +33,20 @@ export default function VendorMessagesPage() {
       if (user && m.to !== user.email && m.to !== 'broadcast_all' && m.to !== 'broadcast_vendors') emails.add(m.to);
     });
     
+    const safeFollowers = Array.isArray(followers) ? followers : [];
+    const safeOrders = Array.isArray(allOrders) ? allOrders : [];
+
     // Include followers
     if (user) {
-      followers.filter((f: any) => f.vendorEmail === user.email).forEach((f: any) => emails.add(f.userEmail));
+      safeFollowers.filter((f: any) => f && f.vendorEmail === user.email).forEach((f: any) => emails.add(f.userEmail));
       
       // Include purchasers
-      allOrders.filter(o => o.products.some(p => p.vendorEmail === user.email)).forEach(o => emails.add(o.customerEmail));
+      safeOrders.filter(o => o && Array.isArray(o.products) && o.products.some(p => p && p.vendorEmail === user.email)).forEach(o => emails.add(o.customerEmail));
     }
     
     return Array.from(emails).map(email => {
       // Try to find name in followers, then orders, then messages
-      const follower = followers.find((f: any) => f.userEmail === email);
+      const follower = safeFollowers.find((f: any) => f && f.userEmail === email);
       const order = allOrders.find(o => o.customerEmail === email);
       const lastMsg = [...vendorMessages].reverse().find(m => m.from === email || m.to === email);
       

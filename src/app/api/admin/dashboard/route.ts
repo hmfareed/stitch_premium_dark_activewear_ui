@@ -8,6 +8,7 @@ import { VendorApplication } from '@/models/VendorApplication';
 import { VendorSubscription } from '@/models/VendorSubscription';
 import { ReturnRequest } from '@/models/ReturnRequest';
 import { SupportTicket } from '@/models/SupportTicket';
+import { CommissionLog } from '@/models/CommissionLog';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,10 +32,11 @@ export async function GET(req: NextRequest) {
       returnRequests,
       openTicketsCount,
       recentVendorsRaw,
+      allVendorUsers,
     ] = await Promise.all([
-      User.countDocuments({ role: 'vendor' }),
-      User.countDocuments({ role: 'vendor', isActive: { $ne: false } }),
-      User.countDocuments({ role: 'vendor', isActive: false }),
+      User.countDocuments({ $or: [{ role: 'vendor' }, { roles: 'vendor' }] }),
+      User.countDocuments({ $or: [{ role: 'vendor' }, { roles: 'vendor' }], isActive: { $ne: false } }),
+      User.countDocuments({ $or: [{ role: 'vendor' }, { roles: 'vendor' }], isActive: false }),
       VendorApplication.countDocuments({ status: 'pending' }),
       VendorApplication.find({ status: 'pending' }).sort({ appliedAt: -1 }).limit(10).lean(),
       Store.countDocuments(),
@@ -44,13 +46,18 @@ export async function GET(req: NextRequest) {
       VendorSubscription.find({}).lean(),
       ReturnRequest.find({}).lean(),
       SupportTicket.countDocuments({ status: { $ne: 'resolved' } }),
-      User.find({ role: 'vendor' }).sort({ createdAt: -1 }).limit(5).lean(),
+      User.find({ $or: [{ role: 'vendor' }, { roles: 'vendor' }] }).sort({ createdAt: -1 }).limit(5).lean(),
+      User.find({ $or: [{ role: 'vendor' }, { roles: 'vendor' }] }).lean(),
     ]);
 
     const totalOrdersCount = allOrders.length;
     const validOrders = allOrders.filter(o => o.status !== 'Cancelled');
     const grossSales = validOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const totalCommissions = grossSales * 0.14; // 14% platform commission
+
+    // Live Commissions Calculation
+    const commissionLogs = await CommissionLog.find({}).lean();
+    const logCommissions = commissionLogs.reduce((sum: number, l: any) => sum + (l.commissionAmount || 0), 0);
+    const totalCommissions = logCommissions > 0 ? logCommissions : grossSales * 0.14; // 14% platform commission
 
     // Subscription Revenue
     const subscriptionRevenue = vendorSubscriptions.reduce((sum, sub) => sum + (sub.amountPaid || 0), 0);
@@ -78,8 +85,8 @@ export async function GET(req: NextRequest) {
       refunded: { count: refundedCount, pct: ((refundedCount / denominator) * 100).toFixed(1) },
     };
 
-    // Timeframe Data Series (Daily, Weekly, Monthly, Yearly)
-    const timeframeData = generateTimeframeData(timeframe, validOrders, grossSales, totalVendors);
+    // Timeframe Data Series (Daily, Weekly, Monthly, Yearly) aggregated from real DB dates
+    const timeframeData = generateTimeframeData(timeframe, validOrders, allVendorUsers);
 
     // Recent Orders (Top 5)
     const recentOrders = allOrders.slice(0, 5).map(o => ({
@@ -163,18 +170,18 @@ export async function GET(req: NextRequest) {
       success: true,
       timeframe,
       stats: {
-        totalVendors: totalVendors || 1256,
-        activeVendors: activeVendors || 1180,
-        suspendedVendors: suspendedVendors || 76,
-        pendingApprovals: pendingApprovalsCount || 14,
-        totalStores: totalStores || 2341,
-        totalProducts: totalProducts || 18450,
-        totalCustomers: totalCustomers || 8674,
-        totalOrders: totalOrdersCount || 4892,
-        grossSales: grossSales || 468360.80,
-        totalCommissions: totalCommissions || 65570.51,
-        subscriptionRevenue: subscriptionRevenue || 34200.00,
-        refundsTotal: refundsTotal || 12450.00,
+        totalVendors: totalVendors ?? 0,
+        activeVendors: activeVendors ?? 0,
+        suspendedVendors: suspendedVendors ?? 0,
+        pendingApprovals: pendingApprovalsCount ?? 0,
+        totalStores: totalStores ?? 0,
+        totalProducts: totalProducts ?? 0,
+        totalCustomers: totalCustomers ?? 0,
+        totalOrders: totalOrdersCount ?? 0,
+        grossSales: Math.round(grossSales * 100) / 100,
+        totalCommissions: Math.round(totalCommissions * 100) / 100,
+        subscriptionRevenue: Math.round(subscriptionRevenue * 100) / 100,
+        refundsTotal: Math.round(refundsTotal * 100) / 100,
         orderBreakdown,
       },
       timeframeData,
@@ -197,71 +204,147 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── Helper: Timeframe Data Series Generator ─────────────────────────────────
-function generateTimeframeData(timeframe: string, validOrders: any[], totalSales: number, totalVendorsCount: number) {
-  let labels: string[] = [];
-  let salesSeries: number[] = [];
-  let vendorGrowthSeries: number[] = [];
+// ── Helper: Timeframe Data Series Generator from Live System Data ───────────
+function generateTimeframeData(timeframe: string, validOrders: any[], vendorUsers: any[]) {
+  const now = new Date();
 
   if (timeframe === 'daily') {
-    labels = ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
-    const baseSales = totalSales > 0 ? totalSales / 12 : 3800;
-    salesSeries = [
-      Math.round(baseSales * 0.2),
-      Math.round(baseSales * 0.1),
-      Math.round(baseSales * 0.4),
-      Math.round(baseSales * 1.2),
-      Math.round(baseSales * 1.8),
-      Math.round(baseSales * 1.5),
-      Math.round(baseSales * 1.6),
-      Math.round(baseSales * 0.9),
-    ];
-    vendorGrowthSeries = [1, 0, 2, 5, 8, 6, 4, 3];
-  } else if (timeframe === 'monthly') {
-    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-    const baseSales = totalSales > 0 ? totalSales / 4 : 117000;
-    salesSeries = [
-      Math.round(baseSales * 0.85),
-      Math.round(baseSales * 1.15),
-      Math.round(baseSales * 0.95),
-      Math.round(baseSales * 1.05),
-    ];
-    vendorGrowthSeries = [28, 42, 35, 48];
-  } else if (timeframe === 'yearly') {
-    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const baseSales = totalSales > 0 ? totalSales / 8 : 42000;
-    salesSeries = [
-      Math.round(baseSales * 0.6),
-      Math.round(baseSales * 0.7),
-      Math.round(baseSales * 0.9),
-      Math.round(baseSales * 1.1),
-      Math.round(baseSales * 1.4),
-      Math.round(baseSales * 1.3),
-      Math.round(baseSales * 1.5),
-      Math.round(baseSales * 1.8),
-      Math.round(baseSales * 1.6),
-      Math.round(baseSales * 1.9),
-      Math.round(baseSales * 2.2),
-      Math.round(baseSales * 2.5),
-    ];
-    vendorGrowthSeries = [65, 78, 92, 110, 135, 142, 160, 185, 210, 240, 275, 310];
-  } else {
-    // Default: Weekly
-    labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const baseSales = totalSales > 0 ? totalSales / 7 : 66900;
-    salesSeries = [
-      Math.round(baseSales * 0.7),
-      Math.round(baseSales * 1.2),
-      Math.round(baseSales * 0.9),
-      Math.round(baseSales * 0.6),
-      Math.round(baseSales * 1.4),
-      Math.round(baseSales * 1.1),
-      Math.round(baseSales * 1.5),
-    ];
-    vendorGrowthSeries = [12, 18, 15, 9, 24, 19, 28];
+    const labels = ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
+    const salesSeries = [0, 0, 0, 0, 0, 0, 0, 0];
+    const vendorGrowthSeries = [0, 0, 0, 0, 0, 0, 0, 0];
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    validOrders.forEach(o => {
+      const d = new Date(o.date || o.createdAt);
+      if (d >= startOfDay) {
+        const bucket = Math.floor(d.getHours() / 3);
+        if (bucket >= 0 && bucket < 8) {
+          salesSeries[bucket] += (o.total || 0);
+        }
+      }
+    });
+
+    vendorUsers.forEach(v => {
+      const d = new Date(v.createdAt || v.appliedAt);
+      if (d >= startOfDay) {
+        const bucket = Math.floor(d.getHours() / 3);
+        if (bucket >= 0 && bucket < 8) {
+          vendorGrowthSeries[bucket] += 1;
+        }
+      }
+    });
+
+    return {
+      labels,
+      salesSeries: salesSeries.map(s => Math.round(s * 100) / 100),
+      vendorGrowthSeries,
+    };
   }
 
-  return { labels, salesSeries, vendorGrowthSeries };
+  if (timeframe === 'monthly') {
+    const labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    const salesSeries = [0, 0, 0, 0];
+    const vendorGrowthSeries = [0, 0, 0, 0];
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    validOrders.forEach(o => {
+      const d = new Date(o.date || o.createdAt);
+      if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+        const day = d.getDate();
+        let bucket = Math.floor((day - 1) / 7);
+        if (bucket > 3) bucket = 3;
+        salesSeries[bucket] += (o.total || 0);
+      }
+    });
+
+    vendorUsers.forEach(v => {
+      const d = new Date(v.createdAt || v.appliedAt);
+      if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+        const day = d.getDate();
+        let bucket = Math.floor((day - 1) / 7);
+        if (bucket > 3) bucket = 3;
+        vendorGrowthSeries[bucket] += 1;
+      }
+    });
+
+    return {
+      labels,
+      salesSeries: salesSeries.map(s => Math.round(s * 100) / 100),
+      vendorGrowthSeries,
+    };
+  }
+
+  if (timeframe === 'yearly') {
+    const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const salesSeries = new Array(12).fill(0);
+    const vendorGrowthSeries = new Array(12).fill(0);
+    const currentYear = now.getFullYear();
+
+    validOrders.forEach(o => {
+      const d = new Date(o.date || o.createdAt);
+      if (d.getFullYear() === currentYear) {
+        const month = d.getMonth();
+        salesSeries[month] += (o.total || 0);
+      }
+    });
+
+    vendorUsers.forEach(v => {
+      const d = new Date(v.createdAt || v.appliedAt);
+      if (d.getFullYear() === currentYear) {
+        const month = d.getMonth();
+        vendorGrowthSeries[month] += 1;
+      }
+    });
+
+    return {
+      labels,
+      salesSeries: salesSeries.map(s => Math.round(s * 100) / 100),
+      vendorGrowthSeries,
+    };
+  }
+
+  // Default: Weekly (Past 7 Days)
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const labels: string[] = [];
+  const salesSeries = [0, 0, 0, 0, 0, 0, 0];
+  const vendorGrowthSeries = [0, 0, 0, 0, 0, 0, 0];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    labels.push(dayNames[d.getDay()]);
+  }
+
+  const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  validOrders.forEach(o => {
+    const d = new Date(o.date || o.createdAt);
+    if (d >= sevenDaysAgo) {
+      const diffDays = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
+      const idx = 6 - diffDays;
+      if (idx >= 0 && idx < 7) {
+        salesSeries[idx] += (o.total || 0);
+      }
+    }
+  });
+
+  vendorUsers.forEach(v => {
+    const d = new Date(v.createdAt || v.appliedAt);
+    if (d >= sevenDaysAgo) {
+      const diffDays = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
+      const idx = 6 - diffDays;
+      if (idx >= 0 && idx < 7) {
+        vendorGrowthSeries[idx] += 1;
+      }
+    }
+  });
+
+  return {
+    labels,
+    salesSeries: salesSeries.map(s => Math.round(s * 100) / 100),
+    vendorGrowthSeries,
+  };
 }
 
 function stringToColor(str: string) {

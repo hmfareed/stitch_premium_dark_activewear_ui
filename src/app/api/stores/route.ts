@@ -46,7 +46,28 @@ export async function GET(req: Request) {
     if (vendorEmail) query.vendorEmail = vendorEmail.toLowerCase();
     if (status) query.status = status;
 
-    const stores = await Store.find(query).sort({ createdAt: -1 }).lean();
+    let stores = await Store.find(query).sort({ createdAt: -1 }).lean();
+
+    if (vendorEmail && stores.length === 0) {
+      const vendorUser = await User.findOne({ email: vendorEmail.toLowerCase() }).lean() as any;
+      if (vendorUser && (vendorUser.role === 'vendor' || vendorUser.role === 'super_admin')) {
+        const storeName = vendorUser.name ? `${vendorUser.name}'s Store` : 'Vendor Store';
+        const baseSlug = generateSlug(storeName) || 'vendor-store';
+        const slug = `${baseSlug}-${Date.now().toString(36)}`;
+        const defaultStore = await Store.create({
+          name: storeName,
+          slug,
+          vendorEmail: vendorEmail.toLowerCase(),
+          category: 'Fashion',
+          businessType: 'individual',
+          status: 'active',
+          paystackSubaccountStatus: 'none',
+          verificationTier: 'Tier 1',
+        });
+        stores = [JSON.parse(JSON.stringify(defaultStore))];
+      }
+    }
+
     return NextResponse.json({ success: true, stores });
   } catch (error: any) {
     console.error('GET /api/stores error:', error);

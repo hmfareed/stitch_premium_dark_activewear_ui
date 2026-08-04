@@ -33,6 +33,7 @@ export interface IUser extends Document {
   referredBy?: string;
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
+  twoFactorBackupCodes?: string[];
   invitedBy?: string;
   invitedAt?: Date;
   lastLoginAt?: Date;
@@ -75,6 +76,7 @@ const UserSchema: Schema<IUser> = new Schema({
   referredBy: { type: String },
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: { type: String },
+  twoFactorBackupCodes: { type: [String], default: [] },
   invitedBy: { type: String },
   invitedAt: { type: Date },
   lastLoginAt: { type: Date },

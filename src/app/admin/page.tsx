@@ -153,52 +153,38 @@ export default function AdminDashboard() {
   };
 
   const stats = dashData?.stats || {
-    totalVendors: 1256,
-    activeVendors: 1180,
-    suspendedVendors: 76,
-    pendingApprovals: 14,
-    totalStores: 2341,
-    totalProducts: 18450,
-    totalCustomers: 8674,
-    totalOrders: 4892,
-    grossSales: 468360.80,
-    totalCommissions: 65570.51,
-    subscriptionRevenue: 34200.00,
-    refundsTotal: 12450.00,
+    totalVendors: 0,
+    activeVendors: 0,
+    suspendedVendors: 0,
+    pendingApprovals: 0,
+    totalStores: 0,
+    totalProducts: 0,
+    totalCustomers: 0,
+    totalOrders: 0,
+    grossSales: 0,
+    totalCommissions: 0,
+    subscriptionRevenue: 0,
+    refundsTotal: 0,
     orderBreakdown: {
-      completed: { count: 2890, pct: '59.1' },
-      processing: { count: 1245, pct: '25.4' },
-      cancelled: { count: 457, pct: '9.3' },
-      refunded: { count: 300, pct: '6.2' },
+      completed: { count: 0, pct: '0.0' },
+      processing: { count: 0, pct: '0.0' },
+      cancelled: { count: 0, pct: '0.0' },
+      refunded: { count: 0, pct: '0.0' },
     },
   };
 
   const timeframeData = dashData?.timeframeData || {
-    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    salesSeries: [45000, 68000, 52000, 41000, 89000, 76000, 97000],
-    vendorGrowthSeries: [12, 18, 15, 9, 24, 19, 28],
+    labels: timeframe === 'daily' ? ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00']
+          : timeframe === 'monthly' ? ['Week 1', 'Week 2', 'Week 3', 'Week 4']
+          : timeframe === 'yearly' ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+          : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    salesSeries: timeframe === 'yearly' ? new Array(12).fill(0) : timeframe === 'daily' ? new Array(8).fill(0) : timeframe === 'monthly' ? new Array(4).fill(0) : new Array(7).fill(0),
+    vendorGrowthSeries: timeframe === 'yearly' ? new Array(12).fill(0) : timeframe === 'daily' ? new Array(8).fill(0) : timeframe === 'monthly' ? new Array(4).fill(0) : new Array(7).fill(0),
   };
 
-  const recentOrders = dashData?.recentOrders || [
-    { id: '#ORD-89321', vendor: 'Fresh Mart', customer: 'Kwame Mensah', amount: 1250.00, status: 'Completed', date: 'May 26, 2025' },
-    { id: '#ORD-89320', vendor: 'BestDeal Store', customer: 'Ama Serwaa', amount: 980.00, status: 'Processing', date: 'May 25, 2025' },
-    { id: '#ORD-89319', vendor: 'TechHub Ghana', customer: 'Kofi Boateng', amount: 1560.00, status: 'Completed', date: 'May 25, 2025' },
-    { id: '#ORD-89318', vendor: 'Daily Needs', customer: 'Yaw Asare', amount: 670.00, status: 'Processing', date: 'May 24, 2025' },
-    { id: '#ORD-89317', vendor: 'Mega Store', customer: 'Abena Owusu', amount: 2300.00, status: 'Completed', date: 'May 24, 2025' },
-  ];
-
-  const recentVendors = dashData?.recentVendors || [
-    { id: 'v1', name: 'Akosua Mensah', email: 'akosua@gmail.com', store: "Akosua's Store", plan: 'Premium', status: 'Active', date: 'May 26, 2025', avatarBg: '#818cf8' },
-    { id: 'v2', name: 'Kofi Boateng', email: 'kofi@example.com', store: 'Kofi Mart', plan: 'Standard', status: 'Active', date: 'May 25, 2025', avatarBg: '#f43f5e' },
-    { id: 'v3', name: 'Ama Serwaa', email: 'ama@example.com', store: "Serwaa's Shop", plan: 'Basic', status: 'Pending', date: 'May 24, 2025', avatarBg: '#fbbf24' },
-    { id: 'v4', name: 'Yaw Asare', email: 'yaw@example.com', store: 'Asare Store', plan: 'Standard', status: 'Active', date: 'May 23, 2025', avatarBg: '#34d399' },
-    { id: 'v5', name: 'Abena Owusu', email: 'abena@example.com', store: 'Abena Collection', plan: 'Premium', status: 'Active', date: 'May 22, 2025', avatarBg: '#fb7185' },
-  ];
-
-  const systemAlerts = dashData?.systemAlerts || [
-    { id: 'alert-1', type: 'warning', title: 'Pending Vendor Approvals', message: '14 vendor application(s) awaiting KYC approval.', actionLabel: 'Review Now', actionType: 'review_vendors', count: 14 },
-    { id: 'alert-2', type: 'info', title: 'Expiring Subscriptions', message: '8 vendor subscription(s) expire within 7 days.', actionLabel: 'View Subscriptions', actionType: 'view_subscriptions', count: 8 },
-  ];
+  const recentOrders = dashData?.recentOrders || [];
+  const recentVendors = dashData?.recentVendors || [];
+  const systemAlerts = dashData?.systemAlerts || [];
 
   // SVG Max Calculations for Revenue Chart
   const maxSales = Math.max(...timeframeData.salesSeries, 100);

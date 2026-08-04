@@ -2,8 +2,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export type StoreStatus = 'setup' | 'payment_pending' | 'under_review' | 'active' | 'suspended';
 export type PaystackSubaccountStatus = 'none' | 'pending' | 'active' | 'failed';
-export type VerificationTier = 'baseline' | 'verified';
-export type BusinessType = 'individual' | 'registered_business';
+export type VerificationTier = 'baseline' | 'verified' | 'Tier 1' | 'Tier 2';
+export type BusinessType = 'individual' | 'registered_business' | 'company' | 'partnership';
 export type PayoutMethod = 'momo' | 'bank';
 
 export interface IPickupAddress {
@@ -33,6 +33,24 @@ export interface IStore extends Document {
   category: string;
   businessType: BusinessType;
   businessRegNumber?: string;
+
+  // Branding & Onboarding
+  logo?: string;
+  banner?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  region?: string;
+  taxId?: string;
+  ghanaCardId?: string;
+  registrationDocUrl?: string;
+  ghanaCardDocUrl?: string;
+
+  // Subscription & Payouts
+  subscriptionPlan?: string;
+  billingCycle?: string;
+  momoPayout?: { network?: string; phone?: string; name?: string };
+  bankPayout?: { bankName?: string; accountNumber?: string; accountName?: string };
 
   // Contact & logistics
   contactPhone?: string;
@@ -103,8 +121,24 @@ const StoreSchema: Schema<IStore> = new Schema({
   name:               { type: String, required: true, trim: true },
   slug:               { type: String, required: true, unique: true, lowercase: true, trim: true },
   category:           { type: String, required: true },
-  businessType:       { type: String, enum: ['individual', 'registered_business'], required: true },
+  businessType:       { type: String, default: 'individual' },
   businessRegNumber:  { type: String },
+
+  logo: { type: String },
+  banner: { type: String },
+  phone: { type: String },
+  address: { type: String },
+  city: { type: String },
+  region: { type: String },
+  taxId: { type: String },
+  ghanaCardId: { type: String },
+  registrationDocUrl: { type: String },
+  ghanaCardDocUrl: { type: String },
+
+  subscriptionPlan: { type: String, default: 'Growth' },
+  billingCycle: { type: String, default: 'monthly' },
+  momoPayout: { type: Schema.Types.Mixed },
+  bankPayout: { type: Schema.Types.Mixed },
 
   contactPhone:  { type: String },
   contactEmail:  { type: String },
@@ -112,9 +146,9 @@ const StoreSchema: Schema<IStore> = new Schema({
 
   payoutDetails:             { type: PayoutDetailsSchema },
   paystackSubaccountCode:    { type: String },
-  paystackSubaccountStatus:  { type: String, enum: ['none', 'pending', 'active', 'failed'], default: 'none' },
+  paystackSubaccountStatus:  { type: String, default: 'none' },
 
-  verificationTier: { type: String, enum: ['baseline', 'verified'], default: 'baseline' },
+  verificationTier: { type: String, default: 'Tier 1' },
   phoneVerified:    { type: Boolean, default: false },
   contentReviewed:  { type: Boolean, default: false },
 

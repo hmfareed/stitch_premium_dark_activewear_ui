@@ -5,6 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AppContext';
+import AdminHeaderSearch from '@/components/AdminHeaderSearch';
+import AdminHeaderNotifications from '@/components/AdminHeaderNotifications';
 
 interface NavItem {
   title: string;
@@ -163,8 +165,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
 
+        {/* Sidebar View Marketplace Action Button */}
+        <div style={{ padding: '12px 14px 4px 14px' }}>
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '10px',
+              backgroundColor: '#16a34a',
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              textDecoration: 'none',
+              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span>
+            <span>View Marketplace</span>
+          </Link>
+        </div>
+
         {/* Sidebar Nav Groups */}
-        <nav style={{ flex: 1, padding: '16px 14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <nav style={{ flex: 1, padding: '12px 14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {navGroups.map((group) => (
             <div key={group.group}>
               <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.08em', marginBottom: 8, paddingLeft: 10 }}>
@@ -263,51 +291,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Right: Search, Notifications, Language, Profile */}
+          {/* Right: Interactive Predictive Search & Real-time Notifications */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} className="hidden md:flex">
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, fontSize: 18, color: '#94a3b8', pointerEvents: 'none' }}>
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Search anything..."
-                style={{
-                  padding: '7px 32px 7px 34px',
-                  backgroundColor: '#f1f5f9',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 20,
-                  fontSize: 13,
-                  color: '#1e293b',
-                  outline: 'none',
-                  width: 220,
-                }}
-              />
-              <span style={{ position: 'absolute', right: 10, fontSize: 10, color: '#94a3b8', background: '#e2e8f0', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                ⌘K
-              </span>
-            </div>
-
-            {/* Notification Bell with Badge */}
-            <button style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', color: '#475569' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>notifications</span>
-              <span style={{ position: 'absolute', top: 2, right: 2, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 900, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                12
-              </span>
-            </button>
-
-            {/* Language Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: 20 }} className="hidden sm:flex">
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>language</span>
-              <span>English</span>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#94a3b8' }}>expand_more</span>
-            </div>
-
-            {/* User Avatar Icon */}
-            <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 }}>
-              SA
-            </div>
+            <AdminHeaderSearch />
+            <AdminHeaderNotifications />
           </div>
         </header>
 

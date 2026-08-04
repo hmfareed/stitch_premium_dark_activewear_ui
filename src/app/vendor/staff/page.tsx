@@ -1,444 +1,272 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth, useToast } from '@/context/AppContext';
 
-type StaffRole = 'manager' | 'order_staff' | 'fulfillment_staff' | 'customer_service';
-type StaffStatus = 'active' | 'inactive' | 'suspended';
-
-interface StaffMember {
-  id: string;
-  userId: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  role: StaffRole;
-  status: StaffStatus;
-  permissions: {
-    viewOrders: boolean;
-    manageOrders: boolean;
-    viewProducts: boolean;
-    manageProducts: boolean;
-    viewAnalytics: boolean;
-    viewCustomers: boolean;
-    manageStaff: boolean;
-    viewPayouts: boolean;
-  };
-  workSchedule: {
-    monday: { start: string; end: string; working: boolean };
-    tuesday: { start: string; end: string; working: boolean };
-    wednesday: { start: string; end: string; working: boolean };
-    thursday: { start: string; end: string; working: boolean };
-    friday: { start: string; end: string; working: boolean };
-    saturday: { start: string; end: string; working: boolean };
-    sunday: { start: string; end: string; working: boolean };
-  };
-  ordersProcessed: number;
-  customerRating: number;
-  hiredAt: string;
-  lastActiveAt?: string;
-}
-
-const roleLabels: Record<StaffRole, string> = {
-  manager: 'Manager',
-  order_staff: 'Order Staff',
-  fulfillment_staff: 'Fulfillment Staff',
-  customer_service: 'Customer Service',
-};
-
-const roleColors: Record<StaffRole, string> = {
-  manager: '#a855f7',
-  order_staff: '#00e5ff',
-  fulfillment_staff: 'var(--lime-400)',
-  customer_service: '#f59e0b',
-};
-
-const defaultPermissionsByRole: Record<StaffRole, StaffMember['permissions']> = {
-  manager: {
-    viewOrders: true,
-    manageOrders: true,
-    viewProducts: true,
-    manageProducts: true,
-    viewAnalytics: true,
-    viewCustomers: true,
-    manageStaff: true,
-    viewPayouts: true,
-  },
-  order_staff: {
-    viewOrders: true,
-    manageOrders: true,
-    viewProducts: true,
-    manageProducts: false,
-    viewAnalytics: false,
-    viewCustomers: true,
-    manageStaff: false,
-    viewPayouts: false,
-  },
-  fulfillment_staff: {
-    viewOrders: true,
-    manageOrders: true,
-    viewProducts: true,
-    manageProducts: false,
-    viewAnalytics: false,
-    viewCustomers: false,
-    manageStaff: false,
-    viewPayouts: false,
-  },
-  customer_service: {
-    viewOrders: true,
-    manageOrders: false,
-    viewProducts: true,
-    manageProducts: false,
-    viewAnalytics: false,
-    viewCustomers: true,
-    manageStaff: false,
-    viewPayouts: false,
-  },
-};
-
-export default function VendorStaffManagement() {
-  const router = useRouter();
+export default function VendorStaffDirectoryPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
-  const [filterRole, setFilterRole] = useState<StaffRole | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<StaffStatus | 'all'>('all');
 
-  // Form state for adding/editing staff
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    role: 'order_staff' as StaffRole,
-    customPermissions: false,
-    permissions: defaultPermissionsByRole.order_staff,
-  });
+  // Form state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('POS Cashier');
+  const [branch, setBranch] = useState('Accra Central Hub');
+  const [shift, setShift] = useState('Morning Shift (8AM - 4PM)');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    loadStaffMembers();
+    fetchStaff();
   }, []);
 
-  const loadStaffMembers = async () => {
-    setIsLoading(true);
+  const fetchStaff = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/vendor-staff');
-      if (res.ok) {
-        const data = await res.json();
-        setStaffMembers(data.staff || []);
-      } else {
-        showToast('Failed to load staff members', 'error');
-      }
-    } catch (error) {
-      console.error('Error loading staff:', error);
-      showToast('Error loading staff members', 'error');
+      const res = await fetch('/api/vendor/staff');
+      const data = await res.json();
+      if (res.ok) setStaffMembers(data.staffMembers || []);
+    } catch (err) {
+      console.error('Failed to load staff:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleAddStaff = async () => {
+  const handleAddStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) {
+      showToast('Staff name and email are required', 'error');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const res = await fetch('/api/vendor-staff', {
+      const res = await fetch('/api/vendor/staff', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          permissions: formData.customPermissions ? formData.permissions : defaultPermissionsByRole[formData.role],
+          action: 'add_staff',
+          staff: { name: name.trim(), email: email.trim(), role, branch, shift },
         }),
       });
 
-      if (res.ok) {
-        showToast('Staff member added successfully', 'success');
-        setShowAddModal(false);
-        resetForm();
-        loadStaffMembers();
-      } else {
-        const error = await res.json();
-        showToast(error.message || 'Failed to add staff member', 'error');
-      }
-    } catch (error) {
-      console.error('Error adding staff:', error);
-      showToast('Error adding staff member', 'error');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast(`Employee ${name} added to directory!`, 'success');
+      setStaffMembers(data.staffMembers || []);
+      setShowAddModal(false);
+      setName('');
+      setEmail('');
+    } catch (err: any) {
+      showToast(err.message || 'Error adding staff', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleUpdateStaff = async () => {
-    if (!selectedStaff) return;
-
-    try {
-      const res = await fetch(`/api/vendor-staff/${selectedStaff.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          permissions: formData.customPermissions ? formData.permissions : defaultPermissionsByRole[formData.role],
-        }),
-      });
-
-      if (res.ok) {
-        showToast('Staff member updated successfully', 'success');
-        setShowEditModal(false);
-        setSelectedStaff(null);
-        resetForm();
-        loadStaffMembers();
-      } else {
-        const error = await res.json();
-        showToast(error.message || 'Failed to update staff member', 'error');
-      }
-    } catch (error) {
-      console.error('Error updating staff:', error);
-      showToast('Error updating staff member', 'error');
-    }
-  };
-
-  const handleDeleteStaff = async (staffId: string) => {
-    if (!confirm('Are you sure you want to remove this staff member?')) return;
-
-    try {
-      const res = await fetch(`/api/vendor-staff/${staffId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        showToast('Staff member removed successfully', 'success');
-        loadStaffMembers();
-      } else {
-        showToast('Failed to remove staff member', 'error');
-      }
-    } catch (error) {
-      console.error('Error deleting staff:', error);
-      showToast('Error removing staff member', 'error');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      fullName: '',
-      email: '',
-      phone: '',
-      role: 'order_staff',
-      customPermissions: false,
-      permissions: defaultPermissionsByRole.order_staff,
-    });
-  };
-
-  const openEditModal = (staff: StaffMember) => {
-    setSelectedStaff(staff);
-    setFormData({
-      fullName: staff.fullName,
-      email: staff.email,
-      phone: staff.phone,
-      role: staff.role,
-      customPermissions: JSON.stringify(staff.permissions) !== JSON.stringify(defaultPermissionsByRole[staff.role]),
-      permissions: staff.permissions,
-    });
-    setShowEditModal(true);
-  };
-
-  const filteredStaff = staffMembers.filter(staff => {
-    if (filterRole !== 'all' && staff.role !== filterRole) return false;
-    if (filterStatus !== 'all' && staff.status !== filterStatus) return false;
-    return true;
-  });
-
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div>Loading...</div>
-      </div>
-    );
-  }
+  if (!user) return null;
 
   return (
-    <div style={{ padding: '32px', maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <div>
-          <h1 style={{ margin: '0 0 8px 0', fontSize: '1.75rem' }}>Staff Management</h1>
-          <p style={{ margin: 0, color: 'var(--on-surface-variant)' }}>Manage your team members and their permissions</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+      
+      {/* Module 11 Sub-Navigation Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { label: 'Employees Directory', path: '/vendor/staff', active: true, icon: 'badge' },
+          { label: 'Roles & Shifts', path: '/vendor/staff/roles', active: false, icon: 'admin_panel_settings' },
+          { label: 'Permissions Matrix', path: '/vendor/staff/permissions', active: false, icon: 'key' },
+          { label: 'Attendance Roster', path: '/vendor/staff/attendance', active: false, icon: 'how_to_reg' },
+          { label: 'Activity Logs', path: '/vendor/staff/activity-logs', active: false, icon: 'history' },
+        ].map(tab => (
+          <Link
+            key={tab.label}
+            href={tab.path}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              fontSize: 13,
+              fontWeight: tab.active ? 800 : 600,
+              color: tab.active ? '#ffffff' : '#475569',
+              backgroundColor: tab.active ? '#10b981' : '#ffffff',
+              border: '1px solid #e2e8f0',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Main Staff Card */}
+      <div style={{ backgroundColor: '#ffffff', borderRadius: 18, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              Employee Workforce Directory
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
+              Manage employee profiles, assign store branches, set shifts, and monitor individual sales performance.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 10,
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>person_add</span>
+            Add New Employee
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{
-            padding: '12px 24px',
-            background: 'var(--lime-400)',
-            border: 'none',
-            borderRadius: 8,
-            color: '#000',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}
-        >
-          <span className="material-symbols-outlined">add</span>
-          Add Staff Member
-        </button>
-      </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <select
-          value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value as StaffRole | 'all')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: '1px solid var(--outline)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)'
-          }}
-        >
-          <option value="all">All Roles</option>
-          <option value="manager">Manager</option>
-          <option value="order_staff">Order Staff</option>
-          <option value="fulfillment_staff">Fulfillment Staff</option>
-          <option value="customer_service">Customer Service</option>
-        </select>
-
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as StaffStatus | 'all')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: '1px solid var(--outline)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)'
-          }}
-        >
-          <option value="all">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="suspended">Suspended</option>
-        </select>
-      </div>
-
-      {/* Staff List */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--outline)', borderRadius: 16, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ background: 'var(--surface-container)' }}>
-            <tr>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Staff Member</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Role</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Status</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600 }}>Performance</th>
-              <th style={{ padding: '16px', textAlign: 'right', fontSize: '0.875rem', fontWeight: 600 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStaff.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 16, display: 'block' }}>group_off</span>
-                  No staff members found
-                </td>
-              </tr>
-            ) : (
-              filteredStaff.map((staff) => (
-                <tr key={staff.id} style={{ borderTop: '1px solid var(--outline)' }}>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: 'var(--surface-container-high)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 600,
-                        color: 'var(--on-surface-variant)'
-                      }}>
-                        {staff.fullName.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p style={{ margin: '0 0 2px 0', fontWeight: 600 }}>{staff.fullName}</p>
-                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>{staff.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: 12,
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      background: `${roleColors[staff.role]}20`,
-                      color: roleColors[staff.role]
-                    }}>
-                      {roleLabels[staff.role]}
-                    </span>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <span style={{
-                      padding: '4px 12px',
-                      borderRadius: 12,
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      background: staff.status === 'active' ? 'rgba(195, 244, 0, 0.2)' : staff.status === 'inactive' ? 'rgba(255, 152, 0, 0.2)' : 'rgba(244, 67, 54, 0.2)',
-                      color: staff.status === 'active' ? 'var(--lime-400)' : staff.status === 'inactive' ? '#ff9800' : '#f44336'
-                    }}>
-                      {staff.status.charAt(0).toUpperCase() + staff.status.slice(1)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
-                        {staff.ordersProcessed} orders processed
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#f59e0b' }}>star</span>
-                        <span style={{ fontSize: '0.75rem' }}>{staff.customerRating.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => openEditModal(staff)}
-                        style={{
-                          padding: '8px',
-                          background: 'var(--surface-container)',
-                          border: '1px solid var(--outline)',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                          color: 'var(--foreground)'
-                        }}
-                        title="Edit"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStaff(staff.id)}
-                        style={{
-                          padding: '8px',
-                          background: 'rgba(244, 67, 54, 0.1)',
-                          border: '1px solid rgba(244, 67, 54, 0.3)',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                          color: '#f44336'
-                        }}
-                        title="Delete"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
-                      </button>
-                    </div>
-                  </td>
+        {/* Staff Table */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#10b981', fontWeight: 700 }}>Loading employee directory...</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', textAlign: 'left', fontWeight: 700 }}>
+                  <th style={{ padding: '10px 8px' }}>Employee</th>
+                  <th style={{ padding: '10px 8px' }}>Role</th>
+                  <th style={{ padding: '10px 8px' }}>Assigned Branch</th>
+                  <th style={{ padding: '10px 8px' }}>Shift Schedule</th>
+                  <th style={{ padding: '10px 8px' }}>Sales Revenue</th>
+                  <th style={{ padding: '10px 8px' }}>Status</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {staffMembers.map(s => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    
+                    {/* Name & Avatar */}
+                    <td style={{ padding: '10px 8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: '#061d13', color: '#a3e635', fontWeight: 900, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {s.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{s.name}</div>
+                          <div style={{ fontSize: 10, color: '#64748b' }}>{s.email}</div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Role */}
+                    <td style={{ padding: '10px 8px' }}>
+                      <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 6, backgroundColor: s.role === 'Store Manager' ? '#fef3c7' : s.role === 'POS Cashier' ? '#dbeafe' : '#f1f5f9', color: s.role === 'Store Manager' ? '#d97706' : s.role === 'POS Cashier' ? '#2563eb' : '#475569' }}>
+                        {s.role}
+                      </span>
+                    </td>
+
+                    {/* Branch */}
+                    <td style={{ padding: '10px 8px', fontWeight: 700, color: '#334155' }}>
+                      🏢 {s.branch}
+                    </td>
+
+                    {/* Shift */}
+                    <td style={{ padding: '10px 8px', color: '#64748b' }}>
+                      {s.shift}
+                    </td>
+
+                    {/* Sales Performance */}
+                    <td style={{ padding: '10px 8px', fontWeight: 900, color: s.salesPerformance > 0 ? '#10b981' : '#94a3b8' }}>
+                      GH₵ {(s.salesPerformance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+
+                    {/* Status */}
+                    <td style={{ padding: '10px 8px' }}>
+                      <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 8px', borderRadius: 6, backgroundColor: '#dcfce7', color: '#16a34a' }}>
+                        ACTIVE
+                      </span>
+                    </td>
+
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Modals would go here - Add/Edit staff modals */}
+      {/* Add Employee Modal */}
+      {showAddModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 28, maxWidth: 440, width: '100%', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 16px' }}>Add / Invite New Employee</h3>
+            <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Full Name *</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Abena Serwaa" style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Email Address *</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="abena@africart.com" style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Assigned Role</label>
+                  <select value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }}>
+                    <option value="Store Manager">Store Manager</option>
+                    <option value="POS Cashier">POS Cashier</option>
+                    <option value="Inventory Specialist">Inventory Specialist</option>
+                    <option value="Fulfillment Agent">Fulfillment Agent</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Assigned Branch</label>
+                  <select value={branch} onChange={e => setBranch(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }}>
+                    <option value="Accra Central Hub">Accra Central Hub</option>
+                    <option value="Osu Branch">Osu Branch</option>
+                    <option value="East Legon Warehouse">East Legon Warehouse</option>
+                    <option value="Kumasi Retail Hub">Kumasi Retail Hub</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Shift Schedule</label>
+                <select value={shift} onChange={e => setShift(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}>
+                  <option value="Morning Shift (8AM - 4PM)">Morning Shift (8AM - 4PM)</option>
+                  <option value="Evening Shift (4PM - 10PM)">Evening Shift (4PM - 10PM)</option>
+                  <option value="Full Day Shift (8AM - 8PM)">Full Day Shift (8AM - 8PM)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 14px', borderRadius: 8, backgroundColor: '#f1f5f9', border: 'none', fontWeight: 700 }}>Cancel</button>
+                <button type="submit" disabled={submitting} style={{ padding: '8px 18px', borderRadius: 8, backgroundColor: '#10b981', color: '#fff', border: 'none', fontWeight: 800 }}>Add Employee</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

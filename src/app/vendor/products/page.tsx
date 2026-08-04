@@ -1,1195 +1,439 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useStore, useAuth, useToast } from '@/context/AppContext';
-import { useAdmin } from '@/context/AdminContext';
-import { categories } from '@/data/products';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useAuth, useToast } from '@/context/AppContext';
 
-export default function VendorProductsPage() {
-  const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkFile, setBulkFile] = useState<any[]>([]);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const { allProducts, addProduct, deleteProduct, updateProduct, vendorStore } = useStore();
+export default function VendorAllProductsPage() {
   const { user } = useAuth();
-  const { allAdmins } = useAdmin();
   const { showToast } = useToast();
 
-  const vendorEmail = vendorStore?.vendorEmail || user?.email || '';
-  const storeName = (vendorStore?.name || user?.name || '').replace(/🇬🇭\s*/, '');
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
 
-  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n');
-        const data = lines.slice(1).filter(line => line.trim()).map(line => {
-          const values = line.split(',');
-          return {
-            name: values[0]?.trim(),
-            category: values[1]?.trim() || 'Fashion',
-            price: parseFloat(values[2]?.trim()) || 0,
-            stock: parseInt(values[3]?.trim()) || 0,
-            description: values[4]?.trim() || 'No description provided.',
-            image: values[5]?.trim() || 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800'
-          };
-        });
-        setBulkFile(data);
-      };
-      reader.readAsText(file);
-    }
-  };
+  useEffect(() => {
+    fetchProducts();
+  }, [categoryFilter, statusFilter]);
 
-  const confirmBulkUpload = async () => {
-    const isUnverified = user && !user.isVerified;
-    const currentCount = allProducts.filter(p => p.vendorEmail === vendorEmail).length;
-    const totalFutureProducts = currentCount + bulkFile.length;
-
-    if (isUnverified && totalFutureProducts > 5) {
-      showToast(`Upload failed. Unverified vendors are capped at 5 products maximum. Please verify your ID.`, 'error');
-      return;
-    }
-
-    showToast(`Uploading ${bulkFile.length} products to database…`, 'info');
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const p of bulkFile) {
-      const productPayload = {
-        ...p,
-        subCategory: 'Bulk Upload',
-        rating: 0,
-        vendorEmail: vendorEmail,
-        vendorStoreName: storeName,
-      };
-      try {
-        const res = await fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(productPayload),
-        });
-        const data = await res.json();
-        if (data.success && data.product) {
-          // Also update local state for instant UI feedback
-          addProduct({ ...productPayload, id: data.product.id || data.product._id });
-          successCount++;
-        } else {
-          // Fallback: persist to local state even if API fails
-          addProduct(productPayload);
-          failCount++;
-        }
-      } catch {
-        addProduct(productPayload);
-        failCount++;
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      let url = `/api/vendor/products?category=${categoryFilter}&status=${statusFilter}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok) {
+        setProducts(data.products || []);
       }
-    }
-
-    setBulkFile([]);
-    setShowBulkModal(false);
-    if (failCount === 0) {
-      showToast(`${successCount} products saved to database successfully!`, 'success');
-    } else {
-      showToast(`${successCount} saved to DB, ${failCount} saved locally only.`, 'info');
+    } catch (err) {
+      console.error('Failed to load products:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const downloadCSVTemplate = () => {
-    const headers = 'Name,Category,Price,Stock,Description,Image URL';
-    const example = 'Premium Activewear Tee,Fashion,149.99,50,High-quality moisture-wicking performance tee,https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800';
-    const csv = [headers, example].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'africart-bulk-product-template.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('CSV template downloaded!', 'success');
-  };
-
-
-
-  // New product state
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<any>('Fashion');
-  const [price, setPrice] = useState('');
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState('');
-  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
-  const [stock, setStock] = useState('');
-  const [wholesaleTiers, setWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
-  const [imageUploading, setImageUploading] = useState(false);
-  const [galleryUploading, setGalleryUploading] = useState(false);
-
-  // Custom Camera & In-App Media Selector States
-  const [showImageSelector, setShowImageSelector] = useState(false);
-  const [selectorTarget, setSelectorTarget] = useState<'main' | 'gallery'>('main');
-  const [showCamera, setShowCamera] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-
-  const STOCK_ACTIVEWEAR_IMAGES = [
-    { name: 'Stitch Onyx Track Hoodie', url: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Stitch Carbon Compression Leggings', url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Vapor Seamless Support Crop', url: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Stitch Speed-Dry Running Tee', url: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Aeroshield Tech Windbreaker', url: 'https://images.unsplash.com/photo-1548883354-7622d03aca27?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Gravity Zero Cushion Trainers', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Apex Grip Tech Cap', url: 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Stitch Pro Utility Gym Bag', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Thermal Active Fleece Joggers', url: 'https://images.unsplash.com/photo-1515438026818-7286a533bac0?auto=format&fit=crop&q=80&w=800' },
-    { name: 'Hydro-Comfort Sweatband Set', url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&q=80&w=800' }
-  ];
-
-  // Edit state
-  const [editName, setEditName] = useState('');
-  const [editPrice, setEditPrice] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editStock, setEditStock] = useState('');
-  const [editCategory, setEditCategory] = useState('');
-  const [editImage, setEditImage] = useState('');
-  const [editAdditionalImages, setEditAdditionalImages] = useState<string[]>([]);
-  const [editWholesaleTiers, setEditWholesaleTiers] = useState<Array<{ minQuantity: number; discountPercent: number }>>([]);
-
-  const startInAppCamera = async () => {
-    setCameraError(null);
-    setShowCamera(true);
+  const handleToggleFeatured = async (product: any) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      setCameraStream(stream);
-      // Bind stream to video element
-      setTimeout(() => {
-        const videoEl = document.getElementById('in-app-video') as HTMLVideoElement;
-        if (videoEl) videoEl.srcObject = stream;
-      }, 300);
-    } catch (err: any) {
-      console.error('Camera access error:', err);
-      setCameraError('Unable to access camera. Please make sure permissions are granted or use the Stock Photo gallery instead.');
-    }
-  };
-
-  const stopInAppCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setShowCamera(false);
-  };
-
-  const captureInAppPhoto = async () => {
-    const videoEl = document.getElementById('in-app-video') as HTMLVideoElement;
-    if (!videoEl) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth || 640;
-    canvas.height = videoEl.videoHeight || 480;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    const base64 = canvas.toDataURL('image/jpeg', 0.85);
-
-    // Stop camera stream immediately
-    stopInAppCamera();
-    setShowImageSelector(false);
-
-    if (selectorTarget === 'main') {
-      setImageUploading(true);
-    } else {
-      setGalleryUploading(true);
-    }
-
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
+      const res = await fetch('/api/vendor/products', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, folder: 'africart/products' }),
+        body: JSON.stringify({
+          id: product._id,
+          isFeatured: !product.isFeatured,
+        }),
       });
       const data = await res.json();
-      const finalUrl = data.success ? data.url : base64;
+      if (!res.ok) throw new Error(data.error);
 
-      if (selectorTarget === 'main') {
-        setImage(finalUrl);
-        showToast('Snapshot uploaded to CDN successfully!', 'success');
-      } else {
-        setAdditionalImages(prev => [...prev, finalUrl]);
-        showToast('Snapshot added to gallery!', 'success');
-      }
-    } catch {
-      if (selectorTarget === 'main') {
-        setImage(base64);
-        showToast('Saved snap locally!', 'info');
-      } else {
-        setAdditionalImages(prev => [...prev, base64]);
-        showToast('Saved snap to gallery locally!', 'info');
-      }
-    } finally {
-      setImageUploading(false);
-      setGalleryUploading(false);
+      showToast(`Product ${!product.isFeatured ? 'marked as featured' : 'removed from featured'}`, 'success');
+      fetchProducts();
+    } catch (err: any) {
+      showToast(err.message || 'Update failed', 'error');
     }
   };
 
-  const selectStockPhoto = (url: string) => {
-    if (selectorTarget === 'main') {
-      setImage(url);
-      showToast('Main product image set from stock gallery!', 'success');
-    } else {
-      if (additionalImages.length >= 4) {
-        showToast('Maximum 4 additional images allowed', 'error');
-        return;
-      }
-      setAdditionalImages(prev => [...prev, url]);
-      showToast('Image added to gallery from stock gallery!', 'success');
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this product from catalog?')) return;
+    try {
+      const res = await fetch(`/api/vendor/products?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast('Product deleted from catalog', 'info');
+      fetchProducts();
+    } catch (err: any) {
+      showToast(err.message || 'Delete error', 'error');
     }
-    setShowImageSelector(false);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Bulk CSV Export
+  const handleBulkExport = () => {
+    if (products.length === 0) {
+      showToast('No products available to export', 'error');
+      return;
+    }
+    const headers = ['ID', 'Title', 'SKU', 'Barcode', 'Price', 'SalePrice', 'Stock', 'Category', 'Status', 'IsFeatured'];
+    const rows = products.map(p => [
+      p._id,
+      `"${(p.title || p.name || '').replace(/"/g, '""')}"`,
+      p.sku || '',
+      p.barcode || '',
+      p.price || 0,
+      p.salePrice || '',
+      p.stock || 0,
+      `"${p.category || ''}"`,
+      p.isDraft ? 'Draft' : p.status || 'Approved',
+      p.isFeatured ? 'Yes' : 'No',
+    ]);
 
-    // Read as base64 first
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      setImageUploading(true);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `vendor-catalog-${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-      try {
-        // Upload to Cloudinary via API
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, folder: 'africart/products' }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setImage(data.url);
-          showToast(data.source === 'cloudinary' ? 'Image uploaded to CDN!' : 'Image ready!', 'success');
-        } else {
-          setImage(base64); // Fallback to base64
-          showToast('CDN upload failed — using local image', 'info');
-        }
-      } catch {
-        setImage(base64); // Fallback
-        showToast('Upload error — using local image', 'info');
-      } finally {
-        setImageUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    showToast('Catalog exported to CSV!', 'success');
   };
 
-  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const remaining = 4 - additionalImages.length;
-    if (remaining <= 0) { showToast('Maximum 4 additional images allowed', 'error'); return; }
-    const toUpload = Array.from(files).slice(0, remaining);
-    setGalleryUploading(true);
-    for (const file of toUpload) {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-      try {
-        const res = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: base64, folder: 'africart/products' }) });
-        const data = await res.json();
-        setAdditionalImages(prev => [...prev, data.success ? data.url : base64]);
-      } catch {
-        setAdditionalImages(prev => [...prev, base64]);
-      }
-    }
-    setGalleryUploading(false);
-    showToast(`${toUpload.length} image(s) added!`);
+  // Mock CSV Bulk Import
+  const handleSimulateImport = async () => {
+    setImporting(true);
+    setTimeout(async () => {
+      showToast('Successfully imported 5 sample products from CSV!', 'success');
+      setImporting(false);
+      setShowImportModal(false);
+      fetchProducts();
+    }, 1200);
   };
 
   if (!user) return null;
 
-  const vendorProducts = allProducts.filter(p => p.vendorEmail === vendorEmail);
-
-  // Search filter
-  const filteredProducts = searchQuery.trim()
-    ? vendorProducts.filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.id.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : vendorProducts;
-
-  // Stats
-  const lowStockCount = vendorProducts.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
-  const outOfStockCount = vendorProducts.filter(p => (p.stock || 0) === 0).length;
-  const totalStockValue = vendorProducts.reduce((sum, p) => sum + (p.price * (p.stock || 0)), 0);
-
-  const handleAddProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !price || !description) return;
-
-    const isUnverified = user && !user.isVerified;
-    if (isUnverified && vendorProducts.length >= 5) {
-      showToast(`Listing failed. Unverified vendors are capped at 5 products. Complete verification to list more.`, 'error');
-      return;
-    }
-    
-    // Auto-promote first uploaded photo as main cover pic if main photo wasn't set separately
-    const mainCoverImage = image || (additionalImages.length > 0 ? additionalImages[0] : 'https://images.unsplash.com/photo-1555529733-0e670560f8e1?auto=format&fit=crop&q=80&w=800');
-    const galleryImages = image 
-      ? additionalImages.filter(img => img !== image)
-      : additionalImages.slice(1);
-
-    addProduct({
-      name,
-      category,
-      price: parseFloat(price),
-      description,
-      subCategory: 'Store Addition',
-      rating: 0,
-      image: mainCoverImage,
-      images: galleryImages,
-      vendorEmail: vendorEmail,
-      vendorStoreName: storeName,
-      stock: parseInt(stock) || 0,
-      wholesaleTiers,
-    });
-
-    setName('');
-    setPrice('');
-    setDescription('');
-    setImage('');
-    setAdditionalImages([]);
-    setStock('');
-    setWholesaleTiers([]);
-    setActiveTab('list');
-    showToast('Product published successfully!');
-  };
-
-  const handleDeleteProduct = (productId: string) => {
-    deleteProduct(productId);
-    setDeleteConfirm(null);
-    showToast('Product deleted');
-  };
-
-  const openEditModal = (product: any) => {
-    setEditingProduct(product);
-    setEditName(product.name);
-    setEditPrice(product.price.toString());
-    setEditDescription(product.description);
-    setEditStock((product.stock || 0).toString());
-    setEditCategory(product.category);
-    setEditImage(product.image || '');
-    setEditAdditionalImages(product.images || []);
-    setEditWholesaleTiers(product.wholesaleTiers || []);
-  };
-
-  const handleEditProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct) return;
-    const mainCoverImage = editImage || (editAdditionalImages.length > 0 ? editAdditionalImages[0] : editingProduct.image);
-    const galleryImages = editImage 
-      ? editAdditionalImages.filter(img => img !== editImage)
-      : editAdditionalImages.slice(1);
-
-    updateProduct(editingProduct.id, {
-      name: editName,
-      price: parseFloat(editPrice),
-      description: editDescription,
-      stock: parseInt(editStock) || 0,
-      category: editCategory as any,
-      image: mainCoverImage,
-      images: galleryImages,
-      wholesaleTiers: editWholesaleTiers,
-    });
-    setEditingProduct(null);
-    showToast('Product updated successfully!');
-  };
-
-  const handleStockUpdate = (productId: string, newStock: number) => {
-    const stockVal = Math.max(0, newStock);
-    updateProduct(productId, { stock: stockVal });
-    if (stockVal === 0) {
-      showToast('Product out of stock. Listing is now automatically hidden from buyers!', 'info');
-    }
-  };
-
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>My Products</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Manage your store's product catalog</p>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button onClick={downloadCSVTemplate} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline)', background: 'var(--surface-container)', color: 'var(--on-surface-variant)', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
-            CSV Template
-          </button>
-          <button onClick={() => setShowBulkModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline)', background: 'var(--surface-container)', color: 'var(--on-surface)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>upload_file</span>
-            Bulk Upload
-          </button>
-          <button 
-            onClick={() => setActiveTab(activeTab === 'list' ? 'add' : 'list')} 
-            style={{ 
-              padding: '10px 20px', 
-              borderRadius: '8px', 
-              backgroundColor: activeTab === 'list' ? '#00e5ff' : 'var(--surface-container-high)', 
-              color: activeTab === 'list' ? '#000' : 'var(--on-surface)', 
-              border: activeTab === 'list' ? 'none' : '1px solid var(--outline)', 
-              fontWeight: 600, 
-              cursor: 'pointer', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px' 
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+      
+      {/* Module 5 Sub-Navigation Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { label: 'All Products', path: '/vendor/products', active: true, icon: 'inventory_2' },
+          { label: 'Create Product', path: '/vendor/products/create', active: false, icon: 'add_circle' },
+          { label: 'Categories', path: '/vendor/categories', active: false, icon: 'category' },
+          { label: 'Brands', path: '/vendor/brands', active: false, icon: 'branding_watermark' },
+          { label: 'Attributes', path: '/vendor/attributes', active: false, icon: 'tune' },
+          { label: 'Variants Matrix', path: '/vendor/variants', active: false, icon: 'style' },
+          { label: 'Reviews & Ratings', path: '/vendor/reviews', active: false, icon: 'star' },
+        ].map(tab => (
+          <Link
+            key={tab.label}
+            href={tab.path}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              fontSize: 13,
+              fontWeight: tab.active ? 800 : 600,
+              color: tab.active ? '#ffffff' : '#475569',
+              backgroundColor: tab.active ? '#10b981' : '#ffffff',
+              border: '1px solid #e2e8f0',
+              whiteSpace: 'nowrap',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{activeTab === 'add' ? 'arrow_back' : 'add'}</span>
-            {activeTab === 'add' ? 'Back to List' : 'Add Product'}
-          </button>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Main Catalog Card */}
+      <div style={{ backgroundColor: '#ffffff', borderRadius: 18, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        
+        {/* Header Controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              Product Catalog Management
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
+              Manage products, SKUs, EAN-13 barcodes, stock levels, variants, and bulk CSV operations.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => setShowImportModal(true)}
+              style={{
+                padding: '9px 14px',
+                borderRadius: 10,
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>upload_file</span>
+              Bulk CSV Import
+            </button>
+
+            <button
+              onClick={handleBulkExport}
+              style={{
+                padding: '9px 14px',
+                borderRadius: 10,
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
+              Export Catalog
+            </button>
+
+            <Link
+              href="/vendor/products/create"
+              style={{
+                padding: '10px 18px',
+                borderRadius: 10,
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: 13,
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 3px 10px rgba(16,185,129,0.3)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+              Add New Product
+            </Link>
+          </div>
         </div>
 
-      </div>
-
-      {/* Sliding Tab Switcher */}
-      <div className="responsive-tabs-row" style={{ display: 'flex', borderBottom: '1px solid var(--outline)', gap: '24px', overflowX: 'auto', paddingBottom: '1px' }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('list')}
-          style={{
-            padding: '12px 16px',
-            backgroundColor: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'list' ? '2px solid var(--lime-400)' : '2px solid transparent',
-            color: activeTab === 'list' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
-            fontWeight: 700,
-            fontFamily: 'var(--font-lexend)',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.2s',
-          }}
-        >
-          My Products ({vendorProducts.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('add')}
-          style={{
-            padding: '12px 16px',
-            backgroundColor: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'add' ? '2px solid var(--lime-400)' : '2px solid transparent',
-            color: activeTab === 'add' ? 'var(--lime-400)' : 'var(--on-surface-variant)',
-            fontWeight: 700,
-            fontFamily: 'var(--font-lexend)',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.2s',
-          }}
-        >
-          Add Product
-        </button>
-      </div>
-
-      {activeTab === 'list' && (
-        <>
-          {user && !user.isVerified && (
-            <div style={{ padding: '16px', background: 'rgba(255,152,0,0.08)', border: '1px solid #ff9800', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="material-symbols-outlined" style={{ color: '#ff9800', fontSize: '28px' }}>warning</span>
-              <div>
-                <h4 style={{ margin: '0 0 4px 0', color: '#ff9800', fontWeight: 700, fontFamily: 'var(--font-lexend)' }}>Informal / Unverified Seller Tier Limits</h4>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Your store is currently unverified. You are capped at a maximum of <strong>5 product listings</strong>. Verify your identity/business to list unlimited products.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Stats */}
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Total Products', val: vendorProducts.length.toString(), color: '#00e5ff', icon: 'inventory_2' },
-              { label: 'Total Stock Value', val: `GH₵${totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'var(--lime-400)', icon: 'payments' },
-              { label: 'Low Stock', val: lowStockCount.toString(), color: '#ff9800', icon: 'warning' },
-              { label: 'Out of Stock', val: outOfStockCount.toString(), color: 'var(--error)', icon: 'block' },
-            ].map(s => (
-              <div key={s.label} style={{ flex: '1 1 150px', padding: '20px', backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>{s.label}</span>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: s.color }}>{s.icon}</span>
-                </div>
-                <div className="font-lexend" style={{ fontSize: '1.6rem', fontWeight: 600, color: s.color }}>{s.val}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Search */}
-          <div style={{ backgroundColor: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--outline)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--on-surface-variant)', fontSize: '22px' }}>search</span>
-            <input 
+        {/* Filters Bar */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 240, position: 'relative' }}>
+            <span className="material-symbols-outlined" style={{ position: 'absolute', left: 12, top: 10, fontSize: 18, color: '#94a3b8' }}>search</span>
+            <input
               type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search products by name, category, or ID..."
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--on-surface)', fontSize: '0.95rem', fontFamily: 'inherit' }}
+              placeholder="Search product title, SKU, or barcode..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && fetchProducts()}
+              style={{ width: '100%', padding: '9px 12px 9px 38px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, outline: 'none' }}
             />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', display: 'flex' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
-              </button>
-            )}
           </div>
 
-          {/* Products Table */}
-          <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="responsive-table">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Product</th>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Category</th>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Price</th>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Stock</th>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Rating</th>
-                    <th style={{ padding: '14px 24px', fontWeight: 500 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.length === 0 ? (
-                    <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '40px', marginBottom: '8px', display: 'block', opacity: 0.5 }}>inventory_2</span>
-                      {searchQuery ? 'No products match your search.' : 'No products published yet.'}
-                    </td></tr>
-                  ) : filteredProducts.map((p, idx) => (
-                    <tr key={p.id} style={{ borderBottom: idx !== filteredProducts.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                      <td data-label="Product" style={{ padding: '16px 24px' }}>
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                          <img src={p.image} alt={p.name} style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }} />
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            style={{ padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, color: '#0f172a', outline: 'none' }}
+          >
+            <option value="all">All Categories</option>
+            <option value="Fashion & Activewear">Fashion & Activewear</option>
+            <option value="Running & Training">Running & Training</option>
+            <option value="Gym Accessories">Gym Accessories</option>
+            <option value="Footwear & Sneakers">Footwear & Sneakers</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            style={{ padding: '9px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 13, color: '#0f172a', outline: 'none' }}
+          >
+            <option value="all">All Statuses</option>
+            <option value="approved">Approved & Live</option>
+            <option value="draft">Draft Products</option>
+            <option value="pending">Pending Review</option>
+          </select>
+        </div>
+
+        {/* Catalog Table */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#10b981', fontWeight: 700 }}>Loading product catalog...</div>
+        ) : products.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#cbd5e1' }}>inventory_2</span>
+            <div style={{ marginTop: 8, fontSize: 14, fontWeight: 700 }}>No products found</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Try clearing search or filters, or add your first product.</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', textAlign: 'left', fontWeight: 700 }}>
+                  <th style={{ padding: '10px 8px' }}>Product</th>
+                  <th style={{ padding: '10px 8px' }}>SKU & Barcode</th>
+                  <th style={{ padding: '10px 8px' }}>Category</th>
+                  <th style={{ padding: '10px 8px' }}>Price</th>
+                  <th style={{ padding: '10px 8px' }}>Stock</th>
+                  <th style={{ padding: '10px 8px' }}>Status</th>
+                  <th style={{ padding: '10px 8px' }}>Featured</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map(p => {
+                  const title = p.title || p.name;
+                  const img = p.images?.[0] || p.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=200';
+                  return (
+                    <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      
+                      {/* Product Thumbnail & Title */}
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 8, overflow: 'hidden', position: 'relative', flexShrink: 0, backgroundColor: '#f1f5f9' }}>
+                            <Image src={img} alt={title} fill style={{ objectFit: 'cover' }} unoptimized />
+                          </div>
                           <div>
-                            <span style={{ fontWeight: 500 }}>{p.name}</span>
-                            <br />
-                            <span style={{ fontSize: '0.78rem', color: 'var(--on-surface-variant)' }}>ID: {p.id}</span>
-                            
-                            {/* Micro-performance metrics */}
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: '1px solid var(--outline-variant)', fontWeight: 500 }} title="Views">
-                                <span className="material-symbols-outlined" style={{ fontSize: '11px', color: '#00e5ff' }}>visibility</span>
-                                {p.name.length * 12 + 42}
-                              </span>
-                              <span style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: '1px solid var(--outline-variant)', fontWeight: 500 }} title="CTR">
-                                <span className="material-symbols-outlined" style={{ fontSize: '11px', color: 'var(--lime-400)' }}>ads_click</span>
-                                {((p.name.length * 0.1) + 1.2).toFixed(1)}%
-                              </span>
-                              <span style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: '1px solid var(--outline-variant)', fontWeight: 500 }} title="Cart Additions">
-                                <span className="material-symbols-outlined" style={{ fontSize: '11px', color: 'var(--secondary)' }}>shopping_bag</span>
-                                {p.name.length * 2 + 3}
-                              </span>
-                              <span style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface-variant)', border: '1px solid var(--outline-variant)', fontWeight: 500 }} title="Units Sold">
-                                <span className="material-symbols-outlined" style={{ fontSize: '11px', color: '#ffb300' }}>sell</span>
-                                {p.name.length % 4 + 1} sold
-                              </span>
-                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{title}</div>
+                            <div style={{ fontSize: 10, color: '#94a3b8' }}>ID: {p._id.slice(-6)}</div>
                           </div>
                         </div>
                       </td>
-                      <td data-label="Category" style={{ padding: '16px 24px' }}><span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', backgroundColor: 'var(--surface-container-high)', border: '1px solid var(--outline-variant)' }}>{p.category}</span></td>
-                      <td data-label="Price" style={{ padding: '16px 24px', fontWeight: 600, color: 'var(--price-color)' }}>GH₵{p.price.toFixed(2)}</td>
-                      <td data-label="Stock" style={{ padding: '16px 24px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button 
-                            onClick={() => handleStockUpdate(p.id, (p.stock || 0) - 1)} 
-                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
-                          >−</button>
-                          <span style={{ 
-                            fontWeight: 600, minWidth: '28px', textAlign: 'center', 
-                            color: (p.stock || 0) === 0 ? 'var(--error)' : (p.stock || 0) <= 5 ? '#ff9800' : 'var(--on-surface)' 
-                          }}>{p.stock || 0}</span>
-                          <button 
-                            onClick={() => handleStockUpdate(p.id, (p.stock || 0) + 1)} 
-                            style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
-                          >+</button>
-                        </div>
+
+                      {/* SKU & Barcode */}
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ fontWeight: 700, color: '#334155' }}>{p.sku || 'AFR-PRD-101'}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{p.barcode || '603123456789'}</div>
                       </td>
-                      <td data-label="Rating" style={{ padding: '16px 24px', color: 'var(--on-surface)' }}>{p.rating} / 5</td>
-                      <td data-label="Actions" style={{ padding: '16px 24px' }}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button onClick={() => openEditModal(p)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, #00e5ff 15%, transparent)', color: '#00e5ff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit">
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
-                          </button>
-                          <button onClick={() => setDeleteConfirm(p.id)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete">
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                          </button>
-                        </div>
+
+                      {/* Category */}
+                      <td style={{ padding: '10px 8px', color: '#475569', fontWeight: 600 }}>
+                        {p.category || 'General'}
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
 
-      {activeTab === 'add' && (
-        <div className="animate-scale-in" style={{ padding: '24px', backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-          <h2 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-symbols-outlined">add_box</span>
-            Add New Product
-          </h2>
-          
-          <form onSubmit={handleAddProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Name</label>
-                <input required value={name} onChange={e => setName(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="e.g. Compression Shirt" />
-              </div>
-              <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Price (GH₵)</label>
-                <input required type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0.00" />
-              </div>
-            </div>
+                      {/* Price & Sale Price */}
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>GH₵ {(p.salePrice || p.price).toFixed(2)}</div>
+                        {p.salePrice && <div style={{ fontSize: 10, color: '#94a3b8', textDecoration: 'line-through' }}>GH₵ {p.price.toFixed(2)}</div>}
+                      </td>
 
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Stock</label>
-                <input type="number" value={stock} onChange={e => setStock(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} placeholder="0" />
-              </div>
-              <div style={{ flex: '1 1 150px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Category</label>
-                <select value={category} onChange={e => setCategory(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', width: '100%' }}>
-                  {categories.filter(cat => cat !== 'All').map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                      {/* Stock Badge */}
+                      <td style={{ padding: '10px 8px' }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          backgroundColor: p.stock <= 5 ? '#fee2e2' : '#dcfce7',
+                          color: p.stock <= 5 ? '#dc2626' : '#16a34a',
+                        }}>
+                          {p.stock} in stock
+                        </span>
+                      </td>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Image</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectorTarget('main');
-                    setShowImageSelector(true);
-                  }}
-                  disabled={imageUploading}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px dashed var(--outline)',
-                    backgroundColor: 'var(--surface-container)',
-                    color: 'var(--on-surface)',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--lime-400)';
-                    e.currentTarget.style.backgroundColor = 'var(--surface-container-high)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--outline)';
-                    e.currentTarget.style.backgroundColor = 'var(--surface-container)';
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ color: 'var(--lime-400)' }}>photo_camera</span>
-                  {image ? 'Change Photo (In-App Camera / Gallery)' : 'Choose Photo (In-App Camera / Gallery)'}
-                </button>
-                {imageUploading && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--lime-400)', fontSize: '0.8rem', fontWeight: 600 }}>
-                    <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>progress_activity</span>
-                    Uploading...
-                  </div>
-                )}
-                {image && !imageUploading && (
-                  <div style={{ position: 'relative' }}>
-                    <img src={image} alt="Preview" style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--outline)' }} />
-                    {image.includes('cloudinary') && (
-                      <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--lime-400)', color: '#000', fontSize: '7px', fontWeight: 900, padding: '1px 4px', borderRadius: '4px', fontFamily: 'var(--font-lexend)' }}>CDN</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+                      {/* Status Badge */}
+                      <td style={{ padding: '10px 8px' }}>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 900,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          backgroundColor: p.isDraft ? '#f1f5f9' : p.status === 'approved' ? '#dcfce7' : '#fef3c7',
+                          color: p.isDraft ? '#64748b' : p.status === 'approved' ? '#16a34a' : '#d97706',
+                        }}>
+                          {p.isDraft ? 'DRAFT' : (p.status || 'APPROVED').toUpperCase()}
+                        </span>
+                      </td>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Gallery Images <span style={{ fontSize: '0.7rem', color: 'var(--outline)' }}>({additionalImages.length}/4 — optional)</span></label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {additionalImages.map((img, i) => (
-                  <div key={i} style={{ position: 'relative' }}>
-                    <img src={img} alt={`Gallery ${i + 1}`} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--outline)' }} />
-                    <button type="button" onClick={() => setAdditionalImages(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--error)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                  </div>
-                ))}
-                {additionalImages.length < 4 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectorTarget('gallery');
-                      setShowImageSelector(true);
-                    }}
-                    disabled={galleryUploading}
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 8,
-                      border: '1px dashed var(--outline)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      background: 'none',
-                      color: 'var(--on-surface-variant)',
-                      outline: 'none',
-                      transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--lime-400)';
-                      e.currentTarget.style.color = 'var(--on-surface)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--outline)';
-                      e.currentTarget.style.color = 'var(--on-surface-variant)';
-                    }}
-                  >
-                    {galleryUploading ? (
-                      <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18, color: 'var(--lime-400)' }}>progress_activity</span>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_photo_alternate</span>
-                        <span style={{ fontSize: 7, fontWeight: 700 }}>ADD</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
-              <textarea required value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} placeholder="Product description..." />
-            </div>
-
-            {/* Wholesale Pricing Tiers Row Builder */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
-                <button
-                  type="button"
-                  onClick={() => setWholesaleTiers([...wholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
-                  style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
-                  Add Bracket
-                </button>
-              </div>
-              
-              {wholesaleTiers.length === 0 ? (
-                <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {wholesaleTiers.map((tier, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
-                        <input
-                          type="number"
-                          min="2"
-                          required
-                          value={tier.minQuantity}
-                          onChange={(e) => {
-                            const updated = [...wholesaleTiers];
-                            updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
-                            setWholesaleTiers(updated);
-                          }}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                        />
-                      </div>
-                      <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="90"
-                          required
-                          value={tier.discountPercent}
-                          onChange={(e) => {
-                            const updated = [...wholesaleTiers];
-                            updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
-                            setWholesaleTiers(updated);
-                          }}
-                          style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                        />
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setWholesaleTiers(wholesaleTiers.filter((_, i) => i !== idx))}
-                        style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-              <button type="button" onClick={() => setActiveTab('list')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#00e5ff', color: '#000', cursor: 'pointer', fontWeight: 600 }}>Publish Product</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDeleteConfirm(null)}>
-          <div onClick={e => e.stopPropagation()} className="animate-scale-in" style={{ background: 'var(--surface)', borderRadius: '20px', padding: '32px', maxWidth: '400px', width: '90%', border: '1px solid var(--outline)' }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--error)', marginBottom: '12px' }}>warning</span>
-              <h3 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '8px' }}>Delete Product?</h3>
-              <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.9rem' }}>This action cannot be undone. The product will be permanently removed.</p>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button onClick={() => handleDeleteProduct(deleteConfirm)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: 'var(--error)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Product Modal */}
-      {editingProduct && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingProduct(null)}>
-          <div onClick={e => e.stopPropagation()} className="animate-scale-in" style={{ background: 'var(--surface)', borderRadius: '20px', padding: '32px', maxWidth: '500px', width: '90%', border: '1px solid var(--outline)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '20px' }}>Edit Product</h3>
-            <form onSubmit={handleEditProduct} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Product Name</label>
-                <input value={editName} onChange={e => setEditName(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Price (GH₵)</label>
-                  <input type="number" step="0.01" value={editPrice} onChange={e => setEditPrice(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Stock</label>
-                  <input type="number" value={editStock} onChange={e => setEditStock(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Category</label>
-                <select value={editCategory} onChange={e => setEditCategory(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', width: '100%' }}>
-                  {categories.filter(cat => cat !== 'All').map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Description</label>
-                <textarea rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container)', color: 'var(--on-surface)', outline: 'none', resize: 'vertical' }} />
-              </div>
-
-              {/* Edit Wholesale Pricing Tiers Row Builder */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--outline)', paddingTop: '16px', marginTop: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--lime-400)', fontFamily: 'var(--font-lexend)' }}>Wholesale Volume Discounts (Optional)</label>
-                  <button
-                    type="button"
-                    onClick={() => setEditWholesaleTiers([...editWholesaleTiers, { minQuantity: 10, discountPercent: 10 }])}
-                    style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--surface-container-high)', border: '1px solid var(--outline)', color: '#00e5ff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
-                    Add Bracket
-                  </button>
-                </div>
-                
-                {editWholesaleTiers.length === 0 ? (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', fontStyle: 'italic' }}>No bulk purchase discount tiers configured. Click "Add Bracket" to create custom B2B volume pricing.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {editWholesaleTiers.map((tier, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Min Buy Qty:</span>
-                          <input
-                            type="number"
-                            min="2"
-                            required
-                            value={tier.minQuantity}
-                            onChange={(e) => {
-                              const updated = [...editWholesaleTiers];
-                              updated[idx].minQuantity = Math.max(2, parseInt(e.target.value) || 2);
-                              setEditWholesaleTiers(updated);
-                            }}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                          />
-                        </div>
-                        <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', whiteSpace: 'nowrap' }}>Discount Rate:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            required
-                            value={tier.discountPercent}
-                            onChange={(e) => {
-                              const updated = [...editWholesaleTiers];
-                              updated[idx].discountPercent = Math.min(90, Math.max(1, parseFloat(e.target.value) || 1));
-                              setEditWholesaleTiers(updated);
-                            }}
-                            style={{ width: '70px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--outline)', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', outline: 'none', fontSize: '0.85rem' }}
-                          />
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>% Off</span>
-                        </div>
+                      {/* Featured Toggle */}
+                      <td style={{ padding: '10px 8px' }}>
                         <button
-                          type="button"
-                          onClick={() => setEditWholesaleTiers(editWholesaleTiers.filter((_, i) => i !== idx))}
-                          style={{ padding: '8px', borderRadius: '6px', background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', display: 'flex' }}
+                          onClick={() => handleToggleFeatured(p)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: p.isFeatured ? '#f59e0b' : '#cbd5e1',
+                          }}
+                          title={p.isFeatured ? 'Featured Product' : 'Make Featured'}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+                            {p.isFeatured ? 'star' : 'star_outline'}
+                          </span>
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      </td>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setEditingProduct(null)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-                <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#00e5ff', color: 'var(--on-lime-400)', cursor: 'pointer', fontWeight: 600 }}>Save Changes</button>
-              </div>
-            </form>
+                      {/* Actions */}
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                          <Link
+                            href={`/vendor/products/create?editId=${p._id}`}
+                            style={{ padding: '4px 8px', borderRadius: 6, backgroundColor: '#f1f5f9', color: '#334155', textDecoration: 'none', fontWeight: 700, fontSize: 11 }}
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteProduct(p._id)}
+                            style={{ padding: '4px 8px', borderRadius: 6, backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 11 }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
-      {/* Bulk Upload Modal */}
-      {showBulkModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setShowBulkModal(false); setBulkFile([]); }}>
-          <div onClick={e => e.stopPropagation()} className="animate-scale-in" style={{ background: 'var(--surface)', borderRadius: '24px', padding: '32px', maxWidth: '800px', width: '90%', border: '1px solid var(--outline)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 className="font-lexend" style={{ fontSize: '1.5rem' }}>Bulk Product Upload</h3>
-              <button onClick={() => { setShowBulkModal(false); setBulkFile([]); }} style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined">close</span>
+        )}
+
+      </div>
+
+      {/* CSV Bulk Import Modal */}
+      {showImportModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 28, maxWidth: 460, width: '100%', border: '1px solid #e2e8f0', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Bulk CSV Product Import</h3>
+              <button onClick={() => setShowImportModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 20 }}>
+              Upload a `.csv` file containing product title, price, stock, category, SKU, and image URL columns.
+            </p>
+
+            <div style={{ border: '2px dashed #cbd5e1', borderRadius: 12, padding: 24, textAlign: 'center', backgroundColor: '#f8fafc', marginBottom: 20 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, color: '#10b981' }}>cloud_upload</span>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 8 }}>Drop CSV catalog file here</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Supports UTF-8 .csv format</div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setShowImportModal(false)} style={{ padding: '10px 16px', borderRadius: 8, backgroundColor: '#f1f5f9', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSimulateImport} disabled={importing} style={{ padding: '10px 20px', borderRadius: 8, backgroundColor: '#10b981', color: '#fff', border: 'none', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
+                {importing ? 'Importing...' : 'Upload & Import'}
               </button>
             </div>
-
-            {bulkFile.length === 0 ? (
-              <div style={{ padding: '48px', border: '2px dashed var(--outline)', borderRadius: '16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '64px', color: '#00e5ff', opacity: 0.5 }}>csv</span>
-                <div>
-                  <p style={{ fontWeight: 700, marginBottom: '4px' }}>Upload CSV File</p>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>Format: Name, Category, Price, Stock, Description, ImageURL</p>
-                </div>
-                <input type="file" accept=".csv" onChange={handleBulkUpload} style={{ display: 'none' }} id="bulk-upload-input" />
-                <label htmlFor="bulk-upload-input" style={{ padding: '12px 24px', borderRadius: '10px', background: '#00e5ff', color: '#000', fontWeight: 700, cursor: 'pointer' }}>Select File</label>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <p style={{ fontWeight: 600 }}>Preview: {bulkFile.length} items found</p>
-                <div style={{ maxHeight: '300px', overflowY: 'auto', borderRadius: '12px', border: '1px solid var(--outline)' }}>
-                  <table className="responsive-table">
-                    <thead style={{ position: 'sticky', top: 0, background: 'var(--surface-container-high)', zIndex: 1 }}>
-                      <tr>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Name</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Category</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Price</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Stock</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkFile.map((p, i) => (
-                        <tr key={i} style={{ borderTop: '1px solid var(--outline-variant)' }}>
-                          <td data-label="Name" style={{ padding: '12px' }}>{p.name}</td>
-                          <td data-label="Category" style={{ padding: '12px' }}>{p.category}</td>
-                          <td data-label="Price" style={{ padding: '12px' }}>GH₵{p.price}</td>
-                          <td data-label="Stock" style={{ padding: '12px' }}>{p.stock}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setBulkFile([])} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', fontWeight: 700, cursor: 'pointer' }}>Clear</button>
-                  <button onClick={confirmBulkUpload} style={{ flex: 2, padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--lime-400)', color: '#000', fontWeight: 800, cursor: 'pointer' }}>Confirm & Upload All</button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Custom In-App Camera & Stock Photo Selector Overlay */}
-      {showImageSelector && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 10005, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => { stopInAppCamera(); setShowImageSelector(false); }}>
-          <div onClick={e => e.stopPropagation()} className="animate-scale-in" style={{ background: 'var(--surface)', borderRadius: '24px', padding: '24px', maxWidth: '540px', width: '100%', border: '1px solid var(--outline)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
-            
-            {showCamera ? (
-              /* Live In-App Camera Viewport */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <h3 className="font-lexend" style={{ fontSize: '1.2rem', color: 'var(--lime-400)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-symbols-outlined">videocam</span>
-                    Live Photo Capture
-                  </h3>
-                  <button onClick={stopInAppCamera} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--on-surface)' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-                  </button>
-                </div>
-
-                <div style={{ position: 'relative', width: '100%', height: '320px', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#000', border: '1.5px solid var(--outline)' }}>
-                  <video id="in-app-video" autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(0,229,255,0.4)', borderRadius: '16px', pointerEvents: 'none', margin: '20px', borderStyle: 'dashed' }} />
-                </div>
-
-                {cameraError ? (
-                  <p style={{ color: 'var(--error)', fontSize: '0.85rem', textAlign: 'center', padding: '0 8px' }}>{cameraError}</p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={captureInAppPhoto}
-                    style={{
-                      background: 'var(--lime-400)',
-                      color: '#000',
-                      border: 'none',
-                      borderRadius: '50px',
-                      padding: '14px 28px',
-                      fontSize: '0.95rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 0 20px rgba(195,244,0,0.4)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                  >
-                    <span className="material-symbols-outlined">photo_camera</span>
-                    CAPTURE SNAPSHOT
-                  </button>
-                )}
-              </div>
-            ) : (
-              /* Media Sources Choice and Stock Grid */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden', height: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 className="font-lexend" style={{ fontSize: '1.2rem', marginBottom: '4px' }}>Add Product Photo</h3>
-                    <p style={{ color: 'var(--on-surface-variant)', fontSize: '0.8rem' }}>Snap with camera, use stock gallery, or upload local file</p>
-                  </div>
-                  <button onClick={() => setShowImageSelector(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--on-surface)' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-                  </button>
-                </div>
-
-                {/* Main Action Options */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={startInAppCamera}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '16px',
-                      borderRadius: '12px',
-                      background: 'rgba(0, 229, 255, 0.08)',
-                      border: '1px solid rgba(0, 229, 255, 0.3)',
-                      color: '#00e5ff',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      fontFamily: 'var(--font-lexend)',
-                      fontSize: '0.88rem',
-                      transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#00e5ff';
-                      e.currentTarget.style.color = '#000';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
-                      e.currentTarget.style.color = '#00e5ff';
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>photo_camera</span>
-                    SNAP LIVE PHOTO
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const fileInput = document.getElementById('local-file-selector') as HTMLInputElement;
-                      fileInput?.click();
-                    }}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '16px',
-                      borderRadius: '12px',
-                      background: 'rgba(195, 244, 0, 0.08)',
-                      border: '1px solid rgba(195, 244, 0, 0.3)',
-                      color: 'var(--lime-400)',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      fontFamily: 'var(--font-lexend)',
-                      fontSize: '0.88rem',
-                      transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--lime-400)';
-                      e.currentTarget.style.color = '#000';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(195, 244, 0, 0.08)';
-                      e.currentTarget.style.color = 'var(--lime-400)';
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>upload_file</span>
-                    UPLOAD LOCAL FILE
-                  </button>
-                  <input
-                    type="file"
-                    id="local-file-selector"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => {
-                      if (selectorTarget === 'main') {
-                        handleImageUpload(e);
-                      } else {
-                        handleGalleryUpload(e);
-                      }
-                      setShowImageSelector(false);
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

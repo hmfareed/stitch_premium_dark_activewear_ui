@@ -1,115 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import { Store } from '@/models/Store';
+import { getSession } from '@/lib/session';
 
-/**
- * Vendor Storefront Builder API per spec §8.0a.
- * GET: Retrieve storefront draft or live settings.
- * POST: Save storefront draft (staged, not live).
- * PUT: Publish draft to live storefront.
- */
-
-// GET storefront configuration
 export async function GET(req: NextRequest) {
   try {
     await connectToDatabase();
-    const { searchParams } = new URL(req.url);
-    const storeId = searchParams.get('storeId');
-    const slug = searchParams.get('slug');
-
-    const query: Record<string, any> = {};
-    if (storeId) query._id = storeId;
-    if (slug) query.slug = slug;
-
-    const store = await Store.findOne(query);
-    if (!store) {
-      return NextResponse.json({ success: false, error: 'Store not found' }, { status: 404 });
+    const session = await getSession();
+    if (!session || !session.userId) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
     }
 
-    return NextResponse.json({
-      success: true,
-      storefront: {
-        templateId: store.templateId || 'classic_grid',
-        themeAccentColor: store.themeAccentColor || '#2563EB',
-        aboutText: store.aboutText || '',
-        featuredProductIds: store.featuredProductIds || [],
-        storeLogo: store.storeLogo,
-        storeBanner: store.storeBanner,
-        returnPolicy: store.returnPolicy,
-      },
-      draft: store.storefrontDraft || null,
-    });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const vendorEmail = (session.user.email || '').toLowerCase().trim();
+    const store = await Store.findOne({ vendorEmail }).lean();
+
+    return NextResponse.json({ success: true, store: store || null });
+  } catch (error: any) {
+    console.error('GET /api/vendor/storefront error:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
 
-// POST save storefront draft (staged, not live per spec §8.0a-3)
-export async function POST(req: NextRequest) {
-  try {
-    await connectToDatabase();
-    const body = await req.json();
-    const { storeId, templateId, themeAccentColor, aboutText, featuredProductIds, storeLogo, storeBanner } = body;
-
-    if (!storeId) {
-      return NextResponse.json({ success: false, error: 'Store ID is required' }, { status: 400 });
-    }
-
-    const store = await Store.findById(storeId);
-    if (!store) {
-      return NextResponse.json({ success: false, error: 'Store not found' }, { status: 404 });
-    }
-
-    // Save as draft, not live
-    store.storefrontDraft = {
-      templateId: templateId || store.templateId,
-      themeAccentColor: themeAccentColor || store.themeAccentColor,
-      aboutText: aboutText !== undefined ? aboutText : store.aboutText,
-      featuredProductIds: featuredProductIds || store.featuredProductIds,
-      storeLogo: storeLogo || store.storeLogo,
-      storeBanner: storeBanner || store.storeBanner,
-      savedAt: new Date(),
-    };
-    await store.save();
-
-    return NextResponse.json({ success: true, message: 'Storefront draft saved. Preview before publishing.' });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
-
-// PUT publish storefront draft to live per spec §8.0a-3
 export async function PUT(req: NextRequest) {
   try {
     await connectToDatabase();
+    const session = await getSession();
+    if (!session || !session.userId) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
+    }
+
+    const vendorEmail = (session.user.email || '').toLowerCase().trim();
     const body = await req.json();
-    const { storeId } = body;
 
-    if (!storeId) {
-      return NextResponse.json({ success: false, error: 'Store ID is required' }, { status: 400 });
-    }
+    let store = await Store.findOne({ vendorEmail });
 
-    const store = await Store.findById(storeId);
     if (!store) {
-      return NextResponse.json({ success: false, error: 'Store not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Store document not found' }, { status: 404 });
     }
 
-    if (!store.storefrontDraft) {
-      return NextResponse.json({ success: false, error: 'No draft to publish. Save changes first.' }, { status: 400 });
-    }
+    // Update Profile Branding
+    if (body.name) store.name = body.name.trim();
+    if (body.logo) store.logo = body.logo;
+    if (body.banner) store.banner = body.banner;
+    if (body.storeBio !== undefined) store.storeBio = body.storeBio;
+    if (body.category) store.category = body.category;
+    if (body.phone) store.phone = body.phone;
+    if (body.contactEmail) store.contactEmail = body.contactEmail;
+    if (body.address) store.address = body.address;
+    if (body.city) store.city = body.city;
+    if (body.region) store.region = body.region;
 
-    const draft = store.storefrontDraft as any;
-    store.templateId = draft.templateId || store.templateId;
-    store.themeAccentColor = draft.themeAccentColor || store.themeAccentColor;
-    store.aboutText = draft.aboutText !== undefined ? draft.aboutText : store.aboutText;
-    store.featuredProductIds = draft.featuredProductIds || store.featuredProductIds;
-    store.storeLogo = draft.storeLogo || store.storeLogo;
-    store.storeBanner = draft.storeBanner || store.storeBanner;
-    store.storefrontDraft = undefined; // Clear draft after publishing
+    // Update Store Policies
+    if (body.returnPolicy !== undefined) store.returnPolicy = body.returnPolicy;
+    if (body.shippingPolicy !== undefined) store.set('shippingPolicy', body.shippingPolicy);
+    if (body.termsPolicy !== undefined) store.set('termsPolicy', body.termsPolicy);
+
+    // Update Vacation / Pause Mode
+    if (typeof body.isPaused === 'boolean') store.isPaused = body.isPaused;
+    if (body.pauseReason !== undefined) store.pauseReason = body.pauseReason;
+
+    // Update Business Hours Matrix
+    if (body.businessHours) store.set('businessHours', body.businessHours);
+
+    // Update Pickup Locations Points
+    if (body.pickupPoints) store.set('pickupPoints', body.pickupPoints);
+
+    // Update Delivery Settings
+    if (body.deliverySettings) store.set('deliverySettings', body.deliverySettings);
+
     await store.save();
 
-    return NextResponse.json({ success: true, message: 'Storefront published live!' });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      store,
+      message: 'Store settings updated successfully!',
+    });
+  } catch (error: any) {
+    console.error('PUT /api/vendor/storefront error:', error);
+    return NextResponse.json({ error: error.message || 'Store settings update failed' }, { status: 500 });
   }
 }

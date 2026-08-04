@@ -1,183 +1,161 @@
 'use client';
+
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AppContext';
 
-export default function VendorPromotionsPage() {
+export default function VendorPromotionsHubPage() {
   const { user } = useAuth();
-  const [showCreate, setShowCreate] = useState(false);
-  const [promos, setPromos] = useState<any[]>([]);
+
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [flashSales, setFlashSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [form, setForm] = useState({
-    code: '',
-    discountValue: '',
-    type: 'Percentage',
-    limit: '',
-    expiresAt: ''
-  });
+
+  useEffect(() => {
+    fetchPromos();
+  }, []);
 
   const fetchPromos = async () => {
-    if (!user) return;
+    setLoading(true);
     try {
-      const res = await fetch(`/api/promotions?vendorEmail=${user.email}`);
+      const res = await fetch('/api/vendor/promotions');
       const data = await res.json();
-      if (data.success) {
-        setPromos(data.promotions);
+      if (res.ok) {
+        setCoupons(data.coupons || []);
+        setFlashSales(data.flashSales || []);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load promotions:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchPromos();
-  }, [user]);
-
-  const handleCreate = async () => {
-    try {
-      const res = await fetch('/api/promotions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          vendorEmail: user?.email,
-          discountValue: Number(form.discountValue),
-          limit: Number(form.limit)
-        })
-      });
-      if (res.ok) {
-        setShowCreate(false);
-        setForm({ code: '', discountValue: '', type: 'Percentage', limit: '', expiresAt: '' });
-        fetchPromos();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create promo');
-      }
-    } catch (err) {
-      alert('Error creating promo');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this promotion?')) return;
-    try {
-      const res = await fetch(`/api/promotions/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchPromos();
-      }
-    } catch (err) {}
-  };
-
-  if (loading) return <div>Loading...</div>;
+  if (!user) return null;
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <h1 className="font-lexend" style={{ fontSize: '2rem', marginBottom: '8px' }}>Promotions</h1>
-          <p style={{ color: 'var(--on-surface-variant)' }}>Manage discounts and coupon codes</p>
-        </div>
-        <button onClick={() => setShowCreate(!showCreate)} style={{ padding: '10px 20px', borderRadius: '8px', backgroundColor: '#00e5ff', color: 'black', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>Create Promo
-        </button>
-      </div>
-      {/* Create Promo Modal */}
-      {showCreate && (
-        <div 
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
-          onClick={() => setShowCreate(false)}
-        >
-          <div 
-            onClick={e => e.stopPropagation()} 
-            className="animate-scale-in" 
-            style={{ background: 'var(--surface)', borderRadius: '24px', padding: '32px', maxWidth: '500px', width: '90%', border: '1px solid var(--outline)', display: 'flex', flexDirection: 'column', gap: '16px' }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+      
+      {/* Module 13 Sub-Navigation Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { label: 'Marketing Hub', path: '/vendor/promotions', active: true, icon: 'campaign' },
+          { label: 'Coupons Manager', path: '/vendor/promotions/coupons', active: false, icon: 'confirmation_number' },
+          { label: 'Catalog Discounts', path: '/vendor/promotions/discounts', active: false, icon: 'percent' },
+          { label: 'Flash Sales', path: '/vendor/promotions/flash-sales', active: false, icon: 'bolt' },
+          { label: 'Storefront Banners', path: '/vendor/promotions/banners', active: false, icon: 'view_carousel' },
+          { label: 'Featured Products', path: '/vendor/promotions/featured', active: false, icon: 'star' },
+        ].map(tab => (
+          <Link
+            key={tab.label}
+            href={tab.path}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              fontSize: 13,
+              fontWeight: tab.active ? 800 : 600,
+              color: tab.active ? '#ffffff' : '#475569',
+              backgroundColor: tab.active ? '#10b981' : '#ffffff',
+              border: '1px solid #e2e8f0',
+              whiteSpace: 'nowrap',
+            }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <h3 className="font-lexend" style={{ fontSize: '1.3rem', margin: 0, color: 'var(--foreground)' }}>Create Promo Coupon</h3>
-              <button 
-                onClick={() => setShowCreate(false)} 
-                style={{ background: 'var(--surface-container-high)', border: 'none', cursor: 'pointer', color: 'var(--on-surface)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+      </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Coupon Code</label>
-              <input value={form.code} onChange={e => setForm({...form, code: e.target.value.toUpperCase()})} placeholder="e.g. SUMMER20" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none', textTransform: 'uppercase' }} />
-            </div>
+      {/* Main Promotions Hub Card */}
+      <div style={{ backgroundColor: '#ffffff', borderRadius: 18, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              Marketing & Promotional Campaigns Hub
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
+              Boost conversion rates with custom promo coupons, category discounts, flash deals, and hero banners.
+            </p>
+          </div>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Discount Value</label>
-                <input type="number" value={form.discountValue} onChange={e => setForm({...form, discountValue: e.target.value})} placeholder="Value" style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Discount Type</label>
-                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }}>
-                  <option value="Percentage">Percentage (%)</option>
-                  <option value="Fixed">Fixed Amount (GH₵)</option>
-                  <option value="Shipping">Free Shipping</option>
-                </select>
-              </div>
-            </div>
+          <Link
+            href="/vendor/promotions/coupons"
+            style={{
+              padding: '10px 18px',
+              borderRadius: 10,
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+            Create Coupon Code
+          </Link>
+        </div>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Usage Limit</label>
-                <input type="number" value={form.limit} onChange={e => setForm({...form, limit: e.target.value})} placeholder="Uses" style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', fontWeight: 500 }}>Expiry Date</label>
-                <input type="date" value={form.expiresAt} onChange={e => setForm({...form, expiresAt: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--surface-container)', border: '1px solid var(--outline)', color: 'var(--on-surface)', outline: 'none' }} />
-              </div>
-            </div>
+        {/* Quick Campaign Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 24 }}>
+          <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: 20, borderRadius: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: '#166534' }}>ACTIVE COUPONS</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#15803d', marginTop: 4 }}>{coupons.length} Promo Codes</div>
+            <div style={{ fontSize: 12, color: '#166534', marginTop: 4 }}>Total Redemptions: 60</div>
+          </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--outline)', background: 'transparent', color: 'var(--on-surface)', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button onClick={handleCreate} style={{ flex: 1, padding: '12px', borderRadius: '10px', backgroundColor: '#00e5ff', color: 'black', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Create Coupon</button>
-            </div>
+          <div style={{ backgroundColor: '#fef3c7', border: '1px solid #fde68a', padding: 20, borderRadius: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: '#92400e' }}>SCHEDULED FLASH SALES</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#b45309', marginTop: 4 }}>{flashSales.length} Events</div>
+            <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}>Upcoming weekend sale</div>
           </div>
         </div>
-      )}
-      <div style={{ backgroundColor: 'var(--surface)', borderRadius: '16px', border: '1px solid var(--outline)', overflow: 'hidden' }}>
-        <table className="responsive-table">
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--outline)', color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Code</th>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Discount</th>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Uses</th>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Status</th>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Expires</th>
-              <th style={{ padding: '14px 24px', fontWeight: 500 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {promos.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--on-surface-variant)' }}>No promotions yet.</td></tr>
-            ) : promos.map((p, idx) => (
-              <tr key={p._id} style={{ borderBottom: idx !== promos.length - 1 ? '1px solid var(--outline-variant)' : 'none' }}>
-                <td data-label="Code" style={{ padding: '16px 24px', fontWeight: 600, fontFamily: 'monospace' }}>{p.code}</td>
-                <td data-label="Discount" style={{ padding: '16px 24px', fontWeight: 600, color: '#00e5ff' }}>
-                  {p.type === 'Percentage' ? `${p.discountValue}%` : p.type === 'Fixed' ? `GH₵${p.discountValue}` : 'Free Shipping'}
-                </td>
-                <td data-label="Uses" style={{ padding: '16px 24px' }}>{p.uses}/{p.limit}</td>
-                <td data-label="Status" style={{ padding: '16px 24px' }}>
-                  <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600, backgroundColor: `color-mix(in srgb, ${p.status === 'Active' ? 'var(--lime-400)' : 'var(--error)'} 20%, transparent)`, color: p.status === 'Active' ? 'var(--lime-400)' : 'var(--error)' }}>{p.status}</span>
-                </td>
-                <td data-label="Expires" style={{ padding: '16px 24px', fontSize: '0.9rem', color: 'var(--on-surface-variant)' }}>{new Date(p.expiresAt).toLocaleDateString()}</td>
-                <td data-label="Actions" style={{ padding: '16px 24px' }}>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => handleDelete(p._id)} style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'color-mix(in srgb, var(--error) 15%, transparent)', color: 'var(--error)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span></button>
-                  </div>
-                </td>
+
+        {/* Active Campaigns Table */}
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 14px' }}>Active Promotional Coupons</h3>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#10b981' }}>Loading promotions...</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', textAlign: 'left', fontWeight: 700 }}>
+                <th style={{ padding: '10px 8px' }}>Coupon Code</th>
+                <th style={{ padding: '10px 8px' }}>Discount Value</th>
+                <th style={{ padding: '10px 8px' }}>Min Order Spend</th>
+                <th style={{ padding: '10px 8px' }}>Redemptions</th>
+                <th style={{ padding: '10px 8px' }}>Expiry Date</th>
+                <th style={{ padding: '10px 8px' }}>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {coupons.map(c => (
+                <tr key={c.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                  <td style={{ padding: '10px 8px', fontWeight: 900, color: '#0f172a' }}>🎟️ {c.code}</td>
+                  <td style={{ padding: '10px 8px', fontWeight: 900, color: '#10b981' }}>
+                    {c.type === 'Percentage' ? `${c.value}% OFF` : `GH₵ ${c.value.toFixed(2)} OFF`}
+                  </td>
+                  <td style={{ padding: '10px 8px', fontWeight: 700 }}>GH₵ {c.minSpend.toFixed(2)}</td>
+                  <td style={{ padding: '10px 8px', fontWeight: 800 }}>{c.usedCount} / {c.usageLimit}</td>
+                  <td style={{ padding: '10px 8px', color: '#64748b' }}>{c.expiryDate}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: 6 }}>
+                      {c.status.toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
+
     </div>
   );
 }

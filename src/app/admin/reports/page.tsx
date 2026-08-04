@@ -194,7 +194,7 @@ export default function AdminReportsAnalyticsPage() {
               <div style={boxStyle}>
                 <h3 style={boxTitleStyle}>Revenue Forecast vs Historical Actuals</h3>
                 <div style={{ width: '100%', height: 260, display: 'flex', alignItems: 'flex-end', gap: 16, paddingTop: 20 }}>
-                  {data.revenueForecasting?.historicalVsForecast.map((item: any, i: number) => {
+                  {(data.revenueForecasting?.historicalVsForecast ?? []).map((item: any, i: number) => {
                     const maxVal = 40000;
                     const actPct = item.actual ? (item.actual / maxVal) * 100 : 0;
                     const fctPct = (item.forecast / maxVal) * 100;

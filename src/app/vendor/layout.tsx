@@ -1,576 +1,387 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, useStore } from '@/context/AppContext';
+import AdminHeaderSearch from '@/components/AdminHeaderSearch';
+import VendorHeaderNotifications from '@/components/VendorHeaderNotifications';
 
-interface VendorNavSubItem {
-  name: string;
-  path: string;
+interface VendorNavGroup {
+  group: string;
+  items: {
+    title: string;
+    icon: string;
+    path: string;
+    badge?: string;
+  }[];
 }
 
-interface VendorNavSection {
-  title: string;
-  icon: string;
-  path?: string;
-  subItems?: VendorNavSubItem[];
-}
-
-const vendorNavSections: VendorNavSection[] = [
-  { title: 'Dashboard', icon: 'grid_view', path: '/vendor' },
+const VENDOR_NAV_GROUPS: VendorNavGroup[] = [
   {
-    title: 'Products & Catalog',
-    icon: 'inventory_2',
-    path: '/vendor/products',
-    subItems: [
-      { name: 'All Products', path: '/vendor/products' },
-      { name: 'Add Product', path: '/vendor/products' },
-      { name: 'Stock & Inventory', path: '/vendor/products' },
+    group: 'SALES',
+    items: [
+      { title: 'POS', icon: 'point_of_sale', path: '/vendor/pos' },
+      { title: 'Orders', icon: 'shopping_bag', path: '/vendor/orders' },
+      { title: 'Returns', icon: 'replay', path: '/vendor/returns' },
     ],
   },
   {
-    title: 'Orders & Sales',
-    icon: 'shopping_bag',
-    path: '/vendor/orders',
-    subItems: [
-      { name: 'All Orders', path: '/vendor/orders' },
-      { name: 'Pending Orders', path: '/vendor/orders' },
-      { name: 'Processing', path: '/vendor/orders' },
-      { name: 'Ready for Pickup', path: '/vendor/orders' },
-      { name: 'Delivered', path: '/vendor/orders' },
+    group: 'CATALOG',
+    items: [
+      { title: 'Products', icon: 'inventory_2', path: '/vendor/products' },
+      { title: 'Categories', icon: 'category', path: '/vendor/categories' },
+      { title: 'Brands', icon: 'branding_watermark', path: '/vendor/brands' },
     ],
   },
-  { title: 'Customers', icon: 'group', path: '/vendor/customers' },
   {
-    title: 'Earnings & Payouts',
-    icon: 'account_balance_wallet',
-    path: '/vendor/payouts',
-    subItems: [
-      { name: 'Payout History', path: '/vendor/payouts' },
-      { name: 'Request Payout', path: '/vendor/payouts' },
-      { name: 'Bank & MoMo Setup', path: '/vendor/payouts' },
+    group: 'INVENTORY',
+    items: [
+      { title: 'Stock In', icon: 'move_to_inbox', path: '/vendor/inventory/stock-in' },
+      { title: 'Stock Out', icon: 'outbox', path: '/vendor/inventory/stock-out' },
+      { title: 'Transfers', icon: 'sync_alt', path: '/vendor/inventory/transfers' },
+      { title: 'Adjustments', icon: 'tune', path: '/vendor/inventory/adjustments' },
+      { title: 'Warehouses', icon: 'warehouse', path: '/vendor/inventory/warehouses' },
     ],
   },
-  { title: 'Analytics & Reports', icon: 'analytics', path: '/vendor/analytics' },
   {
-    title: 'Promotions & Ads',
-    icon: 'campaign',
-    path: '/vendor/promotions',
-    subItems: [
-      { name: 'Store Coupons', path: '/vendor/promotions' },
-      { name: 'Flash Sales', path: '/vendor/promotions' },
-      { name: 'Ad Campaigns', path: '/vendor/campaigns' },
+    group: 'CUSTOMERS',
+    items: [
+      { title: 'Customers', icon: 'group', path: '/vendor/customers' },
+      { title: 'Loyalty Points', icon: 'card_giftcard', path: '/vendor/loyalty' },
     ],
   },
-  { title: 'Consignment', icon: 'warehouse', path: '/vendor/consignment' },
-  { title: 'Staff & Team', icon: 'badge', path: '/vendor/staff' },
   {
-    title: 'Messages & Support',
-    icon: 'chat',
-    path: '/vendor/messages',
-    subItems: [
-      { name: 'Customer Chats', path: '/vendor/messages' },
-      { name: 'Admin Support', path: '/vendor/messages' },
+    group: 'FINANCE',
+    items: [
+      { title: 'Sales Analytics', icon: 'insights', path: '/vendor/analytics' },
+      { title: 'Expenses', icon: 'receipt_long', path: '/vendor/finance/expenses' },
+      { title: 'Payments & Payouts', icon: 'payments', path: '/vendor/payouts' },
     ],
   },
-  { title: 'Notifications', icon: 'notifications', path: '/vendor/settings?tab=notifications' },
   {
-    title: 'Store Settings',
-    icon: 'storefront',
-    path: '/vendor/settings?tab=store',
-    subItems: [
-      { name: 'Store Profile', path: '/vendor/settings?tab=store' },
-      { name: 'Logo & Banner', path: '/vendor/settings?tab=store' },
-      { name: 'Business Information', path: '/vendor/settings?tab=store' },
-      { name: 'Bank Details', path: '/vendor/payouts' },
-      { name: 'Delivery Locations', path: '/vendor/settings?tab=delivery' },
+    group: 'REPORTS',
+    items: [
+      { title: 'Reports', icon: 'assessment', path: '/vendor/reports' },
     ],
   },
-  { title: 'Subscription & Billing', icon: 'card_membership', path: '/vendor/billing' },
-  { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
+  {
+    group: 'SETTINGS',
+    items: [
+      { title: 'Store Settings', icon: 'settings', path: '/vendor/settings' },
+      { title: 'Users & Cashiers', icon: 'badge', path: '/vendor/staff' },
+      { title: 'Payment Methods', icon: 'credit_card', path: '/vendor/settings/payments' },
+      { title: 'Taxes & Charges', icon: 'request_quote', path: '/vendor/settings/taxes' },
+    ],
+  },
 ];
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
-  const { allProducts, vendorStore, vendorStoreLoading, vendorStoreError, refreshVendorStore } = useStore();
+  const { vendorStore, vendorStoreLoading } = useStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState('Fresh Mart - Main Branch');
 
-  const [expandedVendorSections, setExpandedVendorSections] = useState<Record<string, boolean>>({});
-
+  // Auth Guard
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        router.replace('/');
+        router.replace('/login');
       } else if (user.role !== 'vendor' && user.role !== 'super_admin') {
         router.replace('/');
       }
     }
   }, [user, isLoading, router]);
 
-
-  const isOnboardingRoute = pathname?.startsWith('/vendor/onboarding');
-  useEffect(() => {
-    const cachedStore = typeof window !== 'undefined' ? localStorage.getItem('africart-vendor-store') : null;
-    const hasStore = !!(vendorStore || cachedStore);
-
-    if (
-      !isLoading &&
-      !vendorStoreLoading &&
-      !vendorStoreError &&
-      user &&
-      (user.role === 'vendor' || user.role === 'super_admin') &&
-      !isOnboardingRoute &&
-      !hasStore
-    ) {
-      router.push('/vendor/onboarding');
-    }
-  }, [isLoading, vendorStoreLoading, vendorStoreError, user, vendorStore, isOnboardingRoute, router]);
-
-  useEffect(() => {
-    vendorNavSections.forEach((sec) => {
-      if (sec.path && pathname?.startsWith(sec.path) && sec.path !== '/vendor') {
-        setExpandedVendorSections((prev) => ({ ...prev, [sec.title]: true }));
-      }
-    });
-  }, [pathname]);
-
   if (isLoading || !user || (user.role !== 'vendor' && user.role !== 'super_admin')) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
-        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#0f172a' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid #10b981', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: 13, color: '#15803d', fontWeight: 600 }}>Loading Vendor Dashboard...</span>
+        </div>
       </div>
     );
   }
 
-  if (isOnboardingRoute) {
-    return <>{children}</>;
-  }
-
-  if (vendorStoreLoading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--background)' }}>
-        <div className="animate-pulse-glow" style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-      </div>
-    );
-  }
-
-  const storeName = vendorStore?.name || "Ree's Store";
-  const storeInitials = storeName.substring(0, 2).toUpperCase();
-  const vendorEmail = vendorStore?.vendorEmail || user.email;
-  const lowStockAlerts = allProducts.filter(p => p.vendorEmail === vendorEmail && (p.stock || 0) <= 5);
-
-  interface VendorNavSubItem {
-    name: string;
-    path: string;
-  }
-
-  interface VendorNavSection {
-    title: string;
-    icon: string;
-    path?: string;
-    badge?: string;
-    subItems?: VendorNavSubItem[];
-  }
-
-  const vendorNavSections: VendorNavSection[] = [
-    { title: 'Dashboard', icon: 'grid_view', path: '/vendor' },
-    {
-      title: 'Orders',
-      icon: 'shopping_bag',
-      path: '/vendor/orders',
-      subItems: [
-        { name: 'New Orders', path: '/vendor/orders' },
-        { name: 'Processing', path: '/vendor/orders' },
-        { name: 'Ready for Pickup', path: '/vendor/orders' },
-        { name: 'Picked Up', path: '/vendor/orders' },
-        { name: 'Delivered', path: '/vendor/orders' },
-        { name: 'Cancelled', path: '/vendor/orders' },
-        { name: 'Returns', path: '/vendor/orders' },
-      ],
-    },
-    {
-      title: 'Products',
-      icon: 'inventory_2',
-      path: '/vendor/products',
-      subItems: [
-        { name: 'All Products', path: '/vendor/products' },
-        { name: 'Add Product', path: '/vendor/products' },
-        { name: 'Draft Products', path: '/vendor/products' },
-        { name: 'Inventory', path: '/vendor/products' },
-        { name: 'Categories', path: '/vendor/products' },
-        { name: 'Product Reviews', path: '/vendor/products' },
-      ],
-    },
-    { title: 'Customers', icon: 'people', path: '/vendor/customers' },
-    {
-      title: 'Sales & Analytics',
-      icon: 'analytics',
-      path: '/vendor/analytics',
-      subItems: [
-        { name: 'Sales Reports', path: '/vendor/analytics' },
-        { name: 'Best Selling Products', path: '/vendor/analytics' },
-        { name: 'Revenue Overview', path: '/vendor/analytics' },
-      ],
-    },
-    {
-      title: 'Finance & Payouts',
-      icon: 'account_balance_wallet',
-      path: '/vendor/payouts',
-      subItems: [
-        { name: 'Wallet & Balance', path: '/vendor/payouts' },
-        { name: 'Withdraw Earnings', path: '/vendor/payouts' },
-        { name: 'Transactions', path: '/vendor/payouts' },
-        { name: 'Payout History', path: '/vendor/payouts' },
-      ],
-    },
-    { title: 'Billing & Plans', icon: 'credit_card', path: '/vendor/billing' },
-    {
-      title: 'Shipping & Delivery',
-      icon: 'local_shipping',
-      path: '/vendor/settings?tab=delivery',
-      subItems: [
-        { name: 'Shipping Settings', path: '/vendor/settings?tab=delivery' },
-        { name: 'Pickup Address', path: '/vendor/settings?tab=delivery' },
-      ],
-    },
-    {
-      title: 'Marketing & Promos',
-      icon: 'campaign',
-      path: '/vendor/promotions',
-      subItems: [
-        { name: 'Discounts & Coupons', path: '/vendor/promotions' },
-        { name: 'Ad Campaigns', path: '/vendor/campaigns' },
-      ],
-    },
-    { title: 'Consignment', icon: 'warehouse', path: '/vendor/consignment' },
-    { title: 'Staff & Team', icon: 'badge', path: '/vendor/staff' },
-    {
-      title: 'Messages & Support',
-      icon: 'chat',
-      path: '/vendor/messages',
-      subItems: [
-        { name: 'Customer Chats', path: '/vendor/messages' },
-        { name: 'Admin Support', path: '/vendor/messages' },
-      ],
-    },
-    { title: 'Notifications', icon: 'notifications', path: '/vendor/settings?tab=notifications' },
-    {
-      title: 'Store Settings',
-      icon: 'storefront',
-      path: '/vendor/settings?tab=store',
-      subItems: [
-        { name: 'Store Profile', path: '/vendor/settings?tab=store' },
-        { name: 'Logo & Banner', path: '/vendor/settings?tab=store' },
-        { name: 'Business Information', path: '/vendor/settings?tab=store' },
-        { name: 'Bank Details', path: '/vendor/payouts' },
-        { name: 'Delivery Locations', path: '/vendor/settings?tab=delivery' },
-      ],
-    },
-    { title: 'Account & Verification', icon: 'verified', path: '/vendor/settings?tab=verification' },
-  ];
-
-  const toggleVendorSection = (title: string) => {
-    setExpandedVendorSections((prev) => ({ ...prev, [title]: !prev[title] }));
-  };
+  const storeName = vendorStore?.name || user.name || "Fresh Mart";
+  const userDisplayName = user.name || storeName || "Kofi Mensah";
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--background)', color: 'var(--on-surface)', fontFamily: 'var(--font-inter)', width: '100%', overflowX: 'hidden' }}>
-      {/* Mobile Drawer Backdrop */}
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', color: '#1e293b', fontFamily: 'var(--font-inter, sans-serif)' }}>
+      
+      {/* Mobile Drawer Overlay */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 40 }}
+          className="md:hidden"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', zIndex: 40 }}
         />
       )}
 
-      {/* Dark Forest Green Sidebar */}
-      <aside style={{
-        position: 'fixed', top: 0, bottom: 0, left: 0, width: '260px',
-        backgroundColor: '#062C1A', color: '#FFFFFF',
-        display: 'flex', flexDirection: 'column', zIndex: 50,
-        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
-        overflowY: 'auto',
-      }} className="md:translate-x-0">
-        {/* Brand Header */}
-        <div style={{ padding: '24px 20px 16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
-              <Image src="/icon.svg" alt="AfriCart Logo" width={40} height={40} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
+      {/* Left Sidebar Navigation matching reference image */}
+      <aside
+        style={{
+          width: '260px',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid #e2e8f0',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 50,
+          transition: 'transform 0.25s ease',
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+        }}
+        className="md:translate-x-0"
+      >
+        {/* Top Header Logo Box matching spec screenshot */}
+        <div style={{ backgroundColor: '#0B3B24', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M 38,15 C 48,13 62,11 72,18 C 76,21 75,27 79,31 C 82,34 86,36 86,41 C 86,47 80,51 77,55 C 73,60 70,66 65,72 C 60,78 57,85 52,91 C 51,93 49,93 48,91 C 45,84 44,77 42,71 C 40,66 38,62 33,59 C 28,56 22,55 18,50 C 13,44 11,36 15,29 C 18,22 27,17 38,15 Z"
+                stroke="#c3f400"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path d="M 33,40 L 39,46 L 68,46" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 39,46 L 43,62 L 63,62 L 68,46 Z" fill="rgba(255, 255, 255, 0.2)" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="43" cy="74" r="5" fill="#c3f400" />
+              <circle cx="59" cy="74" r="5" fill="#c3f400" />
+            </svg>
             <div>
-              <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                <span style={{ color: '#A3E635' }}>Afri</span><span style={{ color: '#FFFFFF' }}>Cart</span>
+              <div style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontWeight: 900, fontSize: '1.25rem', color: '#ffffff', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                <span style={{ color: '#c3f400' }}>Afri</span>
+                <span style={{ color: '#ffffff' }}>Cart</span>
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#88D1A3', fontWeight: 500 }}>Vendor</div>
+              <div style={{ fontSize: '0.68rem', color: '#a3e635', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 2 }}>
+                Vendor Panel
+              </div>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
             className="md:hidden"
-            style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '50%', width: '32px', height: '32px', border: 'none', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 4 }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
           </button>
         </div>
 
-        {/* Store Profile Card */}
-        <div style={{ padding: '0 16px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ padding: '14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: '#0B3B24', border: '2px solid #10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10B981', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
-              {storeInitials}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#FFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{storeName}</div>
-              <div style={{ marginTop: '2px' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#10B981', backgroundColor: 'rgba(16,185,129,0.18)', padding: '2px 8px', borderRadius: '100px' }}>
-                  Premium Vendor
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation items */}
-        <nav style={{ flex: 1, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {vendorNavSections.map((sec) => {
-            const hasSub = sec.subItems && sec.subItems.length > 0;
-            const isExpanded = !!expandedVendorSections[sec.title];
-            const isActive = sec.path === '/vendor'
-              ? pathname === '/vendor'
-              : sec.path && pathname?.startsWith(sec.path);
-
-            if (!hasSub) {
-              return (
-                <Link
-                  key={sec.title}
-                  href={sec.path || '/vendor'}
-                  onClick={() => setSidebarOpen(false)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    color: isActive ? '#FFFFFF' : '#88D1A3',
-                    backgroundColor: isActive ? '#10B981' : 'transparent',
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: '0.88rem',
-                    textDecoration: 'none',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#FFF' : '#65B883' }}>{sec.icon}</span>
-                    <span>{sec.title}</span>
-                  </div>
-                </Link>
-              );
-            }
-
-            return (
-              <div key={sec.title} style={{ display: 'flex', flexDirection: 'column' }}>
-                <button
-                  onClick={() => toggleVendorSection(sec.title)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    color: isActive ? '#FFFFFF' : '#88D1A3',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: '0.88rem',
-                    width: '100%',
-                    textAlign: 'left',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isActive ? '#10B981' : '#65B883' }}>{sec.icon}</span>
-                    <span>{sec.title}</span>
-                  </div>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#65B883', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-                    expand_more
-                  </span>
-                </button>
-
-                {isExpanded && (
-                  <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '24px', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginTop: '2px', marginBottom: '4px', gap: '2px' }}>
-                    {sec.subItems!.map((sub, idx) => (
-                      <Link
-                        key={idx}
-                        href={sub.path}
-                        onClick={() => setSidebarOpen(false)}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: '8px',
-                          color: '#A3E635',
-                          fontSize: '0.8rem',
-                          textDecoration: 'none',
-                          fontWeight: 400,
-                          transition: 'color 0.15s ease',
-                        }}
-                      >
-                        {sub.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-
-        {/* Footer Actions: View storefront & Logout */}
-        <div style={{ padding: '16px 14px 24px 14px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* View Marketplace Link */}
+        <div style={{ padding: '12px 14px 4px 14px' }}>
           <Link
             href="/"
             onClick={() => setSidebarOpen(false)}
             style={{
-              width: '100%',
               display: 'flex',
               alignItems: 'center',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              color: '#FFFFFF',
-              backgroundColor: 'rgba(255,255,255,0.08)',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '9px 14px',
+              borderRadius: 10,
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '0.82rem',
               textDecoration: 'none',
-              boxSizing: 'border-box',
-              transition: 'background-color 0.2s ease',
+              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+              transition: 'all 0.15s ease',
             }}
           >
-            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px', color: '#A3E635' }}>storefront</span>
-            <span>View storefront</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>storefront</span>
+            <span>View Marketplace</span>
           </Link>
-          <button
-            onClick={() => { logout(); window.location.href = '/'; }}
+        </div>
+
+        {/* Dashboard Main Link */}
+        <div style={{ padding: '4px 14px 0' }}>
+          <Link
+            href="/vendor"
+            onClick={() => setSidebarOpen(false)}
             style={{
-              width: '100%',
               display: 'flex',
               alignItems: 'center',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              color: '#FF6B6B',
-              backgroundColor: 'rgba(255,107,107,0.08)',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              boxSizing: 'border-box',
+              gap: 12,
+              padding: '10px 14px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              fontSize: '0.85rem',
+              fontWeight: pathname === '/vendor' ? 700 : 500,
+              color: pathname === '/vendor' ? '#15803d' : '#475569',
+              backgroundColor: pathname === '/vendor' ? '#dcfce7' : 'transparent',
+              transition: 'all 0.15s ease',
             }}
           >
-            <span className="material-symbols-outlined" style={{ marginRight: '14px', fontSize: '20px' }}>logout</span>
-            <span>Logout</span>
-          </button>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: pathname === '/vendor' ? '#16a34a' : '#64748b' }}>
+              space_dashboard
+            </span>
+            <span>Dashboard</span>
+          </Link>
+        </div>
+
+        {/* Nav Groups Scrollable List matching reference screenshot */}
+        <nav style={{ flex: 1, padding: '12px 14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {VENDOR_NAV_GROUPS.map((group) => (
+            <div key={group.group}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', letterSpacing: '0.08em', marginBottom: 6, paddingLeft: 10, textTransform: 'uppercase' }}>
+                {group.group}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {group.items.map((item) => {
+                  const isActive = pathname?.startsWith(item.path);
+                  return (
+                    <Link
+                      key={item.title}
+                      href={item.path}
+                      onClick={() => setSidebarOpen(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        textDecoration: 'none',
+                        fontSize: '0.82rem',
+                        fontWeight: isActive ? 700 : 500,
+                        color: isActive ? '#15803d' : '#475569',
+                        backgroundColor: isActive ? '#ecfdf5' : 'transparent',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span
+                        className="material-symbols-outlined"
+                        style={{ fontSize: 18, color: isActive ? '#16a34a' : '#64748b' }}
+                      >
+                        {item.icon}
+                      </span>
+                      <span>{item.title}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer Profile Section */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+              <div style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: '#0B3B24', color: '#10b981', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, border: '1px solid #10b981', flexShrink: 0 }}>
+                {userDisplayName.substring(0, 2).toUpperCase()}
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {userDisplayName}
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  Vendor Account
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => { logout(); window.location.href = '/'; }}
+              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: 4 }}
+              title="Logout"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Viewport Container */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, marginLeft: '0px' }} className="md:ml-[260px]">
-        {/* Header Bar matching Vendor mobile spec */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }} className="md:ml-[260px]">
+        
+        {/* Top Header Bar matching screenshot */}
         <header style={{
           height: '64px',
-          backgroundColor: 'var(--surface)',
-          borderBottom: '1px solid var(--outline)',
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 16px',
+          padding: '0 24px',
           position: 'sticky',
           top: 0,
           zIndex: 30,
         }}>
-          {/* Left: Hamburger + Store Name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+          {/* Left: Mobile Toggle & Page Identifier */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => setSidebarOpen(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--on-surface)', cursor: 'pointer', display: 'flex', padding: '4px', flexShrink: 0 }}
+              className="md:hidden"
+              style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', display: 'flex', padding: 4 }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>menu</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>menu</span>
             </button>
-            <div style={{ fontFamily: 'var(--font-lexend)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--on-surface)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {storeName}
-            </div>
           </div>
 
-          {/* Right: Search + Notification + Avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <button style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer', display: 'flex', padding: '4px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>search</span>
-            </button>
-            <button style={{ background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer', display: 'flex', padding: '4px', position: 'relative' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>notifications</span>
-              {lowStockAlerts.length > 0 && (
-                <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', backgroundColor: 'var(--error)', borderRadius: '50%' }} />
-              )}
-            </button>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#0B3B24', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem', border: '2px solid #10B981', flexShrink: 0 }}>
-              {storeInitials}
+          {/* Right Header Controls: Branch Selector + Search + Notifications + Profile Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Branch / Store Selector Dropdown */}
+            <div style={{ position: 'relative' }} className="hidden sm:flex">
+              <select
+                value={selectedBranch}
+                onChange={e => setSelectedBranch(e.target.value)}
+                style={{
+                  padding: '6px 32px 6px 36px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#0f172a',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                }}
+              >
+                <option value="Fresh Mart - Main Branch">{storeName} - Main Branch</option>
+                <option value="Fresh Mart - Osu Branch">{storeName} - Osu Branch</option>
+                <option value="Fresh Mart - East Legon Branch">{storeName} - East Legon Branch</option>
+              </select>
+              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: 7, fontSize: 18, color: '#10b981', pointerEvents: 'none' }}>
+                store
+              </span>
+              <span className="material-symbols-outlined" style={{ position: 'absolute', right: 10, top: 7, fontSize: 16, color: '#94a3b8', pointerEvents: 'none' }}>
+                expand_more
+              </span>
+            </div>
+
+            {/* Interactive Predictive Search */}
+            <AdminHeaderSearch />
+
+            {/* Corner Notification Popover */}
+            <VendorHeaderNotifications />
+
+            {/* Header User Avatar Dropdown matching screenshot */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} className="hidden sm:flex">
+              <div style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: '#0B3B24', color: '#10b981', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, border: '2px solid #10b981' }}>
+                {userDisplayName.substring(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.1 }}>{userDisplayName}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>Vendor</div>
+              </div>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#94a3b8' }}>expand_more</span>
             </div>
           </div>
         </header>
 
-        {/* Dashboard Main Content */}
-        <main style={{ flex: 1, padding: '16px', paddingBottom: '84px', overflowY: 'auto', width: '100%' }}>
+        {/* Dashboard Main Content Area */}
+        <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           {children}
         </main>
-
-        {/* Mobile Bottom Navigation Bar */}
-        <nav className="md:hidden" style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '60px',
-          backgroundColor: 'var(--surface)',
-          borderTop: '1px solid var(--outline)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-around',
-          zIndex: 40,
-        }}>
-          {[
-            { name: 'Home', icon: 'home', path: '/vendor' },
-            { name: 'Orders', icon: 'shopping_bag', path: '/vendor/orders' },
-            { name: 'Products', icon: 'inventory_2', path: '/vendor/products' },
-            { name: 'More', icon: 'more_horiz', path: '/vendor/settings' },
-          ].map(tab => {
-            const isActive = pathname === tab.path;
-            return (
-              <Link
-                key={tab.name}
-                href={tab.path}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '2px',
-                  color: isActive ? '#10B981' : 'var(--on-surface-variant)',
-                  textDecoration: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: isActive ? 700 : 500,
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>{tab.icon}</span>
-                <span>{tab.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
       </div>
+
     </div>
   );
 }

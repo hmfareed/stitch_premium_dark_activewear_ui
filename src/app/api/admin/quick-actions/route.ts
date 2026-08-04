@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { User } from '@/models/User';
 import { Store } from '@/models/Store';
 import { VendorApplication } from '@/models/VendorApplication';
+import { Order } from '@/models/Order';
 
 export async function POST(req: NextRequest) {
   try {
@@ -128,8 +129,18 @@ export async function POST(req: NextRequest) {
 
     // Action 5: Export CSV Report
     if (action === 'export_report') {
+      const [totalVendors, totalCustomers, allOrders] = await Promise.all([
+        User.countDocuments({ $or: [{ role: 'vendor' }, { roles: 'vendor' }] }),
+        User.countDocuments({ role: { $in: ['customer', undefined, ''] } }),
+        Order.find({}).lean(),
+      ]);
+
+      const totalOrdersCount = allOrders.length;
+      const validOrders = allOrders.filter(o => o.status !== 'Cancelled');
+      const grossSales = validOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
       const csvHeader = 'Report Name,Generated Date,Total Revenue (GHS),Total Orders,Total Vendors,Total Customers\n';
-      const csvData = `AfriCart System Executive Summary,${new Date().toISOString()},468360.80,4892,1256,8674\n`;
+      const csvData = `AfriCart System Executive Summary,${new Date().toISOString()},${grossSales.toFixed(2)},${totalOrdersCount},${totalVendors},${totalCustomers}\n`;
       const fullCsv = csvHeader + csvData;
 
       return NextResponse.json({

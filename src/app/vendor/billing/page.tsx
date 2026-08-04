@@ -1,208 +1,184 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth, useToast } from '@/context/AppContext';
 
 export default function VendorBillingPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
 
+  const [currentPlan, setCurrentPlan] = useState<any>(null);
+  const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [plans, setPlans] = useState<any[]>([]);
-  const [currentSub, setCurrentSub] = useState<any>(null);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('annual');
-  const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.email) {
-      fetchBillingData();
-    }
-  }, [user]);
+    fetchBilling();
+  }, []);
 
-  const fetchBillingData = async () => {
+  const fetchBilling = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor/billing/select-plan?vendorEmail=${encodeURIComponent(user?.email || '')}`);
+      const res = await fetch('/api/vendor/billing');
       const data = await res.json();
-      if (data.success) {
-        setPlans(data.plans || []);
-        setCurrentSub(data.currentSubscription);
+      if (res.ok) {
+        setCurrentPlan(data.currentPlan);
+        setUsage(data.usage);
       }
     } catch (err) {
-      console.error('Fetch billing data error:', err);
+      console.error('Failed to load billing:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectPlan = async (tier: string) => {
-    if (tier === 'trial') return;
-    setSubscribingTier(tier);
+  const handleToggleAutoRenew = async () => {
+    const newStatus = !currentPlan.autoRenew;
     try {
-      const res = await fetch('/api/vendor/billing/select-plan', {
+      const res = await fetch('/api/vendor/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorEmail: user?.email,
-          planTier: tier,
-          billingCycle,
-        }),
+        body: JSON.stringify({ action: 'toggle_auto_renew', autoRenew: newStatus }),
       });
-      const data = await res.json();
-      if (data.success && data.authorization_url) {
-        showToast('Redirecting to Paystack checkout...', 'info');
-        window.location.href = data.authorization_url;
-      } else {
-        showToast(data.error || 'Failed to initialize plan payment', 'error');
+
+      if (res.ok) {
+        setCurrentPlan((prev: any) => ({ ...prev, autoRenew: newStatus }));
+        showToast(`Auto-renewal ${newStatus ? 'enabled' : 'disabled'}!`, 'success');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Error processing plan selection', 'error');
-    } finally {
-      setSubscribingTier(null);
+    } catch (err) {
+      console.error('Error toggling auto-renew:', err);
     }
   };
 
-  if (loading) {
-    return <div style={{ color: '#888', padding: 24 }}>Loading subscription & billing details...</div>;
-  }
+  if (!user) return null;
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24, textAlign: 'center' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900, color: '#fff', margin: 0, fontFamily: 'var(--font-lexend, sans-serif)' }}>
-          Subscription & Store Monetization
-        </h1>
-        <p style={{ fontSize: 14, color: '#888', marginTop: 6 }}>
-          0% Platform Commission across all tiers. Choose the plan that best fits your business growth.
-        </p>
-
-        {/* Monthly vs Annual Toggle */}
-        <div style={{ display: 'inline-flex', background: '#0d0f0b', padding: 4, borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', marginTop: 16 }}>
-          <button
-            onClick={() => setBillingCycle('monthly')}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', maxWidth: 1400, margin: '0 auto' }}>
+      
+      {/* Module 17 Sub-Navigation Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, overflowX: 'auto' }}>
+        {[
+          { label: 'Current Plan', path: '/vendor/billing', active: true, icon: 'workspace_premium' },
+          { label: 'Upgrade Plan', path: '/vendor/billing/upgrade', active: false, icon: 'rocket_launch' },
+          { label: 'Billing History', path: '/vendor/billing/history', active: false, icon: 'history' },
+          { label: 'Invoices', path: '/vendor/billing/invoices', active: false, icon: 'receipt' },
+          { label: 'Usage Quotas', path: '/vendor/billing/usage', active: false, icon: 'data_usage' },
+        ].map(tab => (
+          <Link
+            key={tab.label}
+            href={tab.path}
             style={{
-              padding: '8px 20px',
-              borderRadius: 8,
-              border: 'none',
-              background: billingCycle === 'monthly' ? '#c3f400' : 'transparent',
-              color: billingCycle === 'monthly' ? '#000' : '#aaa',
-              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 10,
+              textDecoration: 'none',
               fontSize: 13,
-              cursor: 'pointer',
+              fontWeight: tab.active ? 800 : 600,
+              color: tab.active ? '#ffffff' : '#475569',
+              backgroundColor: tab.active ? '#10b981' : '#ffffff',
+              border: '1px solid #e2e8f0',
+              whiteSpace: 'nowrap',
             }}
           >
-            Monthly Billing
-          </button>
-          <button
-            onClick={() => setBillingCycle('annual')}
-            style={{
-              padding: '8px 20px',
-              borderRadius: 8,
-              border: 'none',
-              background: billingCycle === 'annual' ? '#c3f400' : 'transparent',
-              color: billingCycle === 'annual' ? '#000' : '#aaa',
-              fontWeight: 800,
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            Annual Billing <span style={{ fontSize: 10, color: billingCycle === 'annual' ? '#000' : '#c3f400', fontWeight: 900 }}>(Save ~25%)</span>
-          </button>
-        </div>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </Link>
+        ))}
       </div>
 
-      {/* Current Subscription Banner */}
-      {currentSub && (
-        <div style={{ background: 'rgba(195,244,0,0.08)', border: '1px solid rgba(195,244,0,0.3)', borderRadius: 16, padding: 20, marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Main Current Plan Card */}
+      <div style={{ backgroundColor: '#ffffff', borderRadius: 18, border: '1px solid #e2e8f0', padding: 28, boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#c3f400', textTransform: 'uppercase' }}>Active Subscription</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', marginTop: 2 }}>{currentSub.planName} Tier</div>
-            <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
-              Expires on {new Date(currentSub.endDate).toLocaleDateString('en-GB')} ({currentSub.daysRemaining} days remaining)
-            </div>
+            <h2 style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+              Subscription Plan & Billing Overview
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4, margin: 0 }}>
+              Manage active store tier, auto-renewal preferences, resource quotas, and tax invoices.
+            </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ padding: '6px 14px', borderRadius: 20, background: '#c3f400', color: '#000', fontWeight: 900, fontSize: 12, textTransform: 'uppercase' }}>
-              {currentSub.status}
-            </span>
-          </div>
+
+          <Link
+            href="/vendor/billing/upgrade"
+            style={{
+              padding: '10px 18px',
+              borderRadius: 10,
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 13,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>rocket_launch</span>
+            Upgrade Tier Plan
+          </Link>
         </div>
-      )}
 
-      {/* Plan Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
-        {plans.map((p) => {
-          const isCurrent = currentSub?.planTier === p.tier;
-          const price = billingCycle === 'monthly' ? p.monthlyPrice : p.annualPrice;
-
-          return (
-            <div
-              key={p.tier}
-              style={{
-                background: '#0d0f0b',
-                border: isCurrent ? '2px solid #c3f400' : '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 16,
-                padding: 24,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                position: 'relative',
-              }}
-            >
-              {isCurrent && (
-                <div style={{ position: 'absolute', top: -12, right: 16, background: '#c3f400', color: '#000', fontSize: 10, fontWeight: 900, padding: '2px 10px', borderRadius: 10, textTransform: 'uppercase' }}>
-                  Current Plan
-                </div>
-              )}
-
+        {loading || !currentPlan ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#10b981', fontWeight: 700 }}>Loading subscription details...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
+            {/* Active Plan Banner */}
+            <div style={{ backgroundColor: '#061d13', borderRadius: 18, padding: 24, color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0, textTransform: 'uppercase' }}>{p.name}</h3>
-                
-                <div style={{ margin: '16px 0 12px' }}>
-                  <span style={{ fontSize: 32, fontWeight: 900, color: '#c3f400' }}>
-                    GH₵{price}
-                  </span>
-                  <span style={{ fontSize: 12, color: '#888' }}>
-                    /{billingCycle === 'monthly' ? 'mo' : 'yr'}
-                  </span>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#a3e635' }}>ACTIVE SUBSCRIPTION TIER</div>
+                <div style={{ fontFamily: 'var(--font-lexend, sans-serif)', fontSize: '1.8rem', fontWeight: 900, marginTop: 2 }}>
+                  {currentPlan.name}
                 </div>
-
-                <div style={{ fontSize: 12, color: '#ccc', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div>📦 Listings: <strong>{p.maxProducts === null ? 'Unlimited' : `${p.maxProducts} active`}</strong></div>
-                  <div>👤 Staff Seats: <strong>{p.maxStaff === null ? 'Unlimited' : p.maxStaff}</strong></div>
-                  <div>⚡ Commission: <strong>0% (Growth Phase)</strong></div>
-                  <div>🎨 Storefront: <strong>{p.features?.storefrontCustomization || 'Standard'}</strong></div>
+                <div style={{ fontSize: 13, color: '#cbd5e1', marginTop: 4 }}>
+                  GH₵ {currentPlan.price.toFixed(2)} / {currentPlan.interval} • Next Renewal Date: <strong>{currentPlan.nextBillingDate}</strong>
                 </div>
               </div>
 
-              <button
-                onClick={() => handleSelectPlan(p.tier)}
-                disabled={isCurrent || p.tier === 'trial' || subscribingTier === p.tier}
-                style={{
-                  marginTop: 24,
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: isCurrent ? 'rgba(255,255,255,0.1)' : '#c3f400',
-                  color: isCurrent ? '#888' : '#000',
-                  fontWeight: 900,
-                  fontSize: 13,
-                  cursor: isCurrent || p.tier === 'trial' ? 'default' : 'pointer',
-                }}
-              >
-                {isCurrent
-                  ? 'Active Plan'
-                  : p.tier === 'trial'
-                  ? 'Auto-Enrolled'
-                  : subscribingTier === p.tier
-                  ? 'Redirecting...'
-                  : `Select ${p.name}`}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.08)', padding: '10px 16px', borderRadius: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Auto-Renew</span>
+                <input
+                  type="checkbox"
+                  checked={currentPlan.autoRenew}
+                  onChange={handleToggleAutoRenew}
+                  style={{ width: 20, height: 20, accentColor: '#a3e635', cursor: 'pointer' }}
+                />
+              </div>
             </div>
-          );
-        })}
+
+            {/* Quick Quota Summary Grid */}
+            {usage && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                <div style={{ backgroundColor: '#f8fafc', padding: 18, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>CATALOG PRODUCTS LISTED</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', marginTop: 4 }}>
+                    {usage.products.current} / {usage.products.max}
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#f8fafc', padding: 18, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>STAFF ACCOUNTS SEATS</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#10b981', marginTop: 4 }}>
+                    {usage.staffSeats.current} / {usage.staffSeats.max} seats
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#f8fafc', padding: 18, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>POS REGISTERS ACTIVE</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#2563eb', marginTop: 4 }}>
+                    {usage.posRegisters.current} / {usage.posRegisters.max} registers
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
       </div>
+
     </div>
   );
 }

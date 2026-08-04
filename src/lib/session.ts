@@ -116,3 +116,14 @@ export async function destroyCurrentSession() {
     console.error('Error destroying session:', err);
   }
 }
+
+export async function getSession(reqHeaders?: Headers) {
+  const result = await getSessionFromRequest(reqHeaders);
+  if (!result) return null;
+  return {
+    userId: result.user._id.toString(),
+    sessionId: result.session.sessionId,
+    user: result.user,
+    session: result.session,
+  };
+}
